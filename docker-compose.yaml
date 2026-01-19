@@ -1,0 +1,112 @@
+services:
+  ldapwarden:
+    build: .
+    image: ldapwarden:latest
+    container_name: ldapwarden-app
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8000"
+      DATABASE_URL: "postgres://ldapwarden:ldapwarden@postgres:5432/ldapwarden?sslmode=disable"
+      REDIS_URL: "redis://redis:6379"
+      LDAP_URL: "ldap://openldap:389"
+      LDAP_BASE_DN: "dc=example,dc=org"
+      LDAP_BIND_DN: "cn=admin,dc=example,dc=org"
+      LDAP_BIND_PASS: "admin"
+      LDAP_USER_OU: "ou=People"
+      LDAP_GROUP_OU: "ou=Groups"
+      LDAP_SUDOERS_OU: "ou=sudoers"
+      LDAP_MIN_UID: "1000"
+      LDAP_MIN_GID: "1000"
+      LDAP_TLS_MODE: "none"
+      # LDAP_TLS_SKIP_VERIFY: "false"
+      SESSION_SECRET: "change-me-in-production-32bytes!"
+      SESSION_TTL: "24h"
+      LDAPWARDEN_ADMIN_GROUP: "admins"
+      LDAPWARDEN_ORGANIZATION: "Example Organization"
+      LDAPWARDEN_PUBLIC_URL: "http://localhost:8000"
+      LDAPWARDEN_MODULES: "users,groups,sudo,policies"
+      LDAPWARDEN_USERS_OBJECTS: "inetOrgPerson,posixAccount,ldapPublicKey,sambaSamAccount,shadowAccount"
+      LDAPWARDEN_GROUPS_OBJECTS: "posixGroup,sambaGroupMapping"
+      # Mail configuration (use host.docker.internal to reach host from container)
+      MAIL_HOST: "host.docker.internal"
+      MAIL_PORT: "1025"
+      MAIL_USER: ""
+      MAIL_PASSWORD: ""
+      MAIL_FROM: "noreply@example.org"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      openldap:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ldapwarden-postgres
+    environment:
+      POSTGRES_USER: ldapwarden
+      POSTGRES_PASSWORD: ldapwarden
+      POSTGRES_DB: ldapwarden
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ldapwarden"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ldapwarden-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: ldapwarden-openldap
+    environment:
+      LDAP_ORGANISATION: "Example Inc."
+      LDAP_DOMAIN: "example.org"
+      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_CONFIG_PASSWORD: "config"
+      LDAP_READONLY_USER: "false"
+      LDAP_TLS: "false"
+    ports:
+      - "389:389"
+      - "636:636"
+    volumes:
+      - openldap_data:/var/lib/ldap
+      - openldap_config:/etc/ldap/slapd.d
+      - ./ldap/schema/sudo.ldif:/container/service/slapd/assets/config/bootstrap/schema/sudo.ldif
+      - ./ldap/seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif
+    command: --copy-service
+
+  phpldapadmin:
+    image: osixia/phpldapadmin:0.9.0
+    container_name: ldapwarden-phpldapadmin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: openldap
+      PHPLDAPADMIN_HTTPS: "false"
+    ports:
+      - "8080:80"
+    depends_on:
+      - openldap
+
+volumes:
+  postgres_data:
+  redis_data:
+  openldap_data:
+  openldap_config:

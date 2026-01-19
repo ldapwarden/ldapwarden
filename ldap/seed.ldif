@@ -1,0 +1,253 @@
+# Organizational Units
+dn: ou=People,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+description: User accounts
+
+dn: ou=Groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+description: Group definitions
+
+dn: ou=sudoers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: sudoers
+description: Sudo role definitions
+
+dn: ou=policies,dc=example,dc=org
+objectClass: organizationalUnit
+ou: policies
+description: Password policies
+
+# Password Policies
+dn: cn=default,ou=policies,dc=example,dc=org
+objectClass: pwdPolicy
+objectClass: person
+objectClass: top
+cn: default
+sn: default
+description: Default password policy
+pwdAttribute: 2.5.4.35
+pwdMinAge: 0
+pwdMaxAge: 7776000
+pwdInHistory: 5
+pwdCheckQuality: 1
+pwdMinLength: 8
+pwdExpireWarning: 604800
+pwdGraceAuthNLimit: 3
+pwdLockout: TRUE
+pwdLockoutDuration: 1800
+pwdMaxFailure: 5
+pwdFailureCountInterval: 900
+pwdMustChange: FALSE
+pwdAllowUserChange: TRUE
+pwdSafeModify: FALSE
+
+dn: cn=strict,ou=policies,dc=example,dc=org
+objectClass: pwdPolicy
+objectClass: person
+objectClass: top
+cn: strict
+sn: strict
+description: Strict password policy for privileged accounts
+pwdAttribute: 2.5.4.35
+pwdMinAge: 86400
+pwdMaxAge: 2592000
+pwdInHistory: 10
+pwdCheckQuality: 2
+pwdMinLength: 12
+pwdExpireWarning: 1209600
+pwdGraceAuthNLimit: 0
+pwdLockout: TRUE
+pwdLockoutDuration: 3600
+pwdMaxFailure: 3
+pwdFailureCountInterval: 600
+pwdMustChange: TRUE
+pwdAllowUserChange: TRUE
+pwdSafeModify: TRUE
+
+# Groups
+dn: cn=admins,ou=Groups,dc=example,dc=org
+objectClass: posixGroup
+cn: admins
+gidNumber: 1000
+description: System administrators
+memberUid: admin
+memberUid: jdoe
+
+dn: cn=developers,ou=Groups,dc=example,dc=org
+objectClass: posixGroup
+cn: developers
+gidNumber: 1001
+description: Development team
+memberUid: jdoe
+memberUid: asmith
+memberUid: mjohnson
+
+dn: cn=readonly,ou=Groups,dc=example,dc=org
+objectClass: posixGroup
+cn: readonly
+gidNumber: 1002
+description: Read-only users
+memberUid: viewer
+
+# Users
+dn: uid=admin,ou=People,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: admin
+sn: Administrator
+givenName: System
+cn: System Administrator
+displayName: System Administrator
+uidNumber: 1000
+gidNumber: 1000
+userPassword: admin123
+loginShell: /bin/bash
+homeDirectory: /home/admin
+mail: admin@example.org
+telephoneNumber: +1-555-0100
+
+dn: uid=jdoe,ou=People,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: jdoe
+sn: Doe
+givenName: John
+cn: John Doe
+displayName: John Doe
+uidNumber: 1001
+gidNumber: 1001
+userPassword: password123
+loginShell: /bin/bash
+homeDirectory: /home/jdoe
+mail: john.doe@example.org
+telephoneNumber: +1-555-0101
+title: Senior Developer
+departmentNumber: Engineering
+
+dn: uid=asmith,ou=People,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: asmith
+sn: Smith
+givenName: Alice
+cn: Alice Smith
+displayName: Alice Smith
+uidNumber: 1002
+gidNumber: 1001
+userPassword: password123
+loginShell: /bin/bash
+homeDirectory: /home/asmith
+mail: alice.smith@example.org
+telephoneNumber: +1-555-0102
+title: Developer
+departmentNumber: Engineering
+
+dn: uid=mjohnson,ou=People,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: mjohnson
+sn: Johnson
+givenName: Mike
+cn: Mike Johnson
+displayName: Mike Johnson
+uidNumber: 1003
+gidNumber: 1001
+userPassword: password123
+loginShell: /bin/bash
+homeDirectory: /home/mjohnson
+mail: mike.johnson@example.org
+telephoneNumber: +1-555-0103
+title: Junior Developer
+departmentNumber: Engineering
+
+dn: uid=slee,ou=People,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: slee
+sn: Lee
+givenName: Sarah
+cn: Sarah Lee
+displayName: Sarah Lee
+uidNumber: 1004
+gidNumber: 1001
+userPassword: password123
+loginShell: /bin/bash
+homeDirectory: /home/slee
+mail: sarah.lee@example.org
+telephoneNumber: +1-555-0104
+title: Product Manager
+departmentNumber: Product
+
+dn: uid=viewer,ou=People,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: viewer
+sn: Viewer
+givenName: Test
+cn: Test Viewer
+displayName: Test Viewer
+uidNumber: 1005
+gidNumber: 1002
+userPassword: viewer123
+loginShell: /bin/false
+homeDirectory: /home/viewer
+mail: viewer@example.org
+description: Read-only test account
+
+# Sudo Roles
+dn: cn=admins-sudo,ou=sudoers,dc=example,dc=org
+objectClass: sudoRole
+cn: admins-sudo
+description: Full sudo access for admins
+sudoUser: admin
+sudoHost: ALL
+sudoCommand: ALL
+sudoRunAsUser: ALL
+sudoRunAsGroup: ALL
+sudoOption: !authenticate
+sudoOrder: 100
+
+dn: cn=dev-restart,ou=sudoers,dc=example,dc=org
+objectClass: sudoRole
+cn: dev-restart
+description: Allow developers to restart services
+sudoUser: jdoe
+sudoUser: asmith
+sudoUser: mjohnson
+sudoHost: ALL
+sudoCommand: /usr/bin/systemctl restart *
+sudoCommand: /usr/bin/systemctl status *
+sudoRunAsUser: root
+sudoOrder: 50
+
+dn: cn=package-updates,ou=sudoers,dc=example,dc=org
+objectClass: sudoRole
+cn: package-updates
+description: Allow package management
+sudoUser: admin
+sudoUser: jdoe
+sudoHost: ALL
+sudoCommand: /usr/bin/apt update
+sudoCommand: /usr/bin/apt upgrade
+sudoCommand: /usr/bin/apt install *
+sudoRunAsUser: root
+sudoOption: !authenticate
+sudoOrder: 75
+
+dn: cn=developers-docker,ou=sudoers,dc=example,dc=org
+objectClass: sudoRole
+cn: developers-docker
+description: Allow developers group to run docker commands
+sudoUser: %developers
+sudoHost: ALL
+sudoCommand: /usr/bin/docker *
+sudoRunAsUser: root
+sudoOrder: 60
