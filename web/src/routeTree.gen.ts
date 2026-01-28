@@ -127,10 +127,10 @@ export interface FileRoutesByFullPath {
   '/sudo-roles/new': typeof SudoRolesNewRoute
   '/users/$dn': typeof UsersDnRoute
   '/users/new': typeof UsersNewRoute
-  '/groups': typeof GroupsIndexRoute
-  '/password-policies': typeof PasswordPoliciesIndexRoute
-  '/sudo-roles': typeof SudoRolesIndexRoute
-  '/users': typeof UsersIndexRoute
+  '/groups/': typeof GroupsIndexRoute
+  '/password-policies/': typeof PasswordPoliciesIndexRoute
+  '/sudo-roles/': typeof SudoRolesIndexRoute
+  '/users/': typeof UsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -187,10 +187,10 @@ export interface FileRouteTypes {
     | '/sudo-roles/new'
     | '/users/$dn'
     | '/users/new'
-    | '/groups'
-    | '/password-policies'
-    | '/sudo-roles'
-    | '/users'
+    | '/groups/'
+    | '/password-policies/'
+    | '/sudo-roles/'
+    | '/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -284,28 +284,28 @@ declare module '@tanstack/react-router' {
     '/users/': {
       id: '/users/'
       path: '/users'
-      fullPath: '/users'
+      fullPath: '/users/'
       preLoaderRoute: typeof UsersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sudo-roles/': {
       id: '/sudo-roles/'
       path: '/sudo-roles'
-      fullPath: '/sudo-roles'
+      fullPath: '/sudo-roles/'
       preLoaderRoute: typeof SudoRolesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/password-policies/': {
       id: '/password-policies/'
       path: '/password-policies'
-      fullPath: '/password-policies'
+      fullPath: '/password-policies/'
       preLoaderRoute: typeof PasswordPoliciesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/groups/': {
       id: '/groups/'
       path: '/groups'
-      fullPath: '/groups'
+      fullPath: '/groups/'
       preLoaderRoute: typeof GroupsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
