@@ -201,6 +201,39 @@ LDAP Warden allows you to customize which features are visible based on your LDA
 | `MAIL_FROM` | Sender email address | `noreply@example.org` |
 | `MAIL_SSL` | SSL mode: `none`, `starttls`, or `ssl` | `none` |
 
+### Scheduled Tasks
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION` | Cron schedule for account expiration checks | `42 3 * * *` |
+| `LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION` | Cron schedule for password expiration checks | `42 3 * * *` |
+
+Set a variable to an empty string to disable that task.
+
+#### How Background Tasks Work
+
+LDAP Warden uses a cron-based scheduler (via [robfig/cron](https://github.com/robfig/cron)) to run periodic background tasks. Two tasks are available:
+
+**Account Expiration (`users_expiration`)**
+- Checks all users for upcoming account expiration (via `shadowExpire` or `pwdAccountLockedTime`)
+- Sends email notifications to **administrators** (members of `LDAPWARDEN_ADMIN_GROUP`)
+- Useful for reminding admins to extend or disable accounts before they lock out
+
+**Password Expiration (`passwords_expiration`)**
+- Checks all users for upcoming password expiration (via `shadowMax` or ppolicy `pwdMaxAge`)
+- Sends email notifications directly to **each user** (requires `mail` attribute)
+- Helps users proactively change their passwords before expiration
+
+Both tasks send notifications at these intervals before expiration:
+- 3 weeks before
+- 1 week before
+- 1 day before
+- On expiration
+
+Notifications are tracked in PostgreSQL to prevent duplicate emails for the same interval.
+
+Tasks can also be triggered manually via the Administration UI or API (`POST /api/scheduler/:task/trigger`).
+
 ## Development
 
 ### Prerequisites
