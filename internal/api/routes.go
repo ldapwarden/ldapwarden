@@ -103,6 +103,7 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/unlock", s.handleUnlockUser)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Put("/{dn}/expiration", s.handleSetUserExpiration)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/password", s.handleChangePassword)
+				r.With(s.requirePermission(rbac.PermUsersWrite)).Delete("/{dn}/password", s.handleRemovePassword)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Put("/{dn}/ssh-keys", s.handleSetSSHKeys)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/ssh-keys", s.handleAddSSHKey)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Delete("/{dn}/ssh-keys", s.handleRemoveSSHKey)

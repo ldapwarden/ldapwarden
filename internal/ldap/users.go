@@ -622,6 +622,13 @@ func (c *Client) ChangePassword(dn string, newPassword string) error {
 	return c.Modify(modReq)
 }
 
+// RemovePassword removes the userPassword attribute, preventing the user from authenticating.
+func (c *Client) RemovePassword(dn string) error {
+	modReq := ldap.NewModifyRequest(dn, nil)
+	modReq.Replace("userPassword", []string{"!"})
+	return c.Modify(modReq)
+}
+
 // UpdateSambaUserRequest contains Samba-specific user attributes
 type UpdateSambaUserRequest struct {
 	SambaSID             *string `json:"sambaSID,omitempty"`

@@ -471,6 +471,11 @@ export const api = {
         body: JSON.stringify({ password }),
       }),
 
+    removePassword: (dn: string) =>
+      fetchApi(`/users/${encodeURIComponent(dn)}/password`, {
+        method: 'DELETE',
+      }),
+
     setSSHKeys: (dn: string, keys: string[]) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/ssh-keys`, {
         method: 'PUT',

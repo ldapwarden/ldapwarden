@@ -346,6 +346,25 @@ curl -X POST "http://localhost:8000/api/users/$ENCODED_DN/password" \
   -d '{"password": "newpassword123"}'
 ```
 
+### Remove User Password
+
+```http
+DELETE /api/users/{dn}/password
+```
+
+**Required permission:** `users:write`
+
+Removes the user's password by setting `userPassword` to `!`, preventing LDAP bind authentication. The user account remains active (not locked).
+
+**curl example:**
+```bash
+DN="uid=jsmith,ou=People,dc=example,dc=org"
+ENCODED_DN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$DN', safe=''))")
+
+curl -X DELETE "http://localhost:8000/api/users/$ENCODED_DN/password" \
+  -b cookies.txt
+```
+
 ### Get User Groups
 
 ```http

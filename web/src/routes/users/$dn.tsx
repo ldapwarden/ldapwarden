@@ -1921,6 +1921,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [removePasswordDialogOpen, setRemovePasswordDialogOpen] = useState(false)
   const [expirationDate, setExpirationDate] = useState('')
   const [editingExpiration, setEditingExpiration] = useState(false)
 
@@ -1949,6 +1950,17 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', dn] })
       toast.success('Password policy updated')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const removePasswordMutation = useMutation({
+    mutationFn: () => api.users.removePassword(dn),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user', dn] })
+      toast.success('Password removed successfully')
     },
     onError: (error: Error) => {
       toast.error(error.message)
@@ -2123,13 +2135,51 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
             </div>
 
             {canWrite && (
-              <Button
-                type="submit"
-                disabled={!passwordsMatch || changePasswordMutation.isPending}
-              >
-                <Key className="h-4 w-4 mr-1" />
-                {changePasswordMutation.isPending ? 'Changing...' : 'Change Password'}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="submit"
+                  disabled={!passwordsMatch || changePasswordMutation.isPending}
+                >
+                  <Key className="h-4 w-4 mr-1" />
+                  {changePasswordMutation.isPending ? 'Changing...' : 'Change Password'}
+                </Button>
+                <Dialog open={removePasswordDialogOpen} onOpenChange={setRemovePasswordDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="outline" disabled={removePasswordMutation.isPending}>
+                      <X className="h-4 w-4 mr-1" />
+                      {removePasswordMutation.isPending ? 'Removing...' : 'Remove Password'}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Remove Password</DialogTitle>
+                      <DialogDescription>
+                        Are you sure you want to remove the password for "{user.displayName || user.uid}"?
+                        They will no longer be able to log in.
+                      </DialogDescription>
+                    </DialogHeader>
+                    {removePasswordMutation.error && (
+                      <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+                        {removePasswordMutation.error.message}
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setRemovePasswordDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => removePasswordMutation.mutate(undefined, {
+                          onSuccess: () => setRemovePasswordDialogOpen(false),
+                        })}
+                        disabled={removePasswordMutation.isPending}
+                      >
+                        {removePasswordMutation.isPending ? 'Removing...' : 'Remove Password'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             )}
           </form>
         </CardContent>

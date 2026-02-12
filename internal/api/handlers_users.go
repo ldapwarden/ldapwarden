@@ -245,6 +245,25 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})
 }
 
+func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
+	dnEncoded := chi.URLParam(r, "dn")
+	dn, err := url.QueryUnescape(dnEncoded)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		return
+	}
+
+	if err := s.ldapClient.RemovePassword(dn); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to remove password: "+err.Error())
+		return
+	}
+
+	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "password_remove"})
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "password removed"})
+}
+
 func (s *Server) handleSetSSHKeys(w http.ResponseWriter, r *http.Request) {
 	dnEncoded := chi.URLParam(r, "dn")
 	dn, err := url.QueryUnescape(dnEncoded)
