@@ -105,7 +105,6 @@ function NewUserPage() {
     homeDirectory: '',
     loginShell: '/bin/bash',
     description: '',
-    password: '',
     expirationDate: '',
   })
 
@@ -137,7 +136,6 @@ function NewUserPage() {
       homeDirectory: formData.homeDirectory || `/home/${formData.uid}`,
       loginShell: formData.loginShell,
       description: formData.description || undefined,
-      password: formData.password || undefined,
       groups: selectedGroups.length > 0 ? selectedGroups : undefined,
       createPrimaryGroup: !primaryGroup || undefined,
       expirationDate: formData.expirationDate || undefined,
@@ -183,25 +181,14 @@ function NewUserPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="uid">Username (UID) *</Label>
-                <Input
-                  id="uid"
-                  value={formData.uid}
-                  onChange={(e) => setFormData({ ...formData, uid: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="uid">Username (UID) *</Label>
+              <Input
+                id="uid"
+                value={formData.uid}
+                onChange={(e) => setFormData({ ...formData, uid: e.target.value })}
+                required
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
