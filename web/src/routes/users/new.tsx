@@ -77,6 +77,7 @@ function NewUserPage() {
     title: '',
     departmentNumber: '',
     o: '',
+    employeeType: '',
     uidNumber: '',
     gidNumber: '',
     homeDirectory: '',
@@ -109,6 +110,7 @@ function NewUserPage() {
       title: formData.title || undefined,
       departmentNumber: formData.departmentNumber || undefined,
       o: formData.o || undefined,
+      employeeType: formData.employeeType || undefined,
       uidNumber: parseInt(formData.uidNumber),
       gidNumber: parseInt(formData.gidNumber),
       homeDirectory: formData.homeDirectory || `/home/${formData.uid}`,
@@ -293,7 +295,7 @@ function NewUserPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
                 <Input
@@ -316,6 +318,14 @@ function NewUserPage() {
                   id="o"
                   value={formData.o}
                   onChange={(e) => setFormData({ ...formData, o: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employeeType">Employee Type</Label>
+                <Input
+                  id="employeeType"
+                  value={formData.employeeType}
+                  onChange={(e) => setFormData({ ...formData, employeeType: e.target.value })}
                 />
               </div>
             </div>

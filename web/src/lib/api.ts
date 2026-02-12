@@ -426,6 +426,7 @@ export const api = {
       title?: string
       departmentNumber?: string
       o?: string
+      employeeType?: string
       uidNumber: number
       gidNumber: number
       homeDirectory?: string
