@@ -123,6 +123,7 @@ export const UserSchema = z.object({
   description: z.string().optional(),
   jpegPhoto: z.string().optional(),
   sshPublicKey: z.array(z.string()).optional(),
+  hasPassword: z.boolean().optional(),
   accountLocked: z.boolean().optional(),
   objectClasses: z.array(z.string()).optional(),
   // Samba attributes

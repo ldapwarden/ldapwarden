@@ -2143,42 +2143,46 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                   <Key className="h-4 w-4 mr-1" />
                   {changePasswordMutation.isPending ? 'Changing...' : 'Change Password'}
                 </Button>
-                <Dialog open={removePasswordDialogOpen} onOpenChange={setRemovePasswordDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button type="button" variant="outline" disabled={removePasswordMutation.isPending}>
-                      <X className="h-4 w-4 mr-1" />
-                      {removePasswordMutation.isPending ? 'Removing...' : 'Remove Password'}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Remove Password</DialogTitle>
-                      <DialogDescription>
-                        Are you sure you want to remove the password for "{user.displayName || user.uid}"?
-                        They will no longer be able to log in.
-                      </DialogDescription>
-                    </DialogHeader>
-                    {removePasswordMutation.error && (
-                      <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-                        {removePasswordMutation.error.message}
-                      </div>
-                    )}
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setRemovePasswordDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={() => removePasswordMutation.mutate(undefined, {
-                          onSuccess: () => setRemovePasswordDialogOpen(false),
-                        })}
-                        disabled={removePasswordMutation.isPending}
-                      >
+                {user.hasPassword ? (
+                  <Dialog open={removePasswordDialogOpen} onOpenChange={setRemovePasswordDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" disabled={removePasswordMutation.isPending}>
+                        <X className="h-4 w-4 mr-1" />
                         {removePasswordMutation.isPending ? 'Removing...' : 'Remove Password'}
                       </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Remove Password</DialogTitle>
+                        <DialogDescription>
+                          Are you sure you want to remove the password for "{user.displayName || user.uid}"?
+                          They will no longer be able to log in.
+                        </DialogDescription>
+                      </DialogHeader>
+                      {removePasswordMutation.error && (
+                        <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+                          {removePasswordMutation.error.message}
+                        </div>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setRemovePasswordDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => removePasswordMutation.mutate(undefined, {
+                            onSuccess: () => setRemovePasswordDialogOpen(false),
+                          })}
+                          disabled={removePasswordMutation.isPending}
+                        >
+                          {removePasswordMutation.isPending ? 'Removing...' : 'Remove Password'}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                ) : (
+                  <p className="text-sm text-muted-foreground self-center">No password set</p>
+                )}
               </div>
             )}
           </form>

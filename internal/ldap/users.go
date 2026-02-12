@@ -34,6 +34,7 @@ type User struct {
 	Description     string            `json:"description,omitempty"`
 	JpegPhoto       string            `json:"jpegPhoto,omitempty"`
 	SSHPublicKeys   []string          `json:"sshPublicKey,omitempty"`
+	HasPassword     bool              `json:"hasPassword"`
 	AccountLocked   bool              `json:"accountLocked"`
 	ObjectClasses   []string          `json:"objectClasses"`
 	Attributes      map[string]string `json:"attributes,omitempty"`
@@ -642,7 +643,7 @@ func (c *Client) ChangePassword(dn string, newPassword string) error {
 // RemovePassword removes the userPassword attribute, preventing the user from authenticating.
 func (c *Client) RemovePassword(dn string) error {
 	modReq := ldap.NewModifyRequest(dn, nil)
-	modReq.Replace("userPassword", []string{"!"})
+	modReq.Delete("userPassword", nil)
 	return c.Modify(modReq)
 }
 
@@ -842,8 +843,11 @@ func entryToUser(entry *ldap.Entry) User {
 		jpegPhoto = base64.StdEncoding.EncodeToString(photoBytes)
 	}
 
+	// Check if user has a password set
+	currentPassword := entry.GetAttributeValue("userPassword")
+	hasPassword := currentPassword != ""
 	// Account is locked if userPassword starts with !
-	accountLocked := strings.HasPrefix(entry.GetAttributeValue("userPassword"), "!")
+	accountLocked := strings.HasPrefix(currentPassword, "!")
 
 	// Shadow attributes (all integers)
 	shadowLastChange, _ := strconv.Atoi(entry.GetAttributeValue("shadowLastChange"))
@@ -878,6 +882,7 @@ func entryToUser(entry *ldap.Entry) User {
 		Description:     entry.GetAttributeValue("description"),
 		JpegPhoto:       jpegPhoto,
 		SSHPublicKeys:   entry.GetAttributeValues("sshPublicKey"),
+		HasPassword:     hasPassword,
 		AccountLocked:   accountLocked,
 		ObjectClasses:   entry.GetAttributeValues("objectClass"),
 		// Samba attributes
