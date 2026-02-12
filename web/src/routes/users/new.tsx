@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
+import { Select } from '@/components/ui/select'
 import { ArrowLeft, Save, Wand2, Users, X, CalendarClock } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 
@@ -54,8 +55,30 @@ function NewUserPage() {
 
   const showPoliciesModule = enabledModules.has('policies')
 
+  const [primaryGroup, setPrimaryGroup] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   const [groupSearch, setGroupSearch] = useState('')
+
+  // Options for the primary group dropdown
+  const primaryGroupOptions = useMemo(() => {
+    const groups = allGroups?.data ?? []
+    return [
+      { value: '', label: 'None — create new group' },
+      ...[...groups].sort((a, b) => a.cn.localeCompare(b.cn)).map(g => ({
+        value: g.cn,
+        label: `${g.cn} (${g.gidNumber})`,
+      })),
+    ]
+  }, [allGroups?.data])
+
+  // Resolve gidNumber from primary group selection or next available
+  const resolvedGidNumber = useMemo(() => {
+    if (primaryGroup) {
+      const group = allGroups?.data?.find(g => g.cn === primaryGroup)
+      if (group) return group.gidNumber
+    }
+    return nextIds?.nextGid ?? 0
+  }, [primaryGroup, allGroups?.data, nextIds])
 
   // Filter and sort available groups
   const availableGroups = useMemo(() => {
@@ -79,7 +102,6 @@ function NewUserPage() {
     o: '',
     employeeType: '',
     uidNumber: '',
-    gidNumber: '',
     homeDirectory: '',
     loginShell: '/bin/bash',
     description: '',
@@ -87,13 +109,12 @@ function NewUserPage() {
     expirationDate: '',
   })
 
-  // Auto-fill UID and GID when data is available
+  // Auto-fill UID when data is available
   useEffect(() => {
-    if (nextIds && !formData.uidNumber && !formData.gidNumber) {
+    if (nextIds && !formData.uidNumber) {
       setFormData(prev => ({
         ...prev,
         uidNumber: nextIds.nextUid.toString(),
-        gidNumber: nextIds.nextGid.toString(),
       }))
     }
   }, [nextIds])
@@ -112,12 +133,13 @@ function NewUserPage() {
       o: formData.o || undefined,
       employeeType: formData.employeeType || undefined,
       uidNumber: parseInt(formData.uidNumber),
-      gidNumber: parseInt(formData.gidNumber),
+      gidNumber: resolvedGidNumber,
       homeDirectory: formData.homeDirectory || `/home/${formData.uid}`,
       loginShell: formData.loginShell,
       description: formData.description || undefined,
       password: formData.password || undefined,
       groups: selectedGroups.length > 0 ? selectedGroups : undefined,
+      createPrimaryGroup: !primaryGroup || undefined,
       expirationDate: formData.expirationDate || undefined,
     }),
     onSuccess: () => {
@@ -250,28 +272,19 @@ function NewUserPage() {
                 {nextIds && <p className="text-xs text-muted-foreground">Min: {nextIds.minUid}, Next available: {nextIds.nextUid}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gidNumber">GID Number *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="gidNumber"
-                    type="number"
-                    value={formData.gidNumber}
-                    onChange={(e) => setFormData({ ...formData, gidNumber: e.target.value })}
-                    required
-                    min={nextIds?.minGid}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    title="Auto-generate next available GID"
-                    onClick={() => nextIds && setFormData({ ...formData, gidNumber: nextIds.nextGid.toString() })}
-                    disabled={!nextIds}
-                  >
-                    <Wand2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                {nextIds && <p className="text-xs text-muted-foreground">Min: {nextIds.minGid}, Next available: {nextIds.nextGid}</p>}
+                <Label htmlFor="primaryGroup" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Primary Group
+                </Label>
+                <Select
+                  id="primaryGroup"
+                  value={primaryGroup}
+                  onChange={(e) => setPrimaryGroup(e.target.value)}
+                  options={primaryGroupOptions}
+                />
+                <p className="text-xs text-muted-foreground">
+                  If left empty, a new group will be created with the user's UID as name.
+                </p>
               </div>
             </div>
 
@@ -436,7 +449,7 @@ function NewUserPage() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                The user will be added to the selected groups after creation.
+                Additional groups the user will be added to after creation.
               </p>
             </div>
 

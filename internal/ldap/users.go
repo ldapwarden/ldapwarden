@@ -90,8 +90,9 @@ type CreateUserRequest struct {
 	Password        string   `json:"password,omitempty"`
 	Description     string   `json:"description,omitempty"`
 	ObjectClasses   []string `json:"objectClasses,omitempty"`
-	Groups          []string `json:"groups,omitempty"`         // Group CNs to add the user to
-	ExpirationDate  string   `json:"expirationDate,omitempty"` // ISO date string for account expiration (stored in pwdAccountLockedTime)
+	Groups              []string `json:"groups,omitempty"`              // Group CNs to add the user to
+	CreatePrimaryGroup  bool     `json:"createPrimaryGroup,omitempty"`  // If true, create a posixGroup with CN=UID and the given gidNumber
+	ExpirationDate      string   `json:"expirationDate,omitempty"`      // ISO date string for account expiration (stored in pwdAccountLockedTime)
 }
 
 type UpdateUserRequest struct {
@@ -245,6 +246,22 @@ func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 
 	if err := c.Add(addReq); err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
+	}
+
+	// Create a primary group with CN=UID if requested
+	if req.CreatePrimaryGroup {
+		groupDesc := req.Description
+		if groupDesc == "" {
+			groupDesc = fmt.Sprintf("Primary group for %s", req.DisplayName)
+		}
+		_, err := c.CreateGroup(CreateGroupRequest{
+			CN:          req.UID,
+			GIDNumber:   req.GIDNumber,
+			Description: groupDesc,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create primary group: %w", err)
+		}
 	}
 
 	// Add user to specified groups

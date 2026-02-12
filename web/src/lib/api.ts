@@ -434,6 +434,7 @@ export const api = {
       password?: string
       description?: string
       groups?: string[]  // Group CNs to add the user to
+      createPrimaryGroup?: boolean  // If true, create a posixGroup with CN=UID and the given gidNumber
       expirationDate?: string  // ISO date format (YYYY-MM-DD) for account expiration
     }) =>
       fetchApi('/users', {
