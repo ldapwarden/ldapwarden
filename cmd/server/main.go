@@ -66,7 +66,7 @@ func run() error {
 		return fmt.Errorf("parse redis URL: %w", err)
 	}
 	redisClient := redis.NewClient(redisOpts)
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	if err := redisClient.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("ping redis: %w", err)

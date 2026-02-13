@@ -27,7 +27,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.LogWithActor(r.Context(), resp.Session.UserDN, resp.Session.UserUID,
+	_ = s.auditLogger.LogWithActor(r.Context(), resp.Session.UserDN, resp.Session.UserUID,
 		audit.ActionLogin, audit.ResourceUser, resp.Session.UserDN, nil)
 
 	writeJSON(w, http.StatusOK, resp)
@@ -50,7 +50,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if session != nil {
-		s.auditLogger.LogWithActor(r.Context(), session.UserDN, session.UserUID,
+		_ = s.auditLogger.LogWithActor(r.Context(), session.UserDN, session.UserUID,
 			audit.ActionLogout, audit.ResourceUser, session.UserDN, nil)
 	}
 
@@ -92,7 +92,7 @@ func (s *Server) handleChangeMyPassword(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, session.UserDN,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, session.UserDN,
 		map[string]interface{}{"action": "self_password_change"})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})

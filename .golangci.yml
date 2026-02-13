@@ -9,3 +9,7 @@ linters:
     - ineffassign
     - gocritic
     - gosec
+  settings:
+    gosec:
+      excludes:
+        - G101

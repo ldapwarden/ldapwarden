@@ -31,14 +31,14 @@ func (c *Client) connect() (*ldap.Conn, error) {
 		if err := c.conn.Bind(c.config.BindDN, c.config.BindPass); err == nil {
 			return c.conn, nil
 		}
-		c.conn.Close()
+		_ = c.conn.Close()
 	}
 
 	var conn *ldap.Conn
 	var err error
 
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.config.TLSSkipVerify,
+		InsecureSkipVerify: c.config.TLSSkipVerify, //nolint:gosec // User-configurable setting
 	}
 
 	switch c.config.TLSMode {
@@ -52,7 +52,7 @@ func (c *Client) connect() (*ldap.Conn, error) {
 			return nil, fmt.Errorf("dial LDAP server: %w", err)
 		}
 		if err = conn.StartTLS(tlsConfig); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("StartTLS: %w", err)
 		}
 	default:
@@ -69,7 +69,7 @@ func (c *Client) connect() (*ldap.Conn, error) {
 	}
 
 	if err := conn.Bind(c.config.BindDN, c.config.BindPass); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("bind to LDAP server: %w", err)
 	}
 
@@ -81,7 +81,7 @@ func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.conn != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 	}
 }
@@ -97,7 +97,7 @@ func (c *Client) Bind(dn, password string) error {
 	var testConn *ldap.Conn
 
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.config.TLSSkipVerify,
+		InsecureSkipVerify: c.config.TLSSkipVerify, //nolint:gosec // User-configurable setting
 	}
 
 	switch c.config.TLSMode {
@@ -109,7 +109,7 @@ func (c *Client) Bind(dn, password string) error {
 			return fmt.Errorf("dial LDAP server for auth: %w", err)
 		}
 		if err = testConn.StartTLS(tlsConfig); err != nil {
-			testConn.Close()
+			_ = testConn.Close()
 			return fmt.Errorf("StartTLS for auth: %w", err)
 		}
 	default:
@@ -123,7 +123,7 @@ func (c *Client) Bind(dn, password string) error {
 	if err != nil {
 		return fmt.Errorf("dial LDAP server for auth: %w", err)
 	}
-	defer testConn.Close()
+	defer func() { _ = testConn.Close() }()
 
 	if err := testConn.Bind(dn, password); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)

@@ -68,7 +68,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserCreate, audit.ResourceUser, user.DN,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserCreate, audit.ResourceUser, user.DN,
 		map[string]interface{}{"uid": user.UID})
 
 	writeJSON(w, http.StatusCreated, user)
@@ -94,7 +94,7 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, user.DN, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, user.DN, nil)
 
 	writeJSON(w, http.StatusOK, user)
 }
@@ -112,7 +112,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserDelete, audit.ResourceUser, dn, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserDelete, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user deleted"})
 }
@@ -156,7 +156,7 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserLock, audit.ResourceUser, dn, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserLock, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user locked"})
 }
@@ -174,7 +174,7 @@ func (s *Server) handleUnlockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUnlock, audit.ResourceUser, dn, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUnlock, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user unlocked"})
 }
@@ -207,7 +207,7 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 		message = "expiration date cleared"
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": action, "expirationDate": req.ExpirationDate})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": message})
@@ -239,7 +239,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "password_change"})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})
@@ -258,7 +258,7 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "password_remove"})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password removed"})
@@ -285,7 +285,7 @@ func (s *Server) handleSetSSHKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "ssh_keys_update", "keyCount": len(req.Keys)})
 
 	user, _ := s.ldapClient.GetUser(dn)
@@ -318,7 +318,7 @@ func (s *Server) handleAddSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "ssh_key_add"})
 
 	user, _ := s.ldapClient.GetUser(dn)
@@ -351,7 +351,7 @@ func (s *Server) handleRemoveSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "ssh_key_remove"})
 
 	user, _ := s.ldapClient.GetUser(dn)
@@ -378,7 +378,7 @@ func (s *Server) handleUpdateUserSamba(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "samba_update"})
 
 	writeJSON(w, http.StatusOK, user)
@@ -404,7 +404,7 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "shadow_update"})
 
 	writeJSON(w, http.StatusOK, user)

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -211,19 +210,6 @@ func spaHandler(staticPath string) http.HandlerFunc {
 		// Serve index.html for SPA routing
 		http.ServeFile(w, r, filepath.Join(staticPath, "index.html"))
 	}
-}
-
-// spaFileSystem wraps http.FileSystem to handle SPA routing
-type spaFileSystem struct {
-	fs fs.FS
-}
-
-func (s spaFileSystem) Open(name string) (http.File, error) {
-	f, err := s.fs.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	return f.(http.File), nil
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

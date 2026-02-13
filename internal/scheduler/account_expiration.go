@@ -42,7 +42,7 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 	// Get all users
 	users, err := s.ldapClient.ListUsers()
 	if err != nil {
-		s.store.FailTaskRun(ctx, runID, err.Error())
+		_ = s.store.FailTaskRun(ctx, runID, err.Error())
 		return nil, fmt.Errorf("list users: %w", err)
 	}
 
@@ -54,7 +54,7 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 
 	if len(adminEmails) == 0 {
 		result.Errors = append(result.Errors, "no admin emails found")
-		s.store.CompleteTaskRun(ctx, runID, 0, 0, result.Errors)
+		_ = s.store.CompleteTaskRun(ctx, runID, 0, 0, result.Errors)
 		return result, nil
 	}
 
@@ -102,14 +102,14 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 			Message  string
 		}
 
-		if timeUntilExpiration <= 0 {
-			// Already expired
+		switch {
+		case timeUntilExpiration <= 0:
 			selectedInterval = &expirationIntervals[3] // "expired"
-		} else if timeUntilExpiration <= 24*time.Hour {
+		case timeUntilExpiration <= 24*time.Hour:
 			selectedInterval = &expirationIntervals[2] // "1_day"
-		} else if timeUntilExpiration <= 7*24*time.Hour {
+		case timeUntilExpiration <= 7*24*time.Hour:
 			selectedInterval = &expirationIntervals[1] // "1_week"
-		} else if timeUntilExpiration <= 21*24*time.Hour {
+		case timeUntilExpiration <= 21*24*time.Hour:
 			selectedInterval = &expirationIntervals[0] // "3_weeks"
 		}
 
@@ -142,12 +142,12 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 			}
 
 			// Record notification (once per admin to track who was notified)
-			s.store.RecordNotification(ctx, "account_expiration", user.DN, user.UID, selectedInterval.Key, expTime, email, runID)
+			_ = s.store.RecordNotification(ctx, "account_expiration", user.DN, user.UID, selectedInterval.Key, expTime, email, runID)
 			result.NotificationsSent++
 		}
 
 		// Audit log the notification
-		s.auditLog.LogWithActor(ctx, "system", triggeredBy, audit.ActionAccountExpirationNotification, audit.ResourceUser, user.DN, map[string]interface{}{
+		_ = s.auditLog.LogWithActor(ctx, "system", triggeredBy, audit.ActionAccountExpirationNotification, audit.ResourceUser, user.DN, map[string]interface{}{
 			"userUid":        user.UID,
 			"displayName":    displayName,
 			"expirationDate": expTime.Format(time.RFC3339),
@@ -159,7 +159,7 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 	}
 
 	result.CompletedAt = time.Now()
-	s.store.CompleteTaskRun(ctx, runID, result.UsersChecked, result.NotificationsSent, result.Errors)
+	_ = s.store.CompleteTaskRun(ctx, runID, result.UsersChecked, result.NotificationsSent, result.Errors)
 
 	log.Printf("Account expiration check completed: %d users checked, %d notifications sent", result.UsersChecked, result.NotificationsSent)
 

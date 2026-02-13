@@ -133,7 +133,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, token string) (*Session
 	}
 
 	if time.Now().After(session.ExpiresAt) {
-		s.sessionStore.Delete(ctx, tokenHash)
+		_ = s.sessionStore.Delete(ctx, tokenHash)
 		return nil, fmt.Errorf("token expired")
 	}
 

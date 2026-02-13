@@ -84,7 +84,7 @@ func (s *Server) handleCreateSudoRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSudoRoleCreate, audit.ResourceSudoRole, role.DN,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleCreate, audit.ResourceSudoRole, role.DN,
 		map[string]interface{}{"cn": role.CN})
 
 	writeJSON(w, http.StatusCreated, role)
@@ -110,7 +110,7 @@ func (s *Server) handleUpdateSudoRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUpdate, audit.ResourceSudoRole, role.DN, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUpdate, audit.ResourceSudoRole, role.DN, nil)
 
 	writeJSON(w, http.StatusOK, role)
 }
@@ -128,7 +128,7 @@ func (s *Server) handleDeleteSudoRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSudoRoleDelete, audit.ResourceSudoRole, dn, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleDelete, audit.ResourceSudoRole, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "sudo role deleted"})
 }
@@ -159,7 +159,7 @@ func (s *Server) handleAddUserToSudoRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUserAdd, audit.ResourceSudoRole, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUserAdd, audit.ResourceSudoRole, dn,
 		map[string]interface{}{"uid": req.UID})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)
@@ -192,7 +192,7 @@ func (s *Server) handleRemoveUserFromSudoRole(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUserDel, audit.ResourceSudoRole, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUserDel, audit.ResourceSudoRole, dn,
 		map[string]interface{}{"uid": req.UID})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)
@@ -251,7 +251,7 @@ func (s *Server) handleAddGroupToSudoRole(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSudoRoleGroupAdd, audit.ResourceSudoRole, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleGroupAdd, audit.ResourceSudoRole, dn,
 		map[string]interface{}{"cn": req.CN})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)
@@ -284,7 +284,7 @@ func (s *Server) handleRemoveGroupFromSudoRole(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSudoRoleGroupDel, audit.ResourceSudoRole, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleGroupDel, audit.ResourceSudoRole, dn,
 		map[string]interface{}{"cn": req.CN})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)

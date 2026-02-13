@@ -142,13 +142,13 @@ func (m *Mailer) sendPlain(addr, to string, msg []byte) error {
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client, err := smtp.NewClient(conn, m.config.Host)
 	if err != nil {
 		return fmt.Errorf("new client: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	return m.sendWithClient(client, to, msg, false)
 }
@@ -159,19 +159,20 @@ func (m *Mailer) sendWithStartTLS(addr, to string, msg []byte) error {
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client, err := smtp.NewClient(conn, m.config.Host)
 	if err != nil {
 		return fmt.Errorf("new client: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Check if STARTTLS is supported and upgrade
 	encrypted := false
 	if ok, _ := client.Extension("STARTTLS"); ok {
 		tlsConfig := &tls.Config{
 			ServerName: m.config.Host,
+			MinVersion: tls.VersionTLS12,
 		}
 		if err := client.StartTLS(tlsConfig); err != nil {
 			return fmt.Errorf("starttls: %w", err)
@@ -186,19 +187,20 @@ func (m *Mailer) sendWithStartTLS(addr, to string, msg []byte) error {
 func (m *Mailer) sendWithSSL(addr, to string, msg []byte) error {
 	tlsConfig := &tls.Config{
 		ServerName: m.config.Host,
+		MinVersion: tls.VersionTLS12,
 	}
 
 	conn, err := tls.Dial("tcp", addr, tlsConfig)
 	if err != nil {
 		return fmt.Errorf("tls dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client, err := smtp.NewClient(conn, m.config.Host)
 	if err != nil {
 		return fmt.Errorf("new client: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	return m.sendWithClient(client, to, msg, true)
 }

@@ -57,7 +57,7 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "password_reset_sent", "email": user.Mail})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password reset email sent"})
@@ -166,7 +166,7 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Audit log
-	s.auditLogger.LogWithActor(r.Context(), tokenInfo.UserDN, tokenInfo.UserUID,
+	_ = s.auditLogger.LogWithActor(r.Context(), tokenInfo.UserDN, tokenInfo.UserUID,
 		audit.ActionUserUpdate, audit.ResourceUser, tokenInfo.UserDN,
 		map[string]interface{}{
 			"action":    "password_reset_completed",

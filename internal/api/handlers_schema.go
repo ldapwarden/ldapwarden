@@ -23,7 +23,7 @@ func (s *Server) handleRefreshSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionSchemaRefresh, audit.ResourceSchema, "", nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionSchemaRefresh, audit.ResourceSchema, "", nil)
 
 	writeJSON(w, http.StatusOK, schema)
 }

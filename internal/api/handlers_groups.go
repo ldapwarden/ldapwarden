@@ -63,7 +63,7 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionGroupCreate, audit.ResourceGroup, group.DN,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupCreate, audit.ResourceGroup, group.DN,
 		map[string]interface{}{"cn": group.CN})
 
 	writeJSON(w, http.StatusCreated, group)
@@ -89,7 +89,7 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionGroupUpdate, audit.ResourceGroup, group.DN, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupUpdate, audit.ResourceGroup, group.DN, nil)
 
 	writeJSON(w, http.StatusOK, group)
 }
@@ -107,7 +107,7 @@ func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionGroupDelete, audit.ResourceGroup, dn, nil)
+	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupDelete, audit.ResourceGroup, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "group deleted"})
 }
@@ -140,7 +140,7 @@ func (s *Server) handleAddGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionMemberAdd, audit.ResourceGroup, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionMemberAdd, audit.ResourceGroup, dn,
 		map[string]interface{}{"memberUid": req.MemberUID})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "member added"})
@@ -170,7 +170,7 @@ func (s *Server) handleRemoveGroupMember(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionMemberRemove, audit.ResourceGroup, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionMemberRemove, audit.ResourceGroup, dn,
 		map[string]interface{}{"memberUid": req.MemberUID})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "member removed"})
@@ -196,7 +196,7 @@ func (s *Server) handleUpdateGroupSamba(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	s.auditLogger.Log(r.Context(), audit.ActionGroupUpdate, audit.ResourceGroup, dn,
+	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupUpdate, audit.ResourceGroup, dn,
 		map[string]interface{}{"action": "samba_update"})
 
 	writeJSON(w, http.StatusOK, group)

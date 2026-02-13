@@ -300,9 +300,8 @@ func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 			ldapTime := expirationTime.UTC().Format("20060102150405Z")
 			modReq := ldap.NewModifyRequest(dn, nil)
 			modReq.Add("pwdAccountLockedTime", []string{ldapTime})
-			if modErr := c.Modify(modReq); modErr != nil {
-				// Log but don't fail - ppolicy may not be configured
-			}
+			// Ignore error - ppolicy may not be configured
+			_ = c.Modify(modReq)
 		}
 	}
 
@@ -471,10 +470,8 @@ func (c *Client) LockUser(dn string) error {
 	} else {
 		pwdModReq.Replace("pwdAccountLockedTime", []string{now})
 	}
-	if err := c.Modify(pwdModReq); err != nil {
-		// Log but don't fail - ppolicy may not be configured
-		// The ! prefix lock still works
-	}
+	// Ignore error - ppolicy may not be configured; the ! prefix lock still works
+	_ = c.Modify(pwdModReq)
 
 	return nil
 }

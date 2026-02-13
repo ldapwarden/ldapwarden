@@ -170,7 +170,7 @@ func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64
 		}
 
 		if detailsJSON != nil {
-			json.Unmarshal(detailsJSON, &entry.Details)
+			_ = json.Unmarshal(detailsJSON, &entry.Details)
 		}
 		if ipAddress != nil {
 			entry.IPAddress = *ipAddress

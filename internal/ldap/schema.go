@@ -121,22 +121,24 @@ func parseObjectClass(raw string) ObjectClass {
 	}
 
 	if m := supRegex.FindStringSubmatch(raw); len(m) > 1 {
-		if m[1] != "" {
+		switch {
+		case m[1] != "":
 			oc.Superior = []string{m[1]}
-		} else if m[2] != "" {
+		case m[2] != "":
 			oc.Superior = parseList(m[2])
-		} else if m[3] != "" {
+		case m[3] != "":
 			oc.Superior = []string{m[3]}
 		}
 	}
 
-	if strings.Contains(raw, "STRUCTURAL") {
+	switch {
+	case strings.Contains(raw, "STRUCTURAL"):
 		oc.Kind = "STRUCTURAL"
-	} else if strings.Contains(raw, "AUXILIARY") {
+	case strings.Contains(raw, "AUXILIARY"):
 		oc.Kind = "AUXILIARY"
-	} else if strings.Contains(raw, "ABSTRACT") {
+	case strings.Contains(raw, "ABSTRACT"):
 		oc.Kind = "ABSTRACT"
-	} else {
+	default:
 		oc.Kind = "STRUCTURAL"
 	}
 
@@ -188,13 +190,14 @@ func parseAttributeType(raw string) AttributeType {
 	at.SingleValue = strings.Contains(raw, "SINGLE-VALUE")
 	at.NoUserMod = strings.Contains(raw, "NO-USER-MODIFICATION")
 
-	if strings.Contains(raw, "USAGE userApplications") {
+	switch {
+	case strings.Contains(raw, "USAGE userApplications"):
 		at.Usage = "userApplications"
-	} else if strings.Contains(raw, "USAGE directoryOperation") {
+	case strings.Contains(raw, "USAGE directoryOperation"):
 		at.Usage = "directoryOperation"
-	} else if strings.Contains(raw, "USAGE distributedOperation") {
+	case strings.Contains(raw, "USAGE distributedOperation"):
 		at.Usage = "distributedOperation"
-	} else if strings.Contains(raw, "USAGE dSAOperation") {
+	case strings.Contains(raw, "USAGE dSAOperation"):
 		at.Usage = "dSAOperation"
 	}
 
