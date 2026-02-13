@@ -116,7 +116,7 @@ function NewUserPage() {
         uidNumber: nextIds.nextUid.toString(),
       }))
     }
-  }, [nextIds])
+  }, [nextIds, formData.uidNumber])
 
   const createMutation = useMutation({
     mutationFn: () => api.users.create({

@@ -199,7 +199,7 @@ function UsersPage() {
       totalPages,
       inactiveCount,
     }
-  }, [data?.data, search, showInactive, sortField, sortDirection, currentPage, pageSize])
+  }, [data?.data, search, showInactive, sortField, sortDirection, currentPage, pageSize, userGroupsCount])
 
   // Reset to first page when search changes
   const handleSearchChange = (value: string) => {
@@ -377,7 +377,7 @@ function UsersPage() {
                         const daysUntil = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
                         let colorClass = 'text-green-500' // > 30 days
-                        let title = `Expires in ${daysUntil} days`
+                        const title = `Expires in ${daysUntil} days`
 
                         if (daysUntil <= 7) {
                           colorClass = 'text-red-500'

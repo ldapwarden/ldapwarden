@@ -90,7 +90,6 @@ function UserDetailPage() {
     return classes
   }, [user?.objectClasses])
 
-  const hasLdapPublicKey = userObjectClasses.has('ldappublickey')
   const hasSambaSamAccount = userObjectClasses.has('sambasamaccount')
   const hasShadowAccount = userObjectClasses.has('shadowaccount')
 
@@ -233,7 +232,7 @@ function UserDetailPage() {
 
         {showSSHKeysTab && (
           <TabsContent value="ssh-keys">
-            <SSHKeysTab user={user!} dn={dn} canWrite={canWrite} hasObjectClass={hasLdapPublicKey} />
+            <SSHKeysTab user={user!} dn={dn} canWrite={canWrite} />
           </TabsContent>
         )}
 
@@ -1020,7 +1019,7 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
 }
 
 // SSH Keys Tab (ldapPublicKey)
-function SSHKeysTab({ user, dn, canWrite, hasObjectClass: _hasObjectClass }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, hasObjectClass: boolean }) {
+function SSHKeysTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean }) {
   const queryClient = useQueryClient()
   const [newKey, setNewKey] = useState('')
 

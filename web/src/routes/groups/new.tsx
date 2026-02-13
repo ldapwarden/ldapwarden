@@ -46,7 +46,7 @@ function NewGroupPage() {
         gidNumber: nextIds.nextGid.toString(),
       }))
     }
-  }, [nextIds])
+  }, [nextIds, formData.gidNumber])
 
   const createMutation = useMutation({
     mutationFn: () => api.groups.create({
