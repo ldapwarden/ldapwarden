@@ -1,4 +1,5 @@
 import { createRootRouteWithContext, Outlet, Link, useRouter } from '@tanstack/react-router'
+import { encodeDN } from '@/lib/utils'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -33,7 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, UsersRound, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound } from 'lucide-react'
+import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
 interface RouterContext {
@@ -216,6 +217,12 @@ function RootComponent() {
                 <DropdownMenuItem onClick={() => setPasswordDialogOpen(true)}>
                   <Key className="mr-2 h-4 w-4" />
                   Change Password
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/users/$dn" params={{ dn: encodeDN(session?.userDn ?? '') }} className="flex items-center cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    My Profile
+                  </Link>
                 </DropdownMenuItem>
                 {session?.roleName === 'admin' && (
                   <DropdownMenuItem asChild>
