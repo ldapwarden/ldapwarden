@@ -61,6 +61,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	// Register account expiration task
 	if s.config.ScheduledTasks.UsersExpiration != "" {
 		_, err := s.cron.AddFunc(s.config.ScheduledTasks.UsersExpiration, func() {
+			log.Println("Cron triggered: users_expiration")
 			if _, err := s.runAccountExpirationTask(context.Background(), "scheduler"); err != nil {
 				log.Printf("Account expiration task error: %v", err)
 			}
@@ -76,6 +77,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	// Register password expiration task
 	if s.config.ScheduledTasks.PasswordsExpiration != "" {
 		_, err := s.cron.AddFunc(s.config.ScheduledTasks.PasswordsExpiration, func() {
+			log.Println("Cron triggered: passwords_expiration")
 			if _, err := s.runPasswordExpirationTask(context.Background(), "scheduler"); err != nil {
 				log.Printf("Password expiration task error: %v", err)
 			}
@@ -89,6 +91,10 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	}
 
 	s.cron.Start()
+	// Log next scheduled run times
+	for _, entry := range s.cron.Entries() {
+		log.Printf("Next cron run: %v", entry.Next)
+	}
 	return nil
 }
 
