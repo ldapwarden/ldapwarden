@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend infra migrate test clean
+.PHONY: dev dev-backend dev-frontend infra migrate test clean lint lint-go lint-frontend
 
 # Start all infrastructure
 infra:
@@ -32,6 +32,17 @@ install-frontend:
 build-frontend:
 	cd web && pnpm build
 
+# Lint all code
+lint: lint-go lint-frontend
+
+# Lint Go code
+lint-go:
+	golangci-lint run ./...
+
+# Lint frontend code
+lint-frontend:
+	cd web && pnpm lint
+
 # Run tests
 test:
 	go test ./...
@@ -51,5 +62,8 @@ help:
 	@echo "  dev-frontend   - Run React frontend dev server"
 	@echo "  install-frontend - Install frontend dependencies"
 	@echo "  build-frontend - Build frontend for production"
+	@echo "  lint           - Run all linters"
+	@echo "  lint-go        - Run golangci-lint"
+	@echo "  lint-frontend  - Run ESLint on frontend"
 	@echo "  test           - Run tests"
 	@echo "  clean          - Clean build artifacts and volumes"
