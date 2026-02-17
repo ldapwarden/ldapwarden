@@ -56,7 +56,7 @@ function RootComponent() {
   // Fetch config to get enabled modules
   const { data: config } = useQuery({
     queryKey: ['config'],
-    queryFn: () => api.admin.getConfig(),
+    queryFn: ({ signal }) => api.admin.getConfig(signal),
     enabled: isAuthenticated && session?.roleName === 'admin',
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   })

@@ -52,7 +52,7 @@ function PasswordPoliciesPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['password-policies'],
-    queryFn: api.passwordPolicies.list,
+    queryFn: ({ signal }) => api.passwordPolicies.list(signal),
   })
 
   const deleteMutation = useMutation({

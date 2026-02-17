@@ -61,7 +61,7 @@ function PasswordPolicyDetailPage() {
 
   const { data: policy, isLoading, error } = useQuery({
     queryKey: ['password-policy', dn],
-    queryFn: () => api.passwordPolicies.get(dn),
+    queryFn: ({ signal }) => api.passwordPolicies.get(dn, signal),
   })
 
   useEffect(() => {

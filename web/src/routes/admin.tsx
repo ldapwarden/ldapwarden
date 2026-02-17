@@ -54,19 +54,19 @@ function AdminPage() {
 
   const { data: config, isLoading, error } = useQuery({
     queryKey: ['admin', 'config'],
-    queryFn: api.admin.getConfig,
+    queryFn: ({ signal }) => api.admin.getConfig(signal),
     enabled: hasPermission('settings:read'),
   })
 
   const { data: scheduledTasksConfig } = useQuery({
     queryKey: ['admin', 'scheduled-tasks', 'config'],
-    queryFn: api.admin.scheduledTasks.getConfig,
+    queryFn: ({ signal }) => api.admin.scheduledTasks.getConfig(signal),
     enabled: hasPermission('settings:read'),
   })
 
   const { data: taskRuns, refetch: refetchTaskRuns } = useQuery({
     queryKey: ['admin', 'scheduled-tasks', 'runs'],
-    queryFn: () => api.admin.scheduledTasks.getRuns(),
+    queryFn: ({ signal }) => api.admin.scheduledTasks.getRuns(undefined, signal),
     enabled: hasPermission('settings:read'),
   })
 

@@ -51,7 +51,7 @@ function SudoRolesPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sudo-roles'],
-    queryFn: api.sudoRoles.list,
+    queryFn: ({ signal }) => api.sudoRoles.list(signal),
   })
 
   const deleteMutation = useMutation({

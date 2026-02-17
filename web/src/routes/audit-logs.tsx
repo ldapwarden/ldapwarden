@@ -32,7 +32,7 @@ function AuditLogsPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['audit-logs', currentPage, pageSize],
-    queryFn: () => api.auditLogs.list({ limit: pageSize, offset: (currentPage - 1) * pageSize }),
+    queryFn: ({ signal }) => api.auditLogs.list({ limit: pageSize, offset: (currentPage - 1) * pageSize }, signal),
   })
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0

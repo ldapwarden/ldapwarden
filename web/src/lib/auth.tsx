@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import { api, type Session, ApiError } from './api'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { api, setOnAuthError, type Session, ApiError } from './api'
 
 interface AuthContextType {
   session: Session | null
@@ -15,20 +16,36 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
+      let cancelled = false
       api.auth.me()
-        .then(setSession)
-        .catch(() => {
-          localStorage.removeItem('token')
+        .then(session => {
+          if (!cancelled) setSession(session)
         })
-        .finally(() => setIsLoading(false))
+        .catch(() => {
+          if (!cancelled) localStorage.removeItem('token')
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false)
+        })
+      return () => { cancelled = true }
     } else {
       setIsLoading(false)
     }
   }, [])
+
+  // Register a callback so the API layer can clear auth state on 401
+  useEffect(() => {
+    setOnAuthError(() => {
+      setSession(null)
+      queryClient.clear()
+    })
+    return () => setOnAuthError(null)
+  }, [queryClient])
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await api.auth.login(username, password)
@@ -46,22 +63,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       localStorage.removeItem('token')
       setSession(null)
+      queryClient.clear()
     }
-  }, [])
+  }, [queryClient])
 
   const hasPermission = useCallback((permission: string) => {
     return session?.permissions.includes(permission) ?? false
   }, [session])
 
+  const value = useMemo<AuthContextType>(() => ({
+    session,
+    isLoading,
+    isAuthenticated: !!session,
+    login,
+    logout,
+    hasPermission,
+  }), [session, isLoading, login, logout, hasPermission])
+
   return (
-    <AuthContext.Provider value={{
-      session,
-      isLoading,
-      isAuthenticated: !!session,
-      login,
-      logout,
-      hasPermission,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )

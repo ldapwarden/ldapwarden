@@ -41,7 +41,7 @@ function GroupsPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['groups'],
-    queryFn: api.groups.list,
+    queryFn: ({ signal }) => api.groups.list(signal),
   })
 
   const canWrite = hasPermission('groups:write')

@@ -19,7 +19,7 @@ function ResetPasswordPage() {
 
   const { data: info, isLoading, error } = useQuery({
     queryKey: ['password-reset', token],
-    queryFn: () => api.passwordReset.getInfo(token),
+    queryFn: ({ signal }) => api.passwordReset.getInfo(token, signal),
   })
 
   const resetMutation = useMutation({

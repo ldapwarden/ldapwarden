@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,8 +18,13 @@ function LoginPage() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.navigate({ to: '/' })
+    }
+  }, [isAuthenticated, router])
+
   if (isAuthenticated) {
-    router.navigate({ to: '/' })
     return null
   }
 
@@ -30,7 +35,7 @@ function LoginPage() {
 
     try {
       await login(username, password)
-      router.navigate({ to: '/' })
+      // Navigation is handled by the useEffect when isAuthenticated changes
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

@@ -45,17 +45,17 @@ function UserDetailPage() {
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user', dn],
-    queryFn: () => api.users.get(dn),
+    queryFn: ({ signal }) => api.users.get(dn, signal),
   })
 
   const { data: userGroups } = useQuery({
     queryKey: ['user', dn, 'groups'],
-    queryFn: () => api.users.getGroups(dn),
+    queryFn: ({ signal }) => api.users.getGroups(dn, signal),
   })
 
   const { data: config } = useQuery({
     queryKey: ['admin', 'config'],
-    queryFn: api.admin.getConfig,
+    queryFn: ({ signal }) => api.admin.getConfig(signal),
   })
 
   // Get enabled LDAP object classes from config
@@ -263,13 +263,13 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   // Fetch all groups to find available ones
   const { data: allGroups } = useQuery({
     queryKey: ['groups'],
-    queryFn: api.groups.list,
+    queryFn: ({ signal }) => api.groups.list(signal),
   })
 
   // Fetch all users for manager dropdown
   const { data: allUsers } = useQuery({
     queryKey: ['users'],
-    queryFn: api.users.list,
+    queryFn: ({ signal }) => api.users.list(signal),
   })
 
   // Filter users for manager dropdown (exclude current user)
@@ -1707,13 +1707,13 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
   // Fetch user's sudo roles
   const { data: userSudoRoles, isLoading: loadingUserRoles } = useQuery({
     queryKey: ['user', dn, 'sudo-roles'],
-    queryFn: () => api.users.getSudoRoles(dn),
+    queryFn: ({ signal }) => api.users.getSudoRoles(dn, signal),
   })
 
   // Fetch all sudo roles
   const { data: allSudoRoles } = useQuery({
     queryKey: ['sudo-roles'],
-    queryFn: api.sudoRoles.list,
+    queryFn: ({ signal }) => api.sudoRoles.list(signal),
   })
 
   // Sudo roles the user is NOT a member of
@@ -1939,7 +1939,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
 
   const { data: passwordPolicies } = useQuery({
     queryKey: ['password-policies'],
-    queryFn: api.passwordPolicies.list,
+    queryFn: ({ signal }) => api.passwordPolicies.list(signal),
     enabled: showPoliciesModule,
   })
 

@@ -1,16 +1,20 @@
-import { StrictMode } from 'react'
+import { StrictMode, useMemo } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { routeTree } from './routeTree.gen'
 import { AuthProvider, useAuth } from './lib/auth'
+import { ApiError } from './lib/api'
 import './index.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60,
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (error instanceof ApiError && error.status === 401) return false
+        return failureCount < 1
+      },
     },
   },
 })
@@ -21,7 +25,7 @@ const router = createRouter({
     auth: undefined!,
     queryClient,
   },
-  defaultPreload: 'intent',
+  defaultPreload: false,
 })
 
 declare module '@tanstack/react-router' {
@@ -32,7 +36,9 @@ declare module '@tanstack/react-router' {
 
 function InnerApp() {
   const auth = useAuth()
-  return <RouterProvider router={router} context={{ auth, queryClient }} />
+  // Memoize context to prevent unnecessary router re-evaluations on every render
+  const context = useMemo(() => ({ auth, queryClient }), [auth])
+  return <RouterProvider router={router} context={context} />
 }
 
 function App() {

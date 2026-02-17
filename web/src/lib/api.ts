@@ -9,10 +9,20 @@ export class ApiError extends Error {
   }
 }
 
+// Callback for when the API receives a 401 (session expired)
+let onAuthError: (() => void) | null = null
+
+export function setOnAuthError(callback: (() => void) | null) {
+  onAuthError = callback
+}
+
+const FETCH_TIMEOUT_MS = 30_000
+
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
-  schema?: z.ZodType<T>
+  schema?: z.ZodType<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const token = localStorage.getItem('token')
 
@@ -25,60 +35,102 @@ async function fetchApi<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  })
+  // Compose external signal (from React Query) with a timeout to prevent hung requests
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
-  if (!response.ok) {
-    // Handle expired/invalid token by redirecting to login
-    if (response.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('session')
-      window.location.href = '/login'
-      throw new ApiError(response.status, 'Session expired')
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort()
+    } else {
+      signal.addEventListener('abort', () => controller.abort(), { once: true })
     }
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-    throw new ApiError(response.status, error.error || 'Request failed')
   }
 
-  const data = await response.json()
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
 
-  if (schema) {
-    return schema.parse(data)
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token')
+        onAuthError?.()
+        throw new ApiError(response.status, 'Session expired')
+      }
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+      throw new ApiError(response.status, error.error || 'Request failed')
+    }
+
+    const data = await response.json()
+
+    if (schema) {
+      return schema.parse(data)
+    }
+
+    return data as T
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError(0, 'Request timed out')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  return data as T
 }
 
 // Public API fetch (no auth header)
 async function fetchApiPublic<T>(
   endpoint: string,
   options: RequestInit = {},
-  schema?: z.ZodType<T>
+  schema?: z.ZodType<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-    throw new ApiError(response.status, error.error || 'Request failed')
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort()
+    } else {
+      signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
   }
 
-  const data = await response.json()
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
 
-  if (schema) {
-    return schema.parse(data)
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+      throw new ApiError(response.status, error.error || 'Request failed')
+    }
+
+    const data = await response.json()
+
+    if (schema) {
+      return schema.parse(data)
+    }
+
+    return data as T
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError(0, 'Request timed out')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  return data as T
 }
 
 // Schemas
@@ -399,8 +451,8 @@ export const api = {
     logout: () =>
       fetchApi('/auth/logout', { method: 'POST' }),
 
-    me: () =>
-      fetchApi('/auth/me', {}, SessionSchema),
+    me: (signal?: AbortSignal) =>
+      fetchApi('/auth/me', {}, SessionSchema, signal),
 
     changePassword: (password: string) =>
       fetchApi('/auth/change-password', {
@@ -410,11 +462,11 @@ export const api = {
   },
 
   users: {
-    list: () =>
-      fetchApi('/users', {}, UsersResponseSchema),
+    list: (signal?: AbortSignal) =>
+      fetchApi('/users', {}, UsersResponseSchema, signal),
 
-    get: (dn: string) =>
-      fetchApi(`/users/${encodeURIComponent(dn)}`, {}, UserSchema),
+    get: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/users/${encodeURIComponent(dn)}`, {}, UserSchema, signal),
 
     create: (data: {
       uid: string
@@ -452,8 +504,8 @@ export const api = {
     delete: (dn: string) =>
       fetchApi(`/users/${encodeURIComponent(dn)}`, { method: 'DELETE' }),
 
-    getGroups: (dn: string) =>
-      fetchApi(`/users/${encodeURIComponent(dn)}/groups`, {}, GroupsResponseSchema),
+    getGroups: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/users/${encodeURIComponent(dn)}/groups`, {}, GroupsResponseSchema, signal),
 
     lock: (dn: string) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/lock`, { method: 'POST' }),
@@ -496,8 +548,8 @@ export const api = {
         body: JSON.stringify({ key }),
       }, UserSchema),
 
-    getSudoRoles: (dn: string) =>
-      fetchApi(`/users/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRolesResponseSchema),
+    getSudoRoles: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/users/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRolesResponseSchema, signal),
 
     sendPasswordReset: (dn: string) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/send-password-reset`, { method: 'POST' }),
@@ -533,11 +585,11 @@ export const api = {
   },
 
   groups: {
-    list: () =>
-      fetchApi('/groups', {}, GroupsResponseSchema),
+    list: (signal?: AbortSignal) =>
+      fetchApi('/groups', {}, GroupsResponseSchema, signal),
 
-    get: (dn: string) =>
-      fetchApi(`/groups/${encodeURIComponent(dn)}`, {}, GroupSchema),
+    get: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/groups/${encodeURIComponent(dn)}`, {}, GroupSchema, signal),
 
     create: (data: {
       cn: string
@@ -571,8 +623,8 @@ export const api = {
         body: JSON.stringify({ memberUid }),
       }),
 
-    getSudoRoles: (dn: string) =>
-      fetchApi(`/groups/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRolesResponseSchema),
+    getSudoRoles: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/groups/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRolesResponseSchema, signal),
 
     updateSamba: (dn: string, data: {
       sambaSID?: string
@@ -586,11 +638,11 @@ export const api = {
   },
 
   sudoRoles: {
-    list: () =>
-      fetchApi('/sudo-roles', {}, SudoRolesResponseSchema),
+    list: (signal?: AbortSignal) =>
+      fetchApi('/sudo-roles', {}, SudoRolesResponseSchema, signal),
 
-    get: (dn: string) =>
-      fetchApi(`/sudo-roles/${encodeURIComponent(dn)}`, {}, SudoRoleSchema),
+    get: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/sudo-roles/${encodeURIComponent(dn)}`, {}, SudoRoleSchema, signal),
 
     create: (data: {
       cn: string
@@ -658,11 +710,11 @@ export const api = {
   },
 
   passwordPolicies: {
-    list: () =>
-      fetchApi('/password-policies', {}, PasswordPoliciesResponseSchema),
+    list: (signal?: AbortSignal) =>
+      fetchApi('/password-policies', {}, PasswordPoliciesResponseSchema, signal),
 
-    get: (dn: string) =>
-      fetchApi(`/password-policies/${encodeURIComponent(dn)}`, {}, PasswordPolicySchema),
+    get: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/password-policies/${encodeURIComponent(dn)}`, {}, PasswordPolicySchema, signal),
 
     create: (data: {
       cn: string
@@ -718,15 +770,15 @@ export const api = {
   },
 
   schema: {
-    get: () =>
-      fetchApi('/schema', {}, SchemaSchema),
+    get: (signal?: AbortSignal) =>
+      fetchApi('/schema', {}, SchemaSchema, signal),
 
     refresh: () =>
       fetchApi('/schema/refresh', { method: 'POST' }, SchemaSchema),
   },
 
   auditLogs: {
-    list: (params?: { limit?: number; offset?: number; actorDn?: string; resourceType?: string; action?: string }) => {
+    list: (params?: { limit?: number; offset?: number; actorDn?: string; resourceType?: string; action?: string }, signal?: AbortSignal) => {
       const searchParams = new URLSearchParams()
       if (params?.limit) searchParams.set('limit', params.limit.toString())
       if (params?.offset) searchParams.set('offset', params.offset.toString())
@@ -735,25 +787,25 @@ export const api = {
       if (params?.action) searchParams.set('action', params.action)
 
       const query = searchParams.toString()
-      return fetchApi(`/audit-logs${query ? `?${query}` : ''}`, {}, AuditLogsResponseSchema)
+      return fetchApi(`/audit-logs${query ? `?${query}` : ''}`, {}, AuditLogsResponseSchema, signal)
     },
   },
 
   nextIds: {
-    get: () =>
-      fetchApi('/next-ids', {}, NextIDsSchema),
+    get: (signal?: AbortSignal) =>
+      fetchApi('/next-ids', {}, NextIDsSchema, signal),
   },
 
   admin: {
-    getConfig: () =>
-      fetchApi('/admin/config', {}, ConfigResponseSchema),
+    getConfig: (signal?: AbortSignal) =>
+      fetchApi('/admin/config', {}, ConfigResponseSchema, signal),
 
     scheduledTasks: {
-      getConfig: () =>
-        fetchApi('/admin/scheduled-tasks/config', {}, ScheduledTasksConfigSchema),
+      getConfig: (signal?: AbortSignal) =>
+        fetchApi('/admin/scheduled-tasks/config', {}, ScheduledTasksConfigSchema, signal),
 
-      getRuns: (taskName?: string) =>
-        fetchApi(`/admin/scheduled-tasks/runs${taskName ? `?taskName=${taskName}` : ''}`, {}, TaskRunsResponseSchema),
+      getRuns: (taskName?: string, signal?: AbortSignal) =>
+        fetchApi(`/admin/scheduled-tasks/runs${taskName ? `?taskName=${taskName}` : ''}`, {}, TaskRunsResponseSchema, signal),
 
       triggerUsersExpiration: () =>
         fetchApi('/admin/scheduled-tasks/users-expiration/trigger', { method: 'POST' }, TriggerTaskResponseSchema),
@@ -764,8 +816,8 @@ export const api = {
   },
 
   passwordReset: {
-    getInfo: (token: string) =>
-      fetchApiPublic(`/password-reset/${token}`, {}, PasswordResetInfoSchema),
+    getInfo: (token: string, signal?: AbortSignal) =>
+      fetchApiPublic(`/password-reset/${token}`, {}, PasswordResetInfoSchema, signal),
 
     confirm: (token: string, password: string) =>
       fetchApiPublic(`/password-reset/${token}`, {

@@ -30,7 +30,7 @@ function SudoRoleDetailPage() {
 
   const { data: role, isLoading, error } = useQuery({
     queryKey: ['sudo-role', dn],
-    queryFn: () => api.sudoRoles.get(dn),
+    queryFn: ({ signal }) => api.sudoRoles.get(dn, signal),
   })
 
   const [formData, setFormData] = useState({

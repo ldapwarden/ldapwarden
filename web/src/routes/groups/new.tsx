@@ -29,7 +29,7 @@ function NewGroupPage() {
 
   const { data: nextIds } = useQuery({
     queryKey: ['nextIds'],
-    queryFn: () => api.nextIds.get(),
+    queryFn: ({ signal }) => api.nextIds.get(signal),
   })
 
   const [formData, setFormData] = useState({

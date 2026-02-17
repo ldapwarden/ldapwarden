@@ -47,17 +47,17 @@ function GroupDetailPage() {
 
   const { data: group, isLoading, error } = useQuery({
     queryKey: ['group', dn],
-    queryFn: () => api.groups.get(dn),
+    queryFn: ({ signal }) => api.groups.get(dn, signal),
   })
 
   const { data: usersData } = useQuery({
     queryKey: ['users'],
-    queryFn: api.users.list,
+    queryFn: ({ signal }) => api.users.list(signal),
   })
 
   const { data: config } = useQuery({
     queryKey: ['admin', 'config'],
-    queryFn: api.admin.getConfig,
+    queryFn: ({ signal }) => api.admin.getConfig(signal),
   })
 
   // Get enabled LDAP object classes from config
@@ -732,13 +732,13 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
   // Fetch group's sudo roles
   const { data: groupSudoRoles, isLoading: loadingGroupRoles } = useQuery({
     queryKey: ['group', dn, 'sudo-roles'],
-    queryFn: () => api.groups.getSudoRoles(dn),
+    queryFn: ({ signal }) => api.groups.getSudoRoles(dn, signal),
   })
 
   // Fetch all sudo roles
   const { data: allSudoRoles } = useQuery({
     queryKey: ['sudo-roles'],
-    queryFn: api.sudoRoles.list,
+    queryFn: ({ signal }) => api.sudoRoles.list(signal),
   })
 
   // Sudo roles the group is NOT a member of

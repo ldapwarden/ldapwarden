@@ -82,12 +82,12 @@ function UsersPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['users'],
-    queryFn: api.users.list,
+    queryFn: ({ signal }) => api.users.list(signal),
   })
 
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
-    queryFn: api.groups.list,
+    queryFn: ({ signal }) => api.groups.list(signal),
   })
 
   // Build a map of uid -> number of groups

@@ -31,17 +31,17 @@ function NewUserPage() {
 
   const { data: nextIds } = useQuery({
     queryKey: ['nextIds'],
-    queryFn: () => api.nextIds.get(),
+    queryFn: ({ signal }) => api.nextIds.get(signal),
   })
 
   const { data: allGroups } = useQuery({
     queryKey: ['groups'],
-    queryFn: api.groups.list,
+    queryFn: ({ signal }) => api.groups.list(signal),
   })
 
   const { data: config } = useQuery({
     queryKey: ['admin', 'config'],
-    queryFn: api.admin.getConfig,
+    queryFn: ({ signal }) => api.admin.getConfig(signal),
   })
 
   // Check if policies module is enabled
