@@ -798,7 +798,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                                 : 'hover:bg-muted'
                             }`}
                           >
-                            <div className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                            <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
                               isSelected ? 'bg-primary-foreground border-primary-foreground' : 'border-muted-foreground'
                             }`}>
                               {isSelected && (
@@ -807,7 +807,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                                 </svg>
                               )}
                             </div>
-                            <Users className="h-4 w-4 flex-shrink-0" />
+                            <Users className="h-4 w-4 shrink-0" />
                             <span className="font-medium">{group.cn}</span>
                           </button>
                         )
@@ -1090,7 +1090,7 @@ function SSHKeysTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeo
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <Key className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <Key className="h-4 w-4 text-muted-foreground shrink-0" />
                       <span className="font-mono text-sm">{type}</span>
                       {comment && (
                         <span className="text-sm text-muted-foreground truncate">
@@ -1805,7 +1805,7 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                             : 'hover:bg-muted'
                         }`}
                       >
-                        <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <span className="font-medium block">{role.cn}</span>
                           {role.sudoCommand && role.sudoCommand.length > 0 && (
@@ -1889,7 +1889,7 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                     size="icon"
                     onClick={() => removeFromRoleMutation.mutate(role.dn)}
                     disabled={removeFromRoleMutation.isPending}
-                    className="flex-shrink-0"
+                    className="shrink-0"
                   >
                     <X className="h-4 w-4 text-destructive" />
                   </Button>
@@ -2376,7 +2376,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
           <CardContent className="space-y-4">
             {hasFutureExpiration && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-                <CalendarClock className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                <CalendarClock className="h-5 w-5 text-yellow-600 shrink-0" />
                 <div>
                   <p className="font-medium text-yellow-700">Scheduled Expiration</p>
                   <p className="text-sm text-muted-foreground">
@@ -2388,7 +2388,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
 
             {hasPastLockTime && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
-                <Lock className="h-5 w-5 text-destructive flex-shrink-0" />
+                <Lock className="h-5 w-5 text-destructive shrink-0" />
                 <div>
                   <p className="font-medium text-destructive">Policy Locked</p>
                   <p className="text-sm text-muted-foreground">
@@ -2400,7 +2400,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
 
             {user?.pwdReset && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
                 <div>
                   <p className="font-medium text-yellow-700">Password Reset Required</p>
                   <p className="text-sm text-muted-foreground">

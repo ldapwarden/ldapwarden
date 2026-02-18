@@ -48,7 +48,7 @@ function LoginPage() {
       {/* Aurora background layers */}
       <div className="absolute inset-0">
         {/* Base gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a1a] via-[#0d1033] to-[#0a0a1a]" />
+        <div className="absolute inset-0 bg-linear-to-b from-[#0a0a1a] via-[#0d1033] to-[#0a0a1a]" />
 
         {/* Aurora wave 1 */}
         <div
@@ -123,7 +123,7 @@ function LoginPage() {
       `}</style>
 
       {/* Login card */}
-      <Card className="relative z-10 w-full max-w-md mx-4 bg-white/95 backdrop-blur-sm shadow-2xl">
+      <Card className="relative z-10 w-full max-w-md mx-4 bg-white/95 backdrop-blur-xs shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <img src="/ldapwarden-logo.svg" alt="LDAP Warden" className="h-24 w-auto" />

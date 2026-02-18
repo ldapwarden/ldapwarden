@@ -822,7 +822,7 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
                             : 'hover:bg-muted'
                         }`}
                       >
-                        <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <span className="font-medium block">{role.cn}</span>
                           {role.sudoCommand && role.sudoCommand.length > 0 && (
@@ -906,7 +906,7 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
                     size="icon"
                     onClick={() => removeFromRoleMutation.mutate(role.dn)}
                     disabled={removeFromRoleMutation.isPending}
-                    className="flex-shrink-0"
+                    className="shrink-0"
                   >
                     <X className="h-4 w-4 text-destructive" />
                   </Button>
