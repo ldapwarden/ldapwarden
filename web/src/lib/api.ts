@@ -238,7 +238,7 @@ export const AuditLogSchema = z.object({
   action: z.string(),
   resourceType: z.string(),
   resourceDn: z.string().optional(),
-  details: z.record(z.unknown()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
   ipAddress: z.string().optional(),
   userAgent: z.string().optional(),
   createdAt: z.string(),
@@ -364,7 +364,7 @@ export const PasswordResetInfoSchema = z.object({
 })
 
 export const SchemaSchema = z.object({
-  objectClasses: z.record(z.object({
+  objectClasses: z.record(z.string(), z.object({
     oid: z.string(),
     name: z.string(),
     description: z.string().optional(),
@@ -373,7 +373,7 @@ export const SchemaSchema = z.object({
     must: z.array(z.string()).optional(),
     may: z.array(z.string()).optional(),
   })),
-  attributeTypes: z.record(z.object({
+  attributeTypes: z.record(z.string(), z.object({
     oid: z.string(),
     name: z.string(),
     description: z.string().optional(),
