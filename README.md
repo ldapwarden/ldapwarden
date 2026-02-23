@@ -377,6 +377,10 @@ ldapwarden/
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+## AI-Assisted Development
+
+This project was built with the help of AI coding assistant.
+
 ## License
 
 This project is licensed under the Apache 2 License — see the [LICENSE](LICENSE) file for details.
