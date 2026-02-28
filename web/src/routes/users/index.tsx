@@ -15,7 +15,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, ArrowUp, ArrowDown, ArrowUpDown, CheckCircle2, Circle, Users, CalendarClock } from 'lucide-react'
+import { Plus, Search, CheckCircle2, Circle, Users, CalendarClock } from 'lucide-react'
+import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN, parseLdapTimestamp } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
@@ -91,17 +92,18 @@ function UsersPage() {
   })
 
   // Build a map of uid -> number of groups
+  const groupsRawData = groupsData?.data
   const userGroupsCount = useMemo(() => {
     const countMap: Record<string, number> = {}
-    if (groupsData?.data) {
-      for (const group of groupsData.data) {
+    if (groupsRawData) {
+      for (const group of groupsRawData) {
         for (const memberUid of group.memberUid || []) {
           countMap[memberUid] = (countMap[memberUid] || 0) + 1
         }
       }
     }
     return countMap
-  }, [groupsData?.data])
+  }, [groupsRawData])
 
   // Build color map for employee types
   const employeeTypeColors = useMemo(() => {
@@ -120,13 +122,6 @@ function UsersPage() {
       setSortField(field)
       setSortDirection('asc')
     }
-  }
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground" />
-    return sortDirection === 'asc'
-      ? <ArrowUp className="ml-1 h-4 w-4" />
-      : <ArrowDown className="ml-1 h-4 w-4" />
   }
 
   const { sortedUsers, totalFiltered, totalPages, inactiveCount } = useMemo(() => {
@@ -279,7 +274,7 @@ function UsersPage() {
                     onClick={() => handleSort('uid')}
                   >
                     Username
-                    <SortIcon field="uid" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="uid" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -288,7 +283,7 @@ function UsersPage() {
                     onClick={() => handleSort('displayName')}
                   >
                     Name
-                    <SortIcon field="displayName" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="displayName" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -297,7 +292,7 @@ function UsersPage() {
                     onClick={() => handleSort('mail')}
                   >
                     Email
-                    <SortIcon field="mail" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="mail" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -306,7 +301,7 @@ function UsersPage() {
                     onClick={() => handleSort('employeeType')}
                   >
                     Type
-                    <SortIcon field="employeeType" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="employeeType" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -315,7 +310,7 @@ function UsersPage() {
                     onClick={() => handleSort('groupsCount')}
                   >
                     Groups
-                    <SortIcon field="groupsCount" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="groupsCount" />
                   </button>
                 </TableHead>
                 <TableHead className="w-16 text-center">Status</TableHead>

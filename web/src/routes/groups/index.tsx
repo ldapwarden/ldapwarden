@@ -13,7 +13,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, Users, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Plus, Search, Users } from 'lucide-react'
+import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
 
@@ -53,13 +54,6 @@ function GroupsPage() {
       setSortField(field)
       setSortDirection('asc')
     }
-  }
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground" />
-    return sortDirection === 'asc'
-      ? <ArrowUp className="ml-1 h-4 w-4" />
-      : <ArrowDown className="ml-1 h-4 w-4" />
   }
 
   const { sortedGroups, totalFiltered, totalPages } = useMemo(() => {
@@ -173,7 +167,7 @@ function GroupsPage() {
                     onClick={() => handleSort('cn')}
                   >
                     Name
-                    <SortIcon field="cn" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="cn" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -182,7 +176,7 @@ function GroupsPage() {
                     onClick={() => handleSort('description')}
                   >
                     Description
-                    <SortIcon field="description" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="description" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -191,7 +185,7 @@ function GroupsPage() {
                     onClick={() => handleSort('gidNumber')}
                   >
                     GID
-                    <SortIcon field="gidNumber" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="gidNumber" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -200,7 +194,7 @@ function GroupsPage() {
                     onClick={() => handleSort('members')}
                   >
                     Members
-                    <SortIcon field="members" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="members" />
                   </button>
                 </TableHead>
               </TableRow>

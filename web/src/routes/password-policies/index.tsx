@@ -22,7 +22,8 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Pencil, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown, KeyRound } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
+import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
 
@@ -72,13 +73,6 @@ function PasswordPoliciesPage() {
       setSortField(field)
       setSortDirection('asc')
     }
-  }
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground" />
-    return sortDirection === 'asc'
-      ? <ArrowUp className="ml-1 h-4 w-4" />
-      : <ArrowDown className="ml-1 h-4 w-4" />
   }
 
   const formatSeconds = (seconds: number | undefined) => {
@@ -195,7 +189,7 @@ function PasswordPoliciesPage() {
                     onClick={() => handleSort('cn')}
                   >
                     Name
-                    <SortIcon field="cn" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="cn" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -204,7 +198,7 @@ function PasswordPoliciesPage() {
                     onClick={() => handleSort('pwdMinLength')}
                   >
                     Min Length
-                    <SortIcon field="pwdMinLength" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="pwdMinLength" />
                   </button>
                 </TableHead>
                 <TableHead>
@@ -213,7 +207,7 @@ function PasswordPoliciesPage() {
                     onClick={() => handleSort('pwdMaxAge')}
                   >
                     Max Age
-                    <SortIcon field="pwdMaxAge" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="pwdMaxAge" />
                   </button>
                 </TableHead>
                 <TableHead>Lockout</TableHead>

@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { decodeDN } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -39,54 +39,30 @@ function PasswordPolicyDetailPage() {
   const canWrite = hasPermission('settings:write')
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [formData, setFormData] = useState({
-    description: '',
-    pwdAttribute: 'userPassword',
-    pwdMinAge: 0,
-    pwdMaxAge: 0,
-    pwdInHistory: 0,
-    pwdCheckQuality: 0,
-    pwdMinLength: 0,
-    pwdExpireWarning: 0,
-    pwdGraceAuthNLimit: 0,
-    pwdLockout: false,
-    pwdLockoutDuration: 0,
-    pwdMaxFailure: 0,
-    pwdFailureCountInterval: 0,
-    pwdMustChange: false,
-    pwdAllowUserChange: true,
-    pwdSafeModify: false,
-    pwdCheckModule: '',
-  })
-
   const { data: policy, isLoading, error } = useQuery({
     queryKey: ['password-policy', dn],
     queryFn: ({ signal }) => api.passwordPolicies.get(dn, signal),
   })
 
-  useEffect(() => {
-    if (policy) {
-      setFormData({
-        description: policy.description || '',
-        pwdAttribute: policy.pwdAttribute || 'userPassword',
-        pwdMinAge: policy.pwdMinAge || 0,
-        pwdMaxAge: policy.pwdMaxAge || 0,
-        pwdInHistory: policy.pwdInHistory || 0,
-        pwdCheckQuality: policy.pwdCheckQuality || 0,
-        pwdMinLength: policy.pwdMinLength || 0,
-        pwdExpireWarning: policy.pwdExpireWarning || 0,
-        pwdGraceAuthNLimit: policy.pwdGraceAuthNLimit || 0,
-        pwdLockout: policy.pwdLockout || false,
-        pwdLockoutDuration: policy.pwdLockoutDuration || 0,
-        pwdMaxFailure: policy.pwdMaxFailure || 0,
-        pwdFailureCountInterval: policy.pwdFailureCountInterval || 0,
-        pwdMustChange: policy.pwdMustChange || false,
-        pwdAllowUserChange: policy.pwdAllowUserChange ?? true,
-        pwdSafeModify: policy.pwdSafeModify || false,
-        pwdCheckModule: policy.pwdCheckModule || '',
-      })
-    }
-  }, [policy])
+  const [formData, setFormData] = useState({
+    description: policy?.description || '',
+    pwdAttribute: policy?.pwdAttribute || 'userPassword',
+    pwdMinAge: policy?.pwdMinAge || 0,
+    pwdMaxAge: policy?.pwdMaxAge || 0,
+    pwdInHistory: policy?.pwdInHistory || 0,
+    pwdCheckQuality: policy?.pwdCheckQuality || 0,
+    pwdMinLength: policy?.pwdMinLength || 0,
+    pwdExpireWarning: policy?.pwdExpireWarning || 0,
+    pwdGraceAuthNLimit: policy?.pwdGraceAuthNLimit || 0,
+    pwdLockout: policy?.pwdLockout || false,
+    pwdLockoutDuration: policy?.pwdLockoutDuration || 0,
+    pwdMaxFailure: policy?.pwdMaxFailure || 0,
+    pwdFailureCountInterval: policy?.pwdFailureCountInterval || 0,
+    pwdMustChange: policy?.pwdMustChange || false,
+    pwdAllowUserChange: policy?.pwdAllowUserChange ?? true,
+    pwdSafeModify: policy?.pwdSafeModify || false,
+    pwdCheckModule: policy?.pwdCheckModule || '',
+  })
 
   const updateMutation = useMutation({
     mutationFn: () => api.passwordPolicies.update(dn, formData),

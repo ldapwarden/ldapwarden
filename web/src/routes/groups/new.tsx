@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save, Wand2 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/groups/new')({
   beforeLoad: ({ context }) => {
@@ -38,20 +38,10 @@ function NewGroupPage() {
     description: '',
   })
 
-  // Auto-fill GID when data is available
-  useEffect(() => {
-    if (nextIds && !formData.gidNumber) {
-      setFormData(prev => ({
-        ...prev,
-        gidNumber: nextIds.nextGid.toString(),
-      }))
-    }
-  }, [nextIds, formData.gidNumber])
-
   const createMutation = useMutation({
     mutationFn: () => api.groups.create({
       cn: formData.cn,
-      gidNumber: parseInt(formData.gidNumber),
+      gidNumber: parseInt(formData.gidNumber || nextIds?.nextGid?.toString() || '0'),
       description: formData.description || undefined,
     }),
     onSuccess: () => {
@@ -110,7 +100,7 @@ function NewGroupPage() {
                 <Input
                   id="gidNumber"
                   type="number"
-                  value={formData.gidNumber}
+                  value={formData.gidNumber || nextIds?.nextGid?.toString() || ''}
                   onChange={(e) => setFormData({ ...formData, gidNumber: e.target.value })}
                   required
                   min={nextIds?.minGid}

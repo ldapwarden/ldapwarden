@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
 import { ArrowLeft, Save, Wand2, Users, X, CalendarClock } from 'lucide-react'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 
 export const Route = createFileRoute('/users/new')({
   beforeLoad: ({ context }) => {
@@ -108,16 +108,6 @@ function NewUserPage() {
     expirationDate: '',
   })
 
-  // Auto-fill UID when data is available
-  useEffect(() => {
-    if (nextIds && !formData.uidNumber) {
-      setFormData(prev => ({
-        ...prev,
-        uidNumber: nextIds.nextUid.toString(),
-      }))
-    }
-  }, [nextIds, formData.uidNumber])
-
   const createMutation = useMutation({
     mutationFn: () => api.users.create({
       uid: formData.uid,
@@ -131,7 +121,7 @@ function NewUserPage() {
       departmentNumber: formData.departmentNumber || undefined,
       o: formData.o || undefined,
       employeeType: formData.employeeType || undefined,
-      uidNumber: parseInt(formData.uidNumber),
+      uidNumber: parseInt(formData.uidNumber || nextIds?.nextUid?.toString() || '0'),
       gidNumber: resolvedGidNumber,
       homeDirectory: formData.homeDirectory || `/home/${formData.uid}`,
       loginShell: formData.loginShell,
@@ -240,7 +230,7 @@ function NewUserPage() {
                   <Input
                     id="uidNumber"
                     type="number"
-                    value={formData.uidNumber}
+                    value={formData.uidNumber || nextIds?.nextUid?.toString() || ''}
                     onChange={(e) => setFormData({ ...formData, uidNumber: e.target.value })}
                     required
                     min={nextIds?.minUid}

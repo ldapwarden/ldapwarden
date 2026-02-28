@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { ArrowLeft, Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 
 export const Route = createFileRoute('/groups/$dn')({
   beforeLoad: ({ context }) => {
@@ -39,8 +39,6 @@ function GroupDetailPage() {
   const canWrite = hasPermission('groups:write')
   const canDelete = hasPermission('groups:delete')
 
-  const [activeTab, setActiveTab] = useState('information')
-  const [description, setDescription] = useState('')
   const [newMember, setNewMember] = useState('')
   const [addMemberOpen, setAddMemberOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
@@ -90,27 +88,19 @@ function GroupDetailPage() {
 
   const hasSambaGroupMapping = groupObjectClasses.has('sambagroupmapping')
 
-  // Set default active tab to first available tab
-  useEffect(() => {
-    if (showPosixGroupTabs) {
-      setActiveTab('information')
-    } else if (showSambaTab) {
-      setActiveTab('samba')
-    } else if (showSudoTab) {
-      setActiveTab('sudo')
-    } else {
-      setActiveTab('security')
-    }
+  // Compute default tab from config
+  const defaultTab = useMemo(() => {
+    if (showPosixGroupTabs) return 'information'
+    if (showSambaTab) return 'samba'
+    if (showSudoTab) return 'sudo'
+    return 'security'
   }, [showPosixGroupTabs, showSambaTab, showSudoTab])
 
-  useEffect(() => {
-    if (group) {
-      setDescription(group.description || '')
-    }
-  }, [group])
+  const [userSelectedTab, setUserSelectedTab] = useState<string | null>(null)
+  const activeTab = userSelectedTab ?? defaultTab
 
   const updateMutation = useMutation({
-    mutationFn: () => api.groups.update(dn, { description }),
+    mutationFn: (description: string) => api.groups.update(dn, { description }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       queryClient.invalidateQueries({ queryKey: ['group', dn] })
@@ -158,9 +148,9 @@ function GroupDetailPage() {
     },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent, description: string) => {
     e.preventDefault()
-    updateMutation.mutate()
+    updateMutation.mutate(description)
   }
 
   const availableUsers = useMemo(() => {
@@ -215,7 +205,7 @@ function GroupDetailPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setUserSelectedTab}>
         <TabsList>
           {showPosixGroupTabs && (
             <TabsTrigger value="information" className="flex items-center gap-1">
@@ -256,8 +246,6 @@ function GroupDetailPage() {
           <TabsContent value="information">
             <InformationTab
               group={group!}
-              description={description}
-              setDescription={setDescription}
               canWrite={canWrite}
               updateMutation={updateMutation}
               onSubmit={handleSubmit}
@@ -311,21 +299,19 @@ function GroupDetailPage() {
 // Information Tab
 function InformationTab({
   group,
-  description,
-  setDescription,
   canWrite,
   updateMutation,
   onSubmit,
 }: {
   group: NonNullable<ReturnType<typeof api.groups.get> extends Promise<infer T> ? T : never>
-  description: string
-  setDescription: (value: string) => void
   canWrite: boolean
-  updateMutation: ReturnType<typeof useMutation<unknown, Error, void>>
-  onSubmit: (e: React.FormEvent) => void
+  updateMutation: ReturnType<typeof useMutation<unknown, Error, string>>
+  onSubmit: (e: React.FormEvent, description: string) => void
 }) {
+  const [description, setDescription] = useState(group.description || '')
+
   return (
-    <form onSubmit={onSubmit}>
+    <form onSubmit={(e) => onSubmit(e, description)}>
       <Card>
         <CardHeader>
           <CardTitle>Group Information</CardTitle>
@@ -544,20 +530,10 @@ function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<
   const [isAddingObjectClass, setIsAddingObjectClass] = useState(false)
 
   const [formData, setFormData] = useState({
-    sambaSID: '',
-    sambaGroupType: '',
-    displayName: '',
+    sambaSID: group.sambaSID || '',
+    sambaGroupType: group.sambaGroupType || '',
+    displayName: group.displayName || '',
   })
-
-  useEffect(() => {
-    if (group) {
-      setFormData({
-        sambaSID: group.sambaSID || '',
-        sambaGroupType: group.sambaGroupType || '',
-        displayName: group.displayName || '',
-      })
-    }
-  }, [group])
 
   // Initialize form with default values when entering add mode
   const handleAddSambaGroup = () => {

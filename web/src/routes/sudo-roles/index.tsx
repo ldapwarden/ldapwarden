@@ -21,7 +21,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Pencil, Trash2, Search, ArrowUp, ArrowDown, ArrowUpDown, ShieldCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, ShieldCheck } from 'lucide-react'
+import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
 
@@ -72,13 +73,6 @@ function SudoRolesPage() {
       setSortField(field)
       setSortDirection('asc')
     }
-  }
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground" />
-    return sortDirection === 'asc'
-      ? <ArrowUp className="ml-1 h-4 w-4" />
-      : <ArrowDown className="ml-1 h-4 w-4" />
   }
 
   const { sortedRoles, totalFiltered, totalPages } = useMemo(() => {
@@ -186,7 +180,7 @@ function SudoRolesPage() {
                     onClick={() => handleSort('cn')}
                   >
                     Name
-                    <SortIcon field="cn" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="cn" />
                   </button>
                 </TableHead>
                 <TableHead>Users</TableHead>
@@ -198,7 +192,7 @@ function SudoRolesPage() {
                     onClick={() => handleSort('sudoOrder')}
                   >
                     Order
-                    <SortIcon field="sudoOrder" />
+                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="sudoOrder" />
                   </button>
                 </TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>

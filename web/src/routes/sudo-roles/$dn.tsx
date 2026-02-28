@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { ArrowLeft, Save, ShieldCheck, Plus, X, Users, Terminal, Clock } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/sudo-roles/$dn')({
   beforeLoad: ({ context }) => {
@@ -34,17 +34,17 @@ function SudoRoleDetailPage() {
   })
 
   const [formData, setFormData] = useState({
-    description: '',
-    sudoUser: [] as string[],
-    sudoHost: [] as string[],
-    sudoCommand: [] as string[],
-    sudoRunAs: [] as string[],
-    sudoRunAsUser: [] as string[],
-    sudoRunAsGroup: [] as string[],
-    sudoOption: [] as string[],
-    sudoOrder: 0,
-    sudoNotBefore: '',
-    sudoNotAfter: '',
+    description: role?.description || '',
+    sudoUser: role?.sudoUser || [] as string[],
+    sudoHost: role?.sudoHost || [] as string[],
+    sudoCommand: role?.sudoCommand || [] as string[],
+    sudoRunAs: role?.sudoRunAs || [] as string[],
+    sudoRunAsUser: role?.sudoRunAsUser || [] as string[],
+    sudoRunAsGroup: role?.sudoRunAsGroup || [] as string[],
+    sudoOption: role?.sudoOption || [] as string[],
+    sudoOrder: role?.sudoOrder || 0,
+    sudoNotBefore: role?.sudoNotBefore || '',
+    sudoNotAfter: role?.sudoNotAfter || '',
   })
 
   // Input fields for adding new values
@@ -55,24 +55,6 @@ function SudoRoleDetailPage() {
   const [newRunAsUser, setNewRunAsUser] = useState('')
   const [newRunAsGroup, setNewRunAsGroup] = useState('')
   const [newOption, setNewOption] = useState('')
-
-  useEffect(() => {
-    if (role) {
-      setFormData({
-        description: role.description || '',
-        sudoUser: role.sudoUser || [],
-        sudoHost: role.sudoHost || [],
-        sudoCommand: role.sudoCommand || [],
-        sudoRunAs: role.sudoRunAs || [],
-        sudoRunAsUser: role.sudoRunAsUser || [],
-        sudoRunAsGroup: role.sudoRunAsGroup || [],
-        sudoOption: role.sudoOption || [],
-        sudoOrder: role.sudoOrder || 0,
-        sudoNotBefore: role.sudoNotBefore || '',
-        sudoNotAfter: role.sudoNotAfter || '',
-      })
-    }
-  }, [role])
 
   const updateMutation = useMutation({
     mutationFn: () => api.sudoRoles.update(dn, formData),

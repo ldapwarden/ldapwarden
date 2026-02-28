@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo } from 'react'
 
 export const Route = createFileRoute('/users/$dn')({
   beforeLoad: ({ context }) => {
@@ -40,8 +40,6 @@ function UserDetailPage() {
   const { hasPermission } = useAuth()
   const canWrite = hasPermission('users:write')
   const canDelete = hasPermission('users:delete')
-
-  const [activeTab, setActiveTab] = useState('identity')
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user', dn],
@@ -93,24 +91,19 @@ function UserDetailPage() {
   const hasSambaSamAccount = userObjectClasses.has('sambasamaccount')
   const hasShadowAccount = userObjectClasses.has('shadowaccount')
 
-  // Set default active tab to first available tab
-  useEffect(() => {
-    if (showIdentityTab) {
-      setActiveTab('identity')
-    } else if (showPosixTab) {
-      setActiveTab('posix')
-    } else if (showShadowTab) {
-      setActiveTab('shadow')
-    } else if (showSambaTab) {
-      setActiveTab('samba')
-    } else if (showSSHKeysTab) {
-      setActiveTab('ssh-keys')
-    } else if (showSudoTab) {
-      setActiveTab('sudo')
-    } else {
-      setActiveTab('security')
-    }
+  // Compute default tab from config
+  const defaultTab = useMemo(() => {
+    if (showIdentityTab) return 'identity'
+    if (showPosixTab) return 'posix'
+    if (showShadowTab) return 'shadow'
+    if (showSambaTab) return 'samba'
+    if (showSSHKeysTab) return 'ssh-keys'
+    if (showSudoTab) return 'sudo'
+    return 'security'
   }, [showIdentityTab, showPosixTab, showShadowTab, showSambaTab, showSSHKeysTab, showSudoTab])
+
+  const [userSelectedTab, setUserSelectedTab] = useState<string | null>(null)
+  const activeTab = userSelectedTab ?? defaultTab
 
   if (isLoading) {
     return (
@@ -153,7 +146,7 @@ function UserDetailPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setUserSelectedTab}>
         <TabsList>
           {showIdentityTab && (
             <TabsTrigger value="identity">
@@ -343,46 +336,23 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   })
 
   const [formData, setFormData] = useState({
-    givenName: '',
-    sn: '',
-    cn: '',
-    displayName: '',
-    mail: '',
-    telephoneNumber: '',
-    title: '',
-    departmentNumber: '',
-    o: '',
-    employeeNumber: '',
-    employeeType: '',
-    initials: '',
-    manager: '',
-    description: '',
-    jpegPhoto: '',
+    givenName: user.givenName || '',
+    sn: user.sn || '',
+    cn: user.cn || '',
+    displayName: user.displayName || '',
+    mail: user.mail || '',
+    telephoneNumber: user.telephoneNumber || '',
+    title: user.title || '',
+    departmentNumber: user.departmentNumber || '',
+    o: user.o || '',
+    employeeNumber: user.employeeNumber || '',
+    employeeType: user.employeeType || '',
+    initials: user.initials || '',
+    manager: user.manager || '',
+    description: user.description || '',
+    jpegPhoto: user.jpegPhoto || '',
   })
   const [photoChanged, setPhotoChanged] = useState(false)
-
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        givenName: user.givenName || '',
-        sn: user.sn || '',
-        cn: user.cn || '',
-        displayName: user.displayName || '',
-        mail: user.mail || '',
-        telephoneNumber: user.telephoneNumber || '',
-        title: user.title || '',
-        departmentNumber: user.departmentNumber || '',
-        o: user.o || '',
-        employeeNumber: user.employeeNumber || '',
-        employeeType: user.employeeType || '',
-        initials: user.initials || '',
-        manager: user.manager || '',
-        description: user.description || '',
-        jpegPhoto: user.jpegPhoto || '',
-      })
-      setPhotoChanged(false)
-    }
-  }, [user])
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -888,20 +858,10 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
   const queryClient = useQueryClient()
 
   const [formData, setFormData] = useState({
-    homeDirectory: '',
-    loginShell: '',
-    gecos: '',
+    homeDirectory: user.homeDirectory || '',
+    loginShell: user.loginShell || '',
+    gecos: user.gecos || '',
   })
-
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        homeDirectory: user.homeDirectory || '',
-        loginShell: user.loginShell || '',
-        gecos: user.gecos || '',
-      })
-    }
-  }, [user])
 
   const updateMutation = useMutation({
     mutationFn: () => {
@@ -1151,30 +1111,15 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
   const [isAddingObjectClass, setIsAddingObjectClass] = useState(false)
 
   const [formData, setFormData] = useState({
-    sambaSID: '',
-    sambaPrimaryGroupSID: '',
-    sambaAcctFlags: '',
-    sambaHomePath: '',
-    sambaHomeDrive: '',
-    sambaLogonScript: '',
-    sambaProfilePath: '',
-    sambaDomainName: '',
+    sambaSID: user.sambaSID || '',
+    sambaPrimaryGroupSID: user.sambaPrimaryGroupSID || '',
+    sambaAcctFlags: user.sambaAcctFlags || '',
+    sambaHomePath: user.sambaHomePath || '',
+    sambaHomeDrive: user.sambaHomeDrive || '',
+    sambaLogonScript: user.sambaLogonScript || '',
+    sambaProfilePath: user.sambaProfilePath || '',
+    sambaDomainName: user.sambaDomainName || '',
   })
-
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        sambaSID: user.sambaSID || '',
-        sambaPrimaryGroupSID: user.sambaPrimaryGroupSID || '',
-        sambaAcctFlags: user.sambaAcctFlags || '',
-        sambaHomePath: user.sambaHomePath || '',
-        sambaHomeDrive: user.sambaHomeDrive || '',
-        sambaLogonScript: user.sambaLogonScript || '',
-        sambaProfilePath: user.sambaProfilePath || '',
-        sambaDomainName: user.sambaDomainName || '',
-      })
-    }
-  }, [user])
 
   // Initialize form with default values when entering add mode
   const handleAddSambaAccount = () => {
@@ -1423,28 +1368,14 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<R
   const [isAddingObjectClass, setIsAddingObjectClass] = useState(false)
 
   const [formData, setFormData] = useState({
-    shadowLastChange: '',
-    shadowMin: '',
-    shadowMax: '',
-    shadowWarning: '',
-    shadowInactive: '',
-    shadowExpire: '',
-    shadowFlag: '',
+    shadowLastChange: user.shadowLastChange?.toString() || '',
+    shadowMin: user.shadowMin?.toString() || '',
+    shadowMax: user.shadowMax?.toString() || '',
+    shadowWarning: user.shadowWarning?.toString() || '',
+    shadowInactive: user.shadowInactive?.toString() || '',
+    shadowExpire: user.shadowExpire?.toString() || '',
+    shadowFlag: user.shadowFlag?.toString() || '',
   })
-
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        shadowLastChange: user.shadowLastChange?.toString() || '',
-        shadowMin: user.shadowMin?.toString() || '',
-        shadowMax: user.shadowMax?.toString() || '',
-        shadowWarning: user.shadowWarning?.toString() || '',
-        shadowInactive: user.shadowInactive?.toString() || '',
-        shadowExpire: user.shadowExpire?.toString() || '',
-        shadowFlag: user.shadowFlag?.toString() || '',
-      })
-    }
-  }, [user])
 
   // Initialize form with default values when entering add mode
   const handleAddShadowAccount = () => {
@@ -1921,21 +1852,17 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
   const [confirmPassword, setConfirmPassword] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [removePasswordDialogOpen, setRemovePasswordDialogOpen] = useState(false)
-  const [expirationDate, setExpirationDate] = useState('')
   const [editingExpiration, setEditingExpiration] = useState(false)
 
   // Determine if the account has a future expiration date
   const hasFutureExpiration = user?.pwdAccountLockedTime && isLdapTimestampInFuture(user.pwdAccountLockedTime)
   const hasPastLockTime = user?.pwdAccountLockedTime && !isLdapTimestampInFuture(user.pwdAccountLockedTime)
 
-  // Initialize expiration date from user data
-  useEffect(() => {
-    if (user?.pwdAccountLockedTime && hasFutureExpiration) {
-      setExpirationDate(ldapTimestampToDateString(user.pwdAccountLockedTime))
-    } else {
-      setExpirationDate('')
-    }
-  }, [user?.pwdAccountLockedTime, hasFutureExpiration])
+  const [expirationDate, setExpirationDate] = useState(
+    user?.pwdAccountLockedTime && hasFutureExpiration
+      ? ldapTimestampToDateString(user.pwdAccountLockedTime)
+      : ''
+  )
 
   const { data: passwordPolicies } = useQuery({
     queryKey: ['password-policies'],
