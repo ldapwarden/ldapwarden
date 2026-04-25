@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Start services
+        run: docker compose up -d postgres redis openldap
+
+      - name: Wait for services
+        run: |
+          until docker exec ldapwarden-postgres pg_isready -U ldapwarden > /dev/null 2>&1; do sleep 1; done
+          until docker exec ldapwarden-redis redis-cli ping > /dev/null 2>&1; do sleep 1; done
+          for i in $(seq 1 60); do
+            if docker exec ldapwarden-openldap ldapsearch -x -D "cn=admin,dc=example,dc=org" -w admin -b "dc=example,dc=org" -s base -H ldap://localhost > /dev/null 2>&1; then
+              echo "OpenLDAP ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "OpenLDAP did not become ready"
+          docker logs ldapwarden-openldap
+          exit 1
+
+      - name: Run integration tests
+        env:
+          LDAPWARDEN_TEST_INTEGRATION: "1"
+        run: go test -tags integration -count=1 -v ./...
