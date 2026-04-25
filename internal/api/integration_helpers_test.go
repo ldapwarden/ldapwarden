@@ -3,10 +3,14 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -167,4 +171,55 @@ func uniqueSuffix(t *testing.T) string {
 		t.Fatalf("rand: %v", err)
 	}
 	return hex.EncodeToString(b)
+}
+
+// doJSON sends an HTTP request to the test server. The body is JSON-encoded if
+// non-nil; the response body is fully read and returned alongside the response
+// object (with its body already closed).
+func doJSON(t *testing.T, env *testEnv, method, path string, body any, token string) (*http.Response, []byte) {
+	t.Helper()
+	var reqBody io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		reqBody = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, env.Server.URL+path, reqBody)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	respBody, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return resp, respBody
+}
+
+// loginAs performs a login and returns the parsed response. Fatals on any
+// non-200; for tests asserting on failure paths, call doJSON directly.
+func loginAs(t *testing.T, env *testEnv, username, password string) *auth.LoginResponse {
+	t.Helper()
+	resp, body := doJSON(t, env, http.MethodPost, "/api/auth/login",
+		map[string]string{"username": username, "password": password}, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("login as %s: status=%d body=%s", username, resp.StatusCode, body)
+	}
+	var lr auth.LoginResponse
+	if err := json.Unmarshal(body, &lr); err != nil {
+		t.Fatalf("unmarshal login response: %v (body=%s)", err, body)
+	}
+	return &lr
 }
