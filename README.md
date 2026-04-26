@@ -249,10 +249,7 @@ Tasks can also be triggered manually via the Administration UI or API (`POST /ap
 # Start infrastructure (PostgreSQL, Redis, OpenLDAP)
 docker compose up -d postgres redis openldap
 
-# Run database migrations
-make migrate
-
-# Start the backend (terminal 1)
+# Start the backend (terminal 1) — applies migrations on startup
 cd cmd/server && go run .
 
 # Start the frontend (terminal 2)
@@ -304,9 +301,8 @@ If you prefer to run services locally without Docker:
    export LDAP_BIND_PASS="your-admin-password"
    ```
 
-5. **Run migrations and start**:
+5. **Start the app** (the backend applies database migrations on startup):
    ```bash
-   make migrate
    cd cmd/server && go run .      # Terminal 1
    cd web && pnpm install && pnpm dev  # Terminal 2
    ```

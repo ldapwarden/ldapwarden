@@ -9,16 +9,13 @@ See [docs/SPEC.md](docs/SPEC.md) for full architecture and requirements.
 # 1. Start infrastructure (PostgreSQL, Redis, OpenLDAP)
 docker compose up -d
 
-# 2. Run database migrations
-make migrate
-
-# 3. Install frontend dependencies
+# 2. Install frontend dependencies
 cd web && pnpm install && cd ..
 
-# 4. Start backend (in one terminal)
+# 3. Start backend (in one terminal) — applies DB migrations on startup
 cd cmd/server && go run .
 
-# 5. Start frontend (in another terminal)
+# 4. Start frontend (in another terminal)
 cd web && pnpm dev
 ```
 
@@ -30,9 +27,9 @@ Access the app at http://localhost:5173
 ```bash
 docker compose up -d          # Start infrastructure
 docker compose down           # Stop infrastructure
-make migrate                  # Run database migrations
-cd cmd/server && go run .     # Backend (port 8000)
+cd cmd/server && go run .     # Backend (port 8000) — applies migrations on startup
 cd web && pnpm dev            # Frontend (port 5173)
+make test-integration         # Run integration tests against compose services
 ```
 
 ## Project Structure

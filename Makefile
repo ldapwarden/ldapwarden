@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend infra migrate test test-integration clean lint lint-go lint-frontend
+.PHONY: dev dev-backend dev-frontend infra test test-integration clean lint lint-go lint-frontend
 
 # Start all infrastructure
 infra:
@@ -7,14 +7,6 @@ infra:
 # Stop all infrastructure
 infra-down:
 	docker compose down
-
-# Run database migrations
-migrate:
-	@echo "Running migrations..."
-	@for f in db/migrations/*.up.sql; do \
-		echo "Applying $$f"; \
-		docker exec -i ldapwarden-postgres psql -U ldapwarden -d ldapwarden < $$f; \
-	done
 
 # Run backend
 dev-backend:
@@ -74,7 +66,6 @@ help:
 	@echo "Available targets:"
 	@echo "  infra          - Start PostgreSQL, Redis, OpenLDAP containers"
 	@echo "  infra-down     - Stop all containers"
-	@echo "  migrate        - Run database migrations"
 	@echo "  dev-backend    - Run Go backend server"
 	@echo "  dev-frontend   - Run React frontend dev server"
 	@echo "  install-frontend - Install frontend dependencies"
