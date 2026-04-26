@@ -12,9 +12,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -222,4 +224,78 @@ func loginAs(t *testing.T, env *testEnv, username, password string) *auth.LoginR
 		t.Fatalf("unmarshal login response: %v (body=%s)", err, body)
 	}
 	return &lr
+}
+
+// userPath builds the URL-encoded path for a user DN as accepted by the API.
+func userPath(dn string) string {
+	return "/api/users/" + url.QueryEscape(dn)
+}
+
+// groupPath builds the URL-encoded path for a group DN as accepted by the API.
+func groupPath(dn string) string {
+	return "/api/groups/" + url.QueryEscape(dn)
+}
+
+// testIDNumber returns a UID/GID number derived from the random suffix, in a
+// range above the seed data (which uses 1000-1999). LDAP itself does not
+// enforce posixAccount uidNumber uniqueness, so collisions across runs are
+// harmless — the DN is what guarantees per-test isolation.
+func testIDNumber(suffix string) int {
+	n, _ := strconv.ParseUint(suffix, 16, 64)
+	return 60000 + int(n%10000)
+}
+
+// createTestUser creates a user via the API, registers a cleanup that deletes
+// it, and returns the parsed user. Fatals on failure.
+func createTestUser(t *testing.T, env *testEnv, token string) *ldap.User {
+	t.Helper()
+	suffix := uniqueSuffix(t)
+	uid := "testuser-" + suffix
+	n := testIDNumber(suffix)
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
+		"uid":       uid,
+		"givenName": "Test",
+		"sn":        "User-" + suffix,
+		"uidNumber": n,
+		"gidNumber": n,
+		"mail":      uid + "@test.example",
+		"password":  "testpass",
+	}, token)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create user: status=%d body=%s", resp.StatusCode, body)
+	}
+	var user ldap.User
+	if err := json.Unmarshal(body, &user); err != nil {
+		t.Fatalf("unmarshal user: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete, userPath(user.DN), nil, token)
+	})
+	return &user
+}
+
+// createTestGroup creates a group via the API, registers a cleanup that
+// deletes it, and returns the parsed group. Fatals on failure.
+func createTestGroup(t *testing.T, env *testEnv, token string) *ldap.Group {
+	t.Helper()
+	suffix := uniqueSuffix(t)
+	cn := "testgroup-" + suffix
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/groups/", map[string]any{
+		"cn":          cn,
+		"gidNumber":   testIDNumber(suffix),
+		"description": "test group " + suffix,
+	}, token)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create group: status=%d body=%s", resp.StatusCode, body)
+	}
+	var group ldap.Group
+	if err := json.Unmarshal(body, &group); err != nil {
+		t.Fatalf("unmarshal group: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete, groupPath(group.DN), nil, token)
+	})
+	return &group
 }
