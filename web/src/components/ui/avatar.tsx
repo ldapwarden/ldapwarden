@@ -24,11 +24,11 @@ export function Avatar({
   ...props
 }: AvatarProps) {
   const [hasError, setHasError] = React.useState(false)
-
-  // Reset error state when src changes
-  React.useEffect(() => {
+  const [prevSrc, setPrevSrc] = React.useState(src)
+  if (src !== prevSrc) {
+    setPrevSrc(src)
     setHasError(false)
-  }, [src])
+  }
 
   const initials = fallback
     ?.split(" ")

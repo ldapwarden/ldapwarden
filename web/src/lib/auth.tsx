@@ -15,27 +15,24 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('token'))
   const queryClient = useQueryClient()
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (token) {
-      let cancelled = false
-      api.auth.me()
-        .then(session => {
-          if (!cancelled) setSession(session)
-        })
-        .catch(() => {
-          if (!cancelled) localStorage.removeItem('token')
-        })
-        .finally(() => {
-          if (!cancelled) setIsLoading(false)
-        })
-      return () => { cancelled = true }
-    } else {
-      setIsLoading(false)
-    }
+    if (!token) return
+    let cancelled = false
+    api.auth.me()
+      .then(session => {
+        if (!cancelled) setSession(session)
+      })
+      .catch(() => {
+        if (!cancelled) localStorage.removeItem('token')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => { cancelled = true }
   }, [])
 
   // Register a callback so the API layer can clear auth state on 401
