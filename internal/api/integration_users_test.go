@@ -125,6 +125,40 @@ func TestIntegration_Users_CreateRequiresFields(t *testing.T) {
 	}
 }
 
+// TestIntegration_Users_CreateRejectsUnsafeUID verifies that UIDs containing
+// characters that would corrupt or shift the resulting DN are rejected at the
+// API boundary — closes the C3 finding from REPORT.md (DN injection at
+// entry creation).
+func TestIntegration_Users_CreateRejectsUnsafeUID(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	cases := []string{
+		"alice,ou=Admins",  // would shift the DN to a different OU
+		"alice+uid=root",   // RDN multivalued
+		"alice;injected",   // RFC 4514 separator
+		"alice space",      // space in the middle
+		" alice",           // leading space
+		"#alice",           // leading #
+		"alice\\backslash", // literal backslash
+		"alice\nnewline",   // CRLF in attribute
+	}
+	for _, uid := range cases {
+		t.Run(uid, func(t *testing.T) {
+			resp, _ := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
+				"uid":       uid,
+				"givenName": "X",
+				"sn":        "Y",
+				"uidNumber": 60050,
+				"gidNumber": 60050,
+			}, token)
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Errorf("uid=%q: status=%d, want 400", uid, resp.StatusCode)
+			}
+		})
+	}
+}
+
 func TestIntegration_Users_CreateDuplicate(t *testing.T) {
 	env := setupTestServer(t)
 	token := loginAs(t, env, "admin", "admin123").Token

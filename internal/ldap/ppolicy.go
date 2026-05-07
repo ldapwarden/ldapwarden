@@ -114,7 +114,7 @@ func (c *Client) GetPasswordPolicy(dn string) (*PasswordPolicy, error) {
 
 // CreatePasswordPolicy creates a new password policy
 func (c *Client) CreatePasswordPolicy(req CreatePasswordPolicyRequest) (*PasswordPolicy, error) {
-	dn := fmt.Sprintf("cn=%s,%s", req.CN, c.PpolicyBaseDN())
+	dn := fmt.Sprintf("cn=%s,%s", ldap.EscapeDN(req.CN), c.PpolicyBaseDN())
 
 	addReq := ldap.NewAddRequest(dn, nil)
 	addReq.Attribute("objectClass", []string{"pwdPolicy", "person", "top"})

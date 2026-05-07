@@ -123,7 +123,7 @@ func (c *Client) GetUserSudoRoles(uid string) ([]SudoRole, error) {
 
 // CreateSudoRole creates a new sudo role
 func (c *Client) CreateSudoRole(req CreateSudoRoleRequest) (*SudoRole, error) {
-	dn := fmt.Sprintf("cn=%s,%s", req.CN, c.SudoBaseDN())
+	dn := fmt.Sprintf("cn=%s,%s", ldap.EscapeDN(req.CN), c.SudoBaseDN())
 
 	addReq := ldap.NewAddRequest(dn, nil)
 	addReq.Attribute("objectClass", []string{"sudoRole"})

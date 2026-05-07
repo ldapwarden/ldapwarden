@@ -5,10 +5,31 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 
 	"github.com/go-chi/chi/v5"
 	ldaplib "github.com/go-ldap/ldap/v3"
 )
+
+// rdnValuePattern restricts the value side of a UID/CN RDN at create time to
+// a conservative POSIX-friendly identifier set. The goal is not to be RFC-4514
+// compliant — the LDAP layer also calls ldap.EscapeDN for defense in depth —
+// but to refuse anything that could shift the apparent OU or break downstream
+// tooling that relies on bare uid/cn (shells, sudo, audit log resource DNs).
+var rdnValuePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// validateRDNValue is called at the API boundary whenever a client-supplied
+// UID or CN will become the value of an RDN. Returns a non-nil error when the
+// value is empty or contains characters outside rdnValuePattern.
+func validateRDNValue(field, value string) error {
+	if value == "" {
+		return fmt.Errorf("%s must not be empty", field)
+	}
+	if !rdnValuePattern.MatchString(value) {
+		return fmt.Errorf("%s must contain only letters, digits, '.', '_' or '-'", field)
+	}
+	return nil
+}
 
 // errInvalidDN is the generic error surfaced to clients when the {dn} URL
 // parameter cannot be parsed or falls outside the allowed scope. The exact

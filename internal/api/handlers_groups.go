@@ -44,8 +44,8 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.CN == "" {
-		writeError(w, http.StatusBadRequest, "cn is required")
+	if err := validateRDNValue("cn", req.CN); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

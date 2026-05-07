@@ -118,6 +118,35 @@ func TestIntegration_Groups_CreateRequiresFields(t *testing.T) {
 	}
 }
 
+// TestIntegration_Groups_CreateRejectsUnsafeCN mirrors the user-side test:
+// CN values that would shift the DN to a different OU or break RFC 4514
+// must be rejected at the API boundary.
+func TestIntegration_Groups_CreateRejectsUnsafeCN(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	cases := []string{
+		"team,ou=Admins",
+		"team+cn=hidden",
+		"team;injected",
+		"team space",
+		" team",
+		"#team",
+		"team\\backslash",
+	}
+	for _, cn := range cases {
+		t.Run(cn, func(t *testing.T) {
+			resp, _ := doJSON(t, env, http.MethodPost, "/api/groups/", map[string]any{
+				"cn":        cn,
+				"gidNumber": 60050,
+			}, token)
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Errorf("cn=%q: status=%d, want 400", cn, resp.StatusCode)
+			}
+		})
+	}
+}
+
 func TestIntegration_Groups_GetMissing(t *testing.T) {
 	env := setupTestServer(t)
 	token := loginAs(t, env, "admin", "admin123").Token

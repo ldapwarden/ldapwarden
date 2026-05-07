@@ -44,9 +44,21 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.UID == "" || req.SN == "" || req.GivenName == "" {
-		writeError(w, http.StatusBadRequest, "uid, sn, and givenName are required")
+	if req.SN == "" || req.GivenName == "" {
+		writeError(w, http.StatusBadRequest, "sn and givenName are required")
 		return
+	}
+
+	if err := validateRDNValue("uid", req.UID); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	for _, groupCN := range req.Groups {
+		if err := validateRDNValue("group cn", groupCN); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	if req.UIDNumber == 0 {

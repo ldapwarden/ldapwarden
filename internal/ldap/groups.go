@@ -77,7 +77,7 @@ func (c *Client) GetGroupByCN(cn string) (*Group, error) {
 }
 
 func (c *Client) CreateGroup(req CreateGroupRequest) (*Group, error) {
-	dn := fmt.Sprintf("cn=%s,%s", req.CN, c.GroupBaseDN())
+	dn := fmt.Sprintf("cn=%s,%s", ldap.EscapeDN(req.CN), c.GroupBaseDN())
 
 	addReq := ldap.NewAddRequest(dn, nil)
 	addReq.Attribute("objectClass", []string{"posixGroup"})

@@ -194,7 +194,7 @@ func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 		objectClasses = []string{"inetOrgPerson", "posixAccount", "shadowAccount"}
 	}
 
-	dn := fmt.Sprintf("uid=%s,%s", req.UID, c.UserBaseDN())
+	dn := fmt.Sprintf("uid=%s,%s", ldap.EscapeDN(req.UID), c.UserBaseDN())
 
 	addReq := ldap.NewAddRequest(dn, nil)
 	addReq.Attribute("objectClass", objectClasses)
@@ -269,7 +269,7 @@ func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 	if len(req.Groups) > 0 {
 		for _, groupCN := range req.Groups {
 			// Find the group by CN
-			groupDN := fmt.Sprintf("cn=%s,%s", groupCN, c.GroupBaseDN())
+			groupDN := fmt.Sprintf("cn=%s,%s", ldap.EscapeDN(groupCN), c.GroupBaseDN())
 			if err := c.AddGroupMember(groupDN, req.UID); err != nil {
 				// Log but don't fail user creation
 				// The user is created, just group membership failed
