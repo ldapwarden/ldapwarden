@@ -96,6 +96,7 @@ func (m *Mailer) SendAuditNotification(
 	actorUID, actorDN string,
 	action, resourceType, resourceDN string,
 	details map[string]interface{},
+	ipAddress, userAgent string,
 ) error {
 	if len(recipients) == 0 {
 		return nil
@@ -119,6 +120,8 @@ func (m *Mailer) SendAuditNotification(
 		"ResourceType": resourceType,
 		"ResourceDN":   resourceDN,
 		"Details":      detailsJSON,
+		"IPAddress":    ipAddress,
+		"UserAgent":    userAgent,
 	}
 
 	body, err := m.renderTemplate(auditNotificationTemplate, data)
@@ -492,6 +495,8 @@ const auditNotificationTemplate = `<!DOCTYPE html>
             <tr><td class="k">Action</td><td class="v"><code>{{.Action}}</code></td></tr>
             <tr><td class="k">Resource type</td><td class="v">{{.ResourceType}}</td></tr>
             {{if .ResourceDN}}<tr><td class="k">Resource DN</td><td class="v">{{.ResourceDN}}</td></tr>{{end}}
+            {{if .IPAddress}}<tr><td class="k">IP address</td><td class="v">{{.IPAddress}}</td></tr>{{end}}
+            {{if .UserAgent}}<tr><td class="k">User agent</td><td class="v">{{.UserAgent}}</td></tr>{{end}}
         </table>
         {{if .Details}}
         <p style="margin-bottom: 6px;"><strong>Details</strong></p>

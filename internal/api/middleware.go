@@ -2,11 +2,31 @@ package api
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 
+	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
 )
+
+// auditRequestInfoMiddleware attaches the caller's IP address and User-Agent
+// to the request context so audit log entries (and their notification emails)
+// capture them. Must be mounted after chi's middleware.RealIP, which already
+// normalises r.RemoteAddr to honour X-Forwarded-For / X-Real-IP.
+func auditRequestInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := r.RemoteAddr
+		if host, _, err := net.SplitHostPort(ip); err == nil {
+			ip = host
+		}
+		ctx := audit.ContextWithRequestInfo(r.Context(), audit.RequestInfo{
+			IPAddress: ip,
+			UserAgent: r.Header.Get("User-Agent"),
+		})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
