@@ -4,14 +4,33 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net"
 	"net/smtp"
+	"strings"
 	"time"
 
 	"github.com/ldapwarden/ldapwarden/internal/config"
 )
+
+// errHeaderInjection is returned by buildMessage when a value destined for an
+// SMTP/MIME header carries a CR, LF or NUL byte. Header lines are
+// line-oriented; allowing those characters through would let an attacker
+// inject extra Bcc/From headers and rewrite the message body, which matters
+// because several header inputs are sourced from LDAP attributes (mail,
+// displayName) or from audit-log fields (action, actorUID).
+var errHeaderInjection = errors.New("mail: header value contains control characters")
+
+// validateHeaderValue rejects \r, \n and \x00. Other control characters are
+// allowed — the goal is anti-injection, not RFC 2047 encoding.
+func validateHeaderValue(s string) error {
+	if strings.ContainsAny(s, "\r\n\x00") {
+		return errHeaderInjection
+	}
+	return nil
+}
 
 
 type Mailer struct {
@@ -174,7 +193,10 @@ func (m *Mailer) sendEmail(to, subject, htmlBody string) error {
 		return nil
 	}
 
-	msg := m.buildMessage(to, subject, htmlBody)
+	msg, err := m.buildMessage(to, subject, htmlBody)
+	if err != nil {
+		return fmt.Errorf("build message: %w", err)
+	}
 	addr := fmt.Sprintf("%s:%d", m.config.Host, m.config.Port)
 
 	switch m.config.SSL {
@@ -187,7 +209,12 @@ func (m *Mailer) sendEmail(to, subject, htmlBody string) error {
 	}
 }
 
-func (m *Mailer) buildMessage(to, subject, htmlBody string) []byte {
+func (m *Mailer) buildMessage(to, subject, htmlBody string) ([]byte, error) {
+	for _, h := range []string{m.config.From, to, subject} {
+		if err := validateHeaderValue(h); err != nil {
+			return nil, err
+		}
+	}
 	var msg bytes.Buffer
 	msg.WriteString(fmt.Sprintf("From: %s\r\n", m.config.From))
 	msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
@@ -196,7 +223,7 @@ func (m *Mailer) buildMessage(to, subject, htmlBody string) []byte {
 	msg.WriteString("Content-Type: text/html; charset=\"utf-8\"\r\n")
 	msg.WriteString("\r\n")
 	msg.WriteString(htmlBody)
-	return msg.Bytes()
+	return msg.Bytes(), nil
 }
 
 // sendPlain sends email without any TLS
