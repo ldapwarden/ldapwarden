@@ -3,9 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
@@ -24,10 +22,9 @@ func (s *Server) handleListPasswordPolicies(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleGetPasswordPolicy(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.PpolicyBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -65,10 +62,9 @@ func (s *Server) handleCreatePasswordPolicy(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleUpdatePasswordPolicy(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.PpolicyBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -90,10 +86,9 @@ func (s *Server) handleUpdatePasswordPolicy(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleDeletePasswordPolicy(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.PpolicyBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 

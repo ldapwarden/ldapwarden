@@ -164,6 +164,37 @@ func TestIntegration_Users_RequiresAuth(t *testing.T) {
 	}
 }
 
+// TestIntegration_Users_DNScopeEnforced verifies that the {dn} URL parameter
+// is rejected when it points outside the user OU — closes the C1 finding from
+// REPORT.md (a user with users:read could otherwise reach arbitrary entries
+// such as the bind admin DN).
+func TestIntegration_Users_DNScopeEnforced(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	cases := []struct {
+		name string
+		dn   string
+	}{
+		{"bind admin", "cn=admin,dc=example,dc=org"},
+		{"different OU", "cn=admins,ou=Groups,dc=example,dc=org"},
+		{"base DN itself", "dc=example,dc=org"},
+		{"unparseable", "not a dn"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, _ := doJSON(t, env, http.MethodGet, userPath(tc.dn), nil, token)
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Errorf("GET %s: status=%d, want 400", tc.dn, resp.StatusCode)
+			}
+			resp, _ = doJSON(t, env, http.MethodDelete, userPath(tc.dn), nil, token)
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Errorf("DELETE %s: status=%d, want 400", tc.dn, resp.StatusCode)
+			}
+		})
+	}
+}
+
 func TestIntegration_Users_ReadonlyCannotWrite(t *testing.T) {
 	env := setupTestServer(t)
 	viewerToken := loginAs(t, env, "viewer", "viewer123").Token

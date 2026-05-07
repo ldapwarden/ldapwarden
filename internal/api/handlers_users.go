@@ -3,9 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
@@ -24,10 +22,9 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetUser(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -75,10 +72,9 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -100,10 +96,9 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -118,10 +113,9 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetUserGroups(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -144,10 +138,9 @@ func (s *Server) handleGetUserGroups(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -162,10 +155,9 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUnlockUser(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -180,10 +172,9 @@ func (s *Server) handleUnlockUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -214,10 +205,9 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -246,10 +236,9 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -265,10 +254,9 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetSSHKeys(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -293,10 +281,9 @@ func (s *Server) handleSetSSHKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAddSSHKey(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -326,10 +313,9 @@ func (s *Server) handleAddSSHKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRemoveSSHKey(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -359,10 +345,9 @@ func (s *Server) handleRemoveSSHKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateUserSamba(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -385,10 +370,9 @@ func (s *Server) handleUpdateUserSamba(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 

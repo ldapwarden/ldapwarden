@@ -3,9 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
@@ -24,10 +22,9 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetGroup(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -70,10 +67,9 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -95,10 +91,9 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -117,10 +112,9 @@ type memberRequest struct {
 }
 
 func (s *Server) handleAddGroupMember(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -147,10 +141,9 @@ func (s *Server) handleAddGroupMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRemoveGroupMember(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -177,10 +170,9 @@ func (s *Server) handleRemoveGroupMember(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleUpdateGroupSamba(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 

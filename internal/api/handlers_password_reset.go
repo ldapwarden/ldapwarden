@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
@@ -19,9 +18,9 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	dn, err := url.PathUnescape(chi.URLParam(r, "dn"))
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 

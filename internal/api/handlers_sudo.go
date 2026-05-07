@@ -3,9 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
@@ -24,10 +22,9 @@ func (s *Server) handleListSudoRoles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetSudoRole(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -41,10 +38,9 @@ func (s *Server) handleGetSudoRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetUserSudoRoles(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -91,10 +87,9 @@ func (s *Server) handleCreateSudoRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateSudoRole(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -116,10 +111,9 @@ func (s *Server) handleUpdateSudoRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteSudoRole(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -134,10 +128,9 @@ func (s *Server) handleDeleteSudoRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAddUserToSudoRole(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -167,10 +160,9 @@ func (s *Server) handleAddUserToSudoRole(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleRemoveUserFromSudoRole(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -200,10 +192,9 @@ func (s *Server) handleRemoveUserFromSudoRole(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleGetGroupSudoRoles(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -226,10 +217,9 @@ func (s *Server) handleGetGroupSudoRoles(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleAddGroupToSudoRole(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 
@@ -259,10 +249,9 @@ func (s *Server) handleAddGroupToSudoRole(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleRemoveGroupFromSudoRole(w http.ResponseWriter, r *http.Request) {
-	dnEncoded := chi.URLParam(r, "dn")
-	dn, err := url.QueryUnescape(dnEncoded)
+	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid DN encoding")
+		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
 	}
 

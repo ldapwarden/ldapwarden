@@ -103,9 +103,9 @@ func setupTestServer(t *testing.T) *testEnv {
 
 	sessionStore := auth.NewRedisSessionStore(redisClient)
 	authService := auth.NewAuthService(ldapClient, sessionStore, cfg.Session.TTL, cfg.App.AdminGroup)
-	auditLogger := audit.NewLogger(pool)
 	rbacService := rbac.NewRBAC(cfg.App.AdminGroup)
 	mailer := mail.NewMailer(&cfg.Mail, cfg.App.Organization)
+	auditLogger := audit.NewLogger(pool, mailer, cfg.App.AuditNotifyEmails)
 	passwordResetService := passwordreset.NewService(pool)
 	// scheduler is constructed but never Start()-ed: tests don't need cron jobs.
 	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger)
