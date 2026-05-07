@@ -167,7 +167,7 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_ORGANIZATION` | Organization name (for emails) | `Example Organization` |
 | `LDAPWARDEN_PUBLIC_URL` | Public URL (for password reset links) | `http://localhost:8000` |
 | `LDAPWARDEN_MODULES` | Comma-separated list of enabled modules (tabs) | `users,groups,sudo,policies` |
-| `LDAPWARDEN_USERS_OBJECTS` | LDAP objectClasses for users | `inetOrgPerson,posixAccount,ldapPublicKey` |
+| `LDAPWARDEN_USERS_OBJECTS` | LDAP objectClasses for users | `inetOrgPerson,posixAccount,ldapPublicKey,shadowAccount` |
 | `LDAPWARDEN_GROUPS_OBJECTS` | LDAP objectClasses for groups | `posixGroup` |
 | `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` | Comma-separated recipients that receive an email for every UI modification (audit/traceability). Empty disables. | (empty) |
 
@@ -212,7 +212,7 @@ Example: `LDAPWARDEN_AUDIT_NOTIFY_EMAILS=secops@acme.com,it-audit@acme.com`
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MAIL_HOST` | SMTP server hostname | `localhost` |
-| `MAIL_PORT` | SMTP server port | `587` |
+| `MAIL_PORT` | SMTP server port | `1025` |
 | `MAIL_USER` | SMTP username | (empty) |
 | `MAIL_PASSWORD` | SMTP password | (empty) |
 | `MAIL_FROM` | Sender email address | `noreply@example.org` |
