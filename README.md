@@ -169,6 +169,7 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_MODULES` | Comma-separated list of enabled modules (tabs) | `users,groups,sudo,policies` |
 | `LDAPWARDEN_USERS_OBJECTS` | LDAP objectClasses for users | `inetOrgPerson,posixAccount,ldapPublicKey` |
 | `LDAPWARDEN_GROUPS_OBJECTS` | LDAP objectClasses for groups | `posixGroup` |
+| `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` | Comma-separated recipients that receive an email for every UI modification (audit/traceability). Empty disables. | (empty) |
 
 #### Module Configuration
 
@@ -189,6 +190,22 @@ LDAP Warden allows you to customize which features are visible based on your LDA
 **`LDAPWARDEN_GROUPS_OBJECTS`** controls which group attribute tabs appear:
 - `posixGroup` — Standard POSIX group attributes
 - `sambaGroupMapping` — Samba tab (Windows/Samba integration)
+
+#### Audit notifications
+
+**`LDAPWARDEN_AUDIT_NOTIFY_EMAILS`** is a comma-separated list of email
+addresses that will receive a notification for every modification performed
+through the UI (user/group/sudo-role/password-policy create/update/delete,
+group membership changes, lock/unlock, etc.). The mail mirrors the entry
+written to the audit log, including actor, action, resource and details.
+
+- Login/logout, schema refresh and scheduler-driven notifications are
+  excluded — only direct UI modifications are forwarded.
+- Requires a working SMTP configuration (see the Mail section below).
+- Set the variable to an empty value (or leave it unset) to disable the
+  feature entirely.
+
+Example: `LDAPWARDEN_AUDIT_NOTIFY_EMAILS=secops@acme.com,it-audit@acme.com`
 
 ### Mail
 

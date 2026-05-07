@@ -24,12 +24,13 @@ type ScheduledTasksConfig struct {
 }
 
 type AppConfig struct {
-	AdminGroup    string
-	Organization  string
-	PublicURL     string
-	Modules       []string // High-level modules: users, groups, sudo, policies
-	UsersObjects  []string // LDAP objectClasses for users
-	GroupsObjects []string // LDAP objectClasses for groups
+	AdminGroup         string
+	Organization       string
+	PublicURL          string
+	Modules            []string // High-level modules: users, groups, sudo, policies
+	UsersObjects       []string // LDAP objectClasses for users
+	GroupsObjects      []string // LDAP objectClasses for groups
+	AuditNotifyEmails  []string // Recipients for per-change audit emails (empty disables the feature)
 }
 
 type MailConfig struct {
@@ -105,12 +106,13 @@ func Load() *Config {
 			TTL:    getEnvDuration("SESSION_TTL", 24*time.Hour),
 		},
 		App: AppConfig{
-			AdminGroup:    getEnv("LDAPWARDEN_ADMIN_GROUP", "admins"),
-			Organization:  getEnv("LDAPWARDEN_ORGANIZATION", "Example Organization"),
-			PublicURL:     getEnv("LDAPWARDEN_PUBLIC_URL", "http://localhost:8000"),
-			Modules:       getEnvStringSlice("LDAPWARDEN_MODULES", []string{"users", "groups", "sudo", "policies"}),
-			UsersObjects:  getEnvStringSlice("LDAPWARDEN_USERS_OBJECTS", []string{"inetOrgPerson", "posixAccount", "ldapPublicKey", "shadowAccount"}),
-			GroupsObjects: getEnvStringSlice("LDAPWARDEN_GROUPS_OBJECTS", []string{"posixGroup"}),
+			AdminGroup:        getEnv("LDAPWARDEN_ADMIN_GROUP", "admins"),
+			Organization:      getEnv("LDAPWARDEN_ORGANIZATION", "Example Organization"),
+			PublicURL:         getEnv("LDAPWARDEN_PUBLIC_URL", "http://localhost:8000"),
+			Modules:           getEnvStringSlice("LDAPWARDEN_MODULES", []string{"users", "groups", "sudo", "policies"}),
+			UsersObjects:      getEnvStringSlice("LDAPWARDEN_USERS_OBJECTS", []string{"inetOrgPerson", "posixAccount", "ldapPublicKey", "shadowAccount"}),
+			GroupsObjects:     getEnvStringSlice("LDAPWARDEN_GROUPS_OBJECTS", []string{"posixGroup"}),
+			AuditNotifyEmails: getEnvStringSlice("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", nil),
 		},
 		Mail: MailConfig{
 			Host:     getEnv("MAIL_HOST", "localhost"),

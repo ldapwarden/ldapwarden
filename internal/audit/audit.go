@@ -4,11 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
 )
+
+// Notifier is implemented by anything that can deliver a per-change audit
+// notification (e.g. *mail.Mailer). Args are primitives so implementers do not
+// need to import this package.
+type Notifier interface {
+	SendAuditNotification(
+		recipients []string,
+		timestamp time.Time,
+		actorUID, actorDN string,
+		action, resourceType, resourceDN string,
+		details map[string]interface{},
+	) error
+}
 
 type Action string
 
@@ -72,11 +86,44 @@ type ListParams struct {
 }
 
 type Logger struct {
-	pool *pgxpool.Pool
+	pool              *pgxpool.Pool
+	notifier          Notifier
+	notifyRecipients  []string
 }
 
-func NewLogger(pool *pgxpool.Pool) *Logger {
-	return &Logger{pool: pool}
+func NewLogger(pool *pgxpool.Pool, notifier Notifier, notifyRecipients []string) *Logger {
+	return &Logger{
+		pool:             pool,
+		notifier:         notifier,
+		notifyRecipients: notifyRecipients,
+	}
+}
+
+// notifiableActions are the audit actions that should trigger an email when
+// LDAPWARDEN_AUDIT_NOTIFY_EMAILS is configured. Login/logout, schema refresh
+// and scheduler-driven notifications are intentionally excluded — only UI
+// modifications to LDAP state are forwarded.
+var notifiableActions = map[Action]struct{}{
+	ActionUserCreate:       {},
+	ActionUserUpdate:       {},
+	ActionUserDelete:       {},
+	ActionUserLock:         {},
+	ActionUserUnlock:       {},
+	ActionGroupCreate:      {},
+	ActionGroupUpdate:      {},
+	ActionGroupDelete:      {},
+	ActionMemberAdd:        {},
+	ActionMemberRemove:     {},
+	ActionSudoRoleCreate:   {},
+	ActionSudoRoleUpdate:   {},
+	ActionSudoRoleDelete:   {},
+	ActionSudoRoleUserAdd:  {},
+	ActionSudoRoleUserDel:  {},
+	ActionSudoRoleGroupAdd: {},
+	ActionSudoRoleGroupDel: {},
+	ActionPwdPolicyCreate:  {},
+	ActionPwdPolicyUpdate:  {},
+	ActionPwdPolicyDelete:  {},
 }
 
 func (l *Logger) Log(ctx context.Context, action Action, resourceType ResourceType, resourceDN string, details map[string]interface{}) error {
@@ -100,7 +147,36 @@ func (l *Logger) LogWithActor(ctx context.Context, actorDN, actorUID string, act
 		return fmt.Errorf("insert audit log: %w", err)
 	}
 
+	l.maybeNotify(action, actorDN, actorUID, resourceType, resourceDN, details)
+
 	return nil
+}
+
+// maybeNotify dispatches an audit-notification email for modification actions
+// when recipients are configured. The send runs in a goroutine so SMTP latency
+// never blocks the calling HTTP handler; failures are logged.
+func (l *Logger) maybeNotify(action Action, actorDN, actorUID string, resourceType ResourceType, resourceDN string, details map[string]interface{}) {
+	if l.notifier == nil || len(l.notifyRecipients) == 0 {
+		return
+	}
+	if _, ok := notifiableActions[action]; !ok {
+		return
+	}
+
+	recipients := append([]string(nil), l.notifyRecipients...)
+	timestamp := time.Now()
+
+	go func() {
+		if err := l.notifier.SendAuditNotification(
+			recipients,
+			timestamp,
+			actorUID, actorDN,
+			string(action), string(resourceType), resourceDN,
+			details,
+		); err != nil {
+			log.Printf("audit notification: %v", err)
+		}
+	}()
 }
 
 func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64, error) {

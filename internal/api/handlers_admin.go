@@ -48,12 +48,13 @@ type SessionConfigResponse struct {
 }
 
 type AppConfigResponse struct {
-	AdminGroup    ConfigValue `json:"adminGroup"`
-	Organization  ConfigValue `json:"organization"`
-	PublicURL     ConfigValue `json:"publicUrl"`
-	Modules       ConfigValue `json:"modules"`
-	UsersObjects  ConfigValue `json:"usersObjects"`
-	GroupsObjects ConfigValue `json:"groupsObjects"`
+	AdminGroup        ConfigValue `json:"adminGroup"`
+	Organization      ConfigValue `json:"organization"`
+	PublicURL         ConfigValue `json:"publicUrl"`
+	Modules           ConfigValue `json:"modules"`
+	UsersObjects      ConfigValue `json:"usersObjects"`
+	GroupsObjects     ConfigValue `json:"groupsObjects"`
+	AuditNotifyEmails ConfigValue `json:"auditNotifyEmails"`
 }
 
 type MailConfigResponse struct {
@@ -102,12 +103,13 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			TTL: getConfigValue("SESSION_TTL", cfg.Session.TTL.String(), "24h0m0s"),
 		},
 		App: AppConfigResponse{
-			AdminGroup:    getConfigValue("LDAPWARDEN_ADMIN_GROUP", cfg.App.AdminGroup, "admins"),
-			Organization:  getConfigValue("LDAPWARDEN_ORGANIZATION", cfg.App.Organization, "Example Organization"),
-			PublicURL:     getConfigValue("LDAPWARDEN_PUBLIC_URL", cfg.App.PublicURL, "http://localhost:8000"),
-			Modules:       getConfigValue("LDAPWARDEN_MODULES", cfg.App.Modules, []string{"users", "groups", "sudo", "policies"}),
-			UsersObjects:  getConfigValue("LDAPWARDEN_USERS_OBJECTS", cfg.App.UsersObjects, []string{"inetOrgPerson", "posixAccount", "ldapPublicKey"}),
-			GroupsObjects: getConfigValue("LDAPWARDEN_GROUPS_OBJECTS", cfg.App.GroupsObjects, []string{"posixGroup"}),
+			AdminGroup:        getConfigValue("LDAPWARDEN_ADMIN_GROUP", cfg.App.AdminGroup, "admins"),
+			Organization:      getConfigValue("LDAPWARDEN_ORGANIZATION", cfg.App.Organization, "Example Organization"),
+			PublicURL:         getConfigValue("LDAPWARDEN_PUBLIC_URL", cfg.App.PublicURL, "http://localhost:8000"),
+			Modules:           getConfigValue("LDAPWARDEN_MODULES", cfg.App.Modules, []string{"users", "groups", "sudo", "policies"}),
+			UsersObjects:      getConfigValue("LDAPWARDEN_USERS_OBJECTS", cfg.App.UsersObjects, []string{"inetOrgPerson", "posixAccount", "ldapPublicKey"}),
+			GroupsObjects:     getConfigValue("LDAPWARDEN_GROUPS_OBJECTS", cfg.App.GroupsObjects, []string{"posixGroup"}),
+			AuditNotifyEmails: getConfigValue("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", cfg.App.AuditNotifyEmails, []string(nil)),
 		},
 		Mail: MailConfigResponse{
 			Host:     getConfigValue("MAIL_HOST", cfg.Mail.Host, "localhost"),

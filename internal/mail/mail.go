@@ -3,6 +3,7 @@ package mail
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ldapwarden/ldapwarden/internal/config"
 )
+
 
 type Mailer struct {
 	config       *config.MailConfig
@@ -83,6 +85,64 @@ func (m *Mailer) SendAccountExpirationNotification(to, uid, displayName string, 
 	}
 
 	return m.sendEmail(to, subject, body)
+}
+
+// SendAuditNotification sends a per-change audit email to each recipient.
+// Args are primitives to keep this package free of an internal/audit import.
+// Each modification action recorded in the audit log produces one call.
+func (m *Mailer) SendAuditNotification(
+	recipients []string,
+	timestamp time.Time,
+	actorUID, actorDN string,
+	action, resourceType, resourceDN string,
+	details map[string]interface{},
+) error {
+	if len(recipients) == 0 {
+		return nil
+	}
+
+	subject := fmt.Sprintf("[%s] %s by %s", m.organization, action, displayActor(actorUID, actorDN))
+
+	detailsJSON := ""
+	if len(details) > 0 {
+		if b, err := json.MarshalIndent(details, "", "  "); err == nil {
+			detailsJSON = string(b)
+		}
+	}
+
+	data := map[string]string{
+		"Organization": m.organization,
+		"Timestamp":    timestamp.UTC().Format("2006-01-02 15:04:05 MST"),
+		"Actor":        displayActor(actorUID, actorDN),
+		"ActorDN":      actorDN,
+		"Action":       action,
+		"ResourceType": resourceType,
+		"ResourceDN":   resourceDN,
+		"Details":      detailsJSON,
+	}
+
+	body, err := m.renderTemplate(auditNotificationTemplate, data)
+	if err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	for _, recipient := range recipients {
+		if err := m.sendEmail(recipient, subject, body); err != nil {
+			return fmt.Errorf("send to %s: %w", recipient, err)
+		}
+	}
+
+	return nil
+}
+
+func displayActor(uid, dn string) string {
+	if uid != "" {
+		return uid
+	}
+	if dn != "" {
+		return dn
+	}
+	return "unknown"
 }
 
 // SendPasswordExpirationNotification sends password expiration warnings to users
@@ -397,6 +457,48 @@ const accountExpirationTemplate = `<!DOCTYPE html>
         <p>Please take appropriate action to either extend or disable this account.</p>
         <div class="footer">
             <p>This is an automated message from {{.Organization}}. Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>`
+
+const auditNotificationTemplate = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #222; max-width: 640px; margin: 0 auto; padding: 20px; }
+        .header { background: #1a1a2e; color: white; padding: 16px 20px; border-radius: 8px 8px 0 0; }
+        .header h2 { margin: 0; font-size: 18px; }
+        .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; }
+        table.meta { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
+        table.meta td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 14px; }
+        table.meta td.k { width: 140px; color: #6b7280; font-weight: 600; }
+        table.meta td.v { word-break: break-all; }
+        pre { background: #1f2937; color: #e5e7eb; padding: 12px; border-radius: 6px; font-size: 13px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+        .footer { margin-top: 16px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>{{.Organization}} — Audit notification</h2>
+    </div>
+    <div class="content">
+        <p>The following change was just recorded in the audit log:</p>
+        <table class="meta">
+            <tr><td class="k">When</td><td class="v">{{.Timestamp}}</td></tr>
+            <tr><td class="k">Actor</td><td class="v">{{.Actor}}</td></tr>
+            <tr><td class="k">Actor DN</td><td class="v">{{.ActorDN}}</td></tr>
+            <tr><td class="k">Action</td><td class="v"><code>{{.Action}}</code></td></tr>
+            <tr><td class="k">Resource type</td><td class="v">{{.ResourceType}}</td></tr>
+            {{if .ResourceDN}}<tr><td class="k">Resource DN</td><td class="v">{{.ResourceDN}}</td></tr>{{end}}
+        </table>
+        {{if .Details}}
+        <p style="margin-bottom: 6px;"><strong>Details</strong></p>
+        <pre>{{.Details}}</pre>
+        {{end}}
+        <div class="footer">
+            <p>This is an automated audit notification from {{.Organization}}. Please do not reply to this email.</p>
         </div>
     </div>
 </body>
