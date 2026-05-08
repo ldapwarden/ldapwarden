@@ -63,6 +63,7 @@ func (s *Server) setupRoutes() chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(secureHeadersMiddleware)
 	r.Use(auditRequestInfoMiddleware)
 
 	r.Use(cors.Handler(cors.Options{
