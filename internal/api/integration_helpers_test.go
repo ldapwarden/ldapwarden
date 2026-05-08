@@ -110,7 +110,7 @@ func setupTestServer(t *testing.T) *testEnv {
 	// scheduler is constructed but never Start()-ed: tests don't need cron jobs.
 	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger)
 
-	server := NewServer(ldapClient, authService, auditLogger, rbacService, cfg, mailer, passwordResetService, sched)
+	server := NewServer(ldapClient, authService, auditLogger, rbacService, cfg, mailer, passwordResetService, sched, nil)
 	httpSrv := httptest.NewServer(server)
 
 	t.Cleanup(func() {

@@ -170,6 +170,7 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_USERS_OBJECTS` | LDAP objectClasses for users | `inetOrgPerson,posixAccount,ldapPublicKey,shadowAccount` |
 | `LDAPWARDEN_GROUPS_OBJECTS` | LDAP objectClasses for groups | `posixGroup` |
 | `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` | Comma-separated recipients that receive an email for every UI modification (audit/traceability). Empty disables. | (empty) |
+| `LDAPWARDEN_TRUSTED_PROXIES` | Comma-separated CIDR list of reverse proxies allowed to set `X-Forwarded-For` / `X-Real-IP`. Empty disables forwarded-header support. | (empty) |
 
 #### Module Configuration
 
@@ -206,6 +207,24 @@ written to the audit log, including actor, action, resource and details.
   feature entirely.
 
 Example: `LDAPWARDEN_AUDIT_NOTIFY_EMAILS=secops@acme.com,it-audit@acme.com`
+
+#### Trusted proxies
+
+**`LDAPWARDEN_TRUSTED_PROXIES`** is a comma-separated list of CIDRs that
+identifies reverse proxies allowed to override the connection-level peer
+address via `X-Forwarded-For`, `X-Real-IP` or `True-Client-IP`. Any header
+coming from a peer outside the list is ignored — the connection-level IP
+is recorded instead.
+
+- **Default is empty (most secure)**: forwarded headers are never
+  honoured. Recommended when LDAP Warden is exposed directly.
+- **Behind a single reverse proxy** (nginx, Traefik, Caddy, AWS ALB,
+  etc.): set this to the proxy's network. Without it, audit logs and the
+  password-reset notification email will record the proxy's IP, not the
+  client's.
+- The server **fails to start** if a CIDR is malformed.
+
+Example: `LDAPWARDEN_TRUSTED_PROXIES=10.0.0.0/8,127.0.0.1/32`
 
 ### Mail
 

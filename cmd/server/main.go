@@ -78,6 +78,11 @@ func run() error {
 	defer ldapClient.Close()
 	log.Println("LDAP client initialized")
 
+	trustedProxies, err := api.ParseTrustedProxies(cfg.App.TrustedProxies)
+	if err != nil {
+		return fmt.Errorf("LDAPWARDEN_TRUSTED_PROXIES: %w", err)
+	}
+
 	sessionStore := auth.NewRedisSessionStore(redisClient)
 	authService := auth.NewAuthService(ldapClient, sessionStore, cfg.Session.TTL, cfg.App.AdminGroup)
 	rbacService := rbac.NewRBAC(cfg.App.AdminGroup)
@@ -91,7 +96,7 @@ func run() error {
 		log.Printf("Warning: failed to start scheduler: %v", err)
 	}
 
-	server := api.NewServer(ldapClient, authService, auditLogger, rbacService, cfg, mailer, passwordResetService, sched)
+	server := api.NewServer(ldapClient, authService, auditLogger, rbacService, cfg, mailer, passwordResetService, sched, trustedProxies)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),

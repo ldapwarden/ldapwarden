@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,15 +21,16 @@ import (
 )
 
 type Server struct {
-	router        chi.Router
-	ldapClient    *ldap.Client
-	authService   *auth.AuthService
-	auditLogger   *audit.Logger
-	rbac          *rbac.RBAC
-	config        *config.Config
-	mailer        *mail.Mailer
-	passwordReset *passwordreset.Service
-	scheduler     *scheduler.Scheduler
+	router         chi.Router
+	ldapClient     *ldap.Client
+	authService    *auth.AuthService
+	auditLogger    *audit.Logger
+	rbac           *rbac.RBAC
+	config         *config.Config
+	mailer         *mail.Mailer
+	passwordReset  *passwordreset.Service
+	scheduler      *scheduler.Scheduler
+	trustedProxies []*net.IPNet
 }
 
 func NewServer(
@@ -40,16 +42,18 @@ func NewServer(
 	mailer *mail.Mailer,
 	passwordResetService *passwordreset.Service,
 	sched *scheduler.Scheduler,
+	trustedProxies []*net.IPNet,
 ) *Server {
 	s := &Server{
-		ldapClient:    ldapClient,
-		authService:   authService,
-		auditLogger:   auditLogger,
-		rbac:          rbacService,
-		config:        cfg,
-		mailer:        mailer,
-		passwordReset: passwordResetService,
-		scheduler:     sched,
+		ldapClient:     ldapClient,
+		authService:    authService,
+		auditLogger:    auditLogger,
+		rbac:           rbacService,
+		config:         cfg,
+		mailer:         mailer,
+		passwordReset:  passwordResetService,
+		scheduler:      sched,
+		trustedProxies: trustedProxies,
 	}
 
 	s.router = s.setupRoutes()
@@ -62,7 +66,7 @@ func (s *Server) setupRoutes() chi.Router {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(trustedProxyRealIPMiddleware(s.trustedProxies))
 	r.Use(secureHeadersMiddleware)
 	r.Use(auditRequestInfoMiddleware)
 

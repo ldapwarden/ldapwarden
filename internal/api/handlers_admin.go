@@ -55,6 +55,7 @@ type AppConfigResponse struct {
 	UsersObjects      ConfigValue `json:"usersObjects"`
 	GroupsObjects     ConfigValue `json:"groupsObjects"`
 	AuditNotifyEmails ConfigValue `json:"auditNotifyEmails"`
+	TrustedProxies    ConfigValue `json:"trustedProxies"`
 }
 
 type MailConfigResponse struct {
@@ -110,6 +111,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			UsersObjects:      getConfigValue("LDAPWARDEN_USERS_OBJECTS", cfg.App.UsersObjects, []string{"inetOrgPerson", "posixAccount", "ldapPublicKey"}),
 			GroupsObjects:     getConfigValue("LDAPWARDEN_GROUPS_OBJECTS", cfg.App.GroupsObjects, []string{"posixGroup"}),
 			AuditNotifyEmails: getConfigValue("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", cfg.App.AuditNotifyEmails, []string(nil)),
+			TrustedProxies:    getConfigValue("LDAPWARDEN_TRUSTED_PROXIES", cfg.App.TrustedProxies, []string(nil)),
 		},
 		Mail: MailConfigResponse{
 			Host:     getConfigValue("MAIL_HOST", cfg.Mail.Host, "localhost"),

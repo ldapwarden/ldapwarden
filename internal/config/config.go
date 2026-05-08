@@ -24,13 +24,14 @@ type ScheduledTasksConfig struct {
 }
 
 type AppConfig struct {
-	AdminGroup         string
-	Organization       string
-	PublicURL          string
-	Modules            []string // High-level modules: users, groups, sudo, policies
-	UsersObjects       []string // LDAP objectClasses for users
-	GroupsObjects      []string // LDAP objectClasses for groups
-	AuditNotifyEmails  []string // Recipients for per-change audit emails (empty disables the feature)
+	AdminGroup        string
+	Organization      string
+	PublicURL         string
+	Modules           []string // High-level modules: users, groups, sudo, policies
+	UsersObjects      []string // LDAP objectClasses for users
+	GroupsObjects     []string // LDAP objectClasses for groups
+	AuditNotifyEmails []string // Recipients for per-change audit emails (empty disables the feature)
+	TrustedProxies    []string // CIDR list of reverse proxies allowed to set X-Forwarded-For / X-Real-IP (empty = headers ignored)
 }
 
 type MailConfig struct {
@@ -113,6 +114,7 @@ func Load() *Config {
 			UsersObjects:      getEnvStringSlice("LDAPWARDEN_USERS_OBJECTS", []string{"inetOrgPerson", "posixAccount", "ldapPublicKey", "shadowAccount"}),
 			GroupsObjects:     getEnvStringSlice("LDAPWARDEN_GROUPS_OBJECTS", []string{"posixGroup"}),
 			AuditNotifyEmails: getEnvStringSlice("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", nil),
+			TrustedProxies:    getEnvStringSlice("LDAPWARDEN_TRUSTED_PROXIES", nil),
 		},
 		Mail: MailConfig{
 			Host:     getEnv("MAIL_HOST", "localhost"),

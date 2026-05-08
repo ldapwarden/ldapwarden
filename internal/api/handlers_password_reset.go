@@ -119,13 +119,10 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Get client IP
-	clientIP := r.RemoteAddr
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		clientIP = realIP
-	} else if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
-		clientIP = forwardedFor
-	}
+	// Use the IP recorded by auditRequestInfoMiddleware, which itself reads
+	// r.RemoteAddr after trustedProxyRealIPMiddleware has applied — so XFF
+	// is honoured only for requests coming from a configured trusted proxy.
+	clientIP := audit.RequestInfoFromContext(r.Context()).IPAddress
 
 	// Mark token as used
 	if err := s.passwordReset.MarkTokenUsed(r.Context(), tokenInfo.ID, clientIP); err != nil {
