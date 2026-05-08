@@ -3,10 +3,30 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
+
+// invalidateIfAdminGroupChange drops every session belonging to memberUID when
+// groupDN refers to the configured admin group. Called from add/remove member
+// handlers so a privilege grant takes effect on the user's next login (forcing
+// re-derivation of permissions) and a privilege revocation takes effect
+// immediately. Best-effort: if the user UID cannot be resolved to a DN, we
+// skip silently — LDAP does not enforce that memberUid corresponds to an
+// existing user (see TestIntegration_Groups_AddMember_UnknownUserStillSucceeds).
+func (s *Server) invalidateIfAdminGroupChange(r *http.Request, groupDN, memberUID string) {
+	cn := dnFirstRDNValue(groupDN)
+	if !strings.EqualFold(cn, s.config.App.AdminGroup) {
+		return
+	}
+	user, err := s.ldapClient.GetUserByUID(memberUID)
+	if err != nil {
+		return
+	}
+	_ = s.authService.InvalidateUserSessions(r.Context(), user.DN)
+}
 
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := s.ldapClient.ListGroups()
@@ -134,6 +154,7 @@ func (s *Server) handleAddGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.invalidateIfAdminGroupChange(r, dn, req.MemberUID)
 	_ = s.auditLogger.Log(r.Context(), audit.ActionMemberAdd, audit.ResourceGroup, dn,
 		map[string]interface{}{"memberUid": req.MemberUID})
 
@@ -163,6 +184,7 @@ func (s *Server) handleRemoveGroupMember(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	s.invalidateIfAdminGroupChange(r, dn, req.MemberUID)
 	_ = s.auditLogger.Log(r.Context(), audit.ActionMemberRemove, audit.ResourceGroup, dn,
 		map[string]interface{}{"memberUid": req.MemberUID})
 

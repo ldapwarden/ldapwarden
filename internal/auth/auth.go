@@ -120,6 +120,14 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 	}, nil
 }
 
+// InvalidateUserSessions drops every session associated with userDN. Called by
+// handlers that change a user's authorization-relevant state (account
+// delete/lock, password reset, admin-group membership change) so that an
+// already-cached session does not retain rights up to SESSION_TTL.
+func (s *AuthService) InvalidateUserSessions(ctx context.Context, userDN string) error {
+	return s.sessionStore.DeleteByUserDN(ctx, userDN)
+}
+
 func (s *AuthService) Logout(ctx context.Context, token string) error {
 	tokenHash := hashToken(token)
 	return s.sessionStore.Delete(ctx, tokenHash)

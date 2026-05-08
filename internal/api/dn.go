@@ -73,3 +73,14 @@ func resolveDN(r *http.Request, base string) (string, error) {
 
 	return decoded, nil
 }
+
+// dnFirstRDNValue returns the value of the first RDN of dn — i.e. "alice" for
+// "uid=alice,ou=People,dc=example,dc=org" or "admins" for "cn=admins,...".
+// Returns "" when the DN cannot be parsed or has no RDN.
+func dnFirstRDNValue(dn string) string {
+	parsed, err := ldaplib.ParseDN(dn)
+	if err != nil || len(parsed.RDNs) == 0 || len(parsed.RDNs[0].Attributes) == 0 {
+		return ""
+	}
+	return parsed.RDNs[0].Attributes[0].Value
+}

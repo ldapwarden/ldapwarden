@@ -119,6 +119,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
 	_ = s.auditLogger.Log(r.Context(), audit.ActionUserDelete, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user deleted"})
@@ -161,6 +162,7 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
 	_ = s.auditLogger.Log(r.Context(), audit.ActionUserLock, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user locked"})
@@ -241,6 +243,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
 	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "password_change"})
 
@@ -259,6 +262,7 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
 	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
 		map[string]interface{}{"action": "password_remove"})
 
