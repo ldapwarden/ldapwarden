@@ -52,6 +52,7 @@ type Action string
 
 const (
 	ActionLogin            Action = "login"
+	ActionLoginFailed      Action = "login.failed"
 	ActionLogout           Action = "logout"
 	ActionUserCreate       Action = "user.create"
 	ActionUserUpdate       Action = "user.update"

@@ -80,7 +80,7 @@ func (s *Server) setupRoutes() chi.Router {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/login", s.handleLogin)
+			r.With(loginRateLimit()).Post("/login", s.handleLogin)
 
 			r.Group(func(r chi.Router) {
 				r.Use(s.authMiddleware)
@@ -174,8 +174,8 @@ func (s *Server) setupRoutes() chi.Router {
 
 		// Public password reset endpoints (no auth required)
 		r.Route("/password-reset", func(r chi.Router) {
-			r.Get("/{token}", s.handleGetPasswordResetInfo)
-			r.Post("/{token}", s.handleConfirmPasswordReset)
+			r.With(passwordResetGetRateLimit()).Get("/{token}", s.handleGetPasswordResetInfo)
+			r.With(passwordResetPostRateLimit()).Post("/{token}", s.handleConfirmPasswordReset)
 		})
 	})
 

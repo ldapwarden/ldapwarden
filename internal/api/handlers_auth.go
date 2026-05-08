@@ -23,6 +23,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := s.authService.Login(r.Context(), req)
 	if err != nil {
+		// Log the attempt with the username the client supplied. The DN is
+		// unknown (auth failed before we could resolve it) so we leave it
+		// blank; the recorded actor_uid lets operators correlate brute-force
+		// attempts with the rate-limit middleware's 429s.
+		_ = s.auditLogger.LogWithActor(r.Context(), "", req.Username,
+			audit.ActionLoginFailed, audit.ResourceUser, "", nil)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
