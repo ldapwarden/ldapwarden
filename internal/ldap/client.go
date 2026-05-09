@@ -202,6 +202,22 @@ func (c *Client) Modify(request *ldap.ModifyRequest) error {
 	return conn.Modify(request)
 }
 
+// PasswordModify issues an RFC 3062 PasswordModify extended operation against
+// dn. Unlike a plain Modify on the userPassword attribute, this lets the
+// server's password-policy overlay hash the value and run pre-set hooks
+// (history, quality checks). The connection is bound as the configured
+// BindDN, so oldPassword is empty — the server allows administrative resets
+// in that mode.
+func (c *Client) PasswordModify(dn, newPassword string) error {
+	conn, err := c.connect()
+	if err != nil {
+		return err
+	}
+	req := ldap.NewPasswordModifyRequest(dn, "", newPassword)
+	_, err = conn.PasswordModify(req)
+	return err
+}
+
 func (c *Client) Delete(dn string) error {
 	conn, err := c.connect()
 	if err != nil {

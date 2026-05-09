@@ -241,12 +241,19 @@ func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 	if req.Description != "" {
 		addReq.Attribute("description", []string{req.Description})
 	}
-	if req.Password != "" {
-		addReq.Attribute("userPassword", []string{req.Password})
-	}
+	// userPassword is intentionally NOT set in the Add: a plain Add of the
+	// attribute bypasses the ppolicy hashing pipeline on most server
+	// configurations. The password is set in a separate PasswordModify
+	// extended operation below, which triggers hashing and policy hooks.
 
 	if err := c.Add(addReq); err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
+	}
+
+	if req.Password != "" {
+		if err := c.PasswordModify(dn, req.Password); err != nil {
+			return nil, fmt.Errorf("set initial password: %w", err)
+		}
 	}
 
 	// Create a primary group with CN=UID if requested
@@ -397,10 +404,9 @@ func (c *Client) UpdateUser(dn string, req UpdateUserRequest) (*User, error) {
 	addModify("description", req.Description)
 	addModify("pwdPolicySubentry", req.PwdPolicySubentry)
 
-	if req.Password != nil {
-		modReq.Replace("userPassword", []string{*req.Password})
-		hasChanges = true
-	}
+	// req.Password is handled out-of-band via PasswordModify after the
+	// regular Modify completes — see below — so the ppolicy overlay can
+	// hash and validate the value rather than seeing a raw replacement.
 
 	// Handle jpegPhoto (binary data sent as base64)
 	if req.JpegPhoto != nil {
@@ -424,6 +430,12 @@ func (c *Client) UpdateUser(dn string, req UpdateUserRequest) (*User, error) {
 	if hasChanges {
 		if err := c.Modify(modReq); err != nil {
 			return nil, fmt.Errorf("update user: %w", err)
+		}
+	}
+
+	if req.Password != nil && *req.Password != "" {
+		if err := c.PasswordModify(dn, *req.Password); err != nil {
+			return nil, fmt.Errorf("update password: %w", err)
 		}
 	}
 
@@ -630,11 +642,13 @@ func (c *Client) RemoveSSHPublicKey(dn string, key string) error {
 	return c.Modify(modReq)
 }
 
-// ChangePassword changes a user's password
+// ChangePassword changes a user's password via the RFC 3062 PasswordModify
+// extended operation. This delegates hashing to the directory and triggers
+// the password-policy overlay correctly (history, quality, hashing) — a
+// plain Modify of userPassword would store the value as-is unless ppolicy
+// is configured with hash_cleartext.
 func (c *Client) ChangePassword(dn string, newPassword string) error {
-	modReq := ldap.NewModifyRequest(dn, nil)
-	modReq.Replace("userPassword", []string{newPassword})
-	return c.Modify(modReq)
+	return c.PasswordModify(dn, newPassword)
 }
 
 // RemovePassword removes the userPassword attribute, preventing the user from authenticating.
