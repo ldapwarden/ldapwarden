@@ -43,6 +43,10 @@ func run() error {
 
 	cfg := config.Load()
 
+	if err := config.ValidateSecrets(cfg); err != nil {
+		return fmt.Errorf("secret validation: %w\n\nset LDAPWARDEN_DEV_MODE=1 only for the bundled docker-compose stack or local tests", err)
+	}
+
 	log.Printf("Connecting to PostgreSQL at %s", cfg.Database.URL)
 	pool, err := pgxpool.New(ctx, cfg.Database.URL)
 	if err != nil {

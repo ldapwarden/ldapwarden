@@ -59,6 +59,8 @@ func setupTestServer(t *testing.T) *testEnv {
 	setEnvIfUnset(t, "DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable")
 	setEnvIfUnset(t, "REDIS_URL", "redis://localhost:6379")
 	setEnvIfUnset(t, "LDAP_URL", "ldap://localhost:389")
+	// Tests rely on the bundled compose credentials; bypass ValidateSecrets.
+	setEnvIfUnset(t, "LDAPWARDEN_DEV_MODE", "1")
 
 	cfg := config.Load()
 

@@ -1,10 +1,21 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+)
+
+// Defaults that ValidateSecrets refuses outside dev mode. Centralised here so
+// the values used to populate Config.Load and the values rejected by
+// ValidateSecrets cannot drift apart.
+const (
+	defaultSessionSecret = "change-me-in-production-32bytes!"
+	defaultLDAPBindPass  = "admin"
+	minSessionSecretLen  = 32
 )
 
 type Config struct {
@@ -32,6 +43,7 @@ type AppConfig struct {
 	GroupsObjects     []string // LDAP objectClasses for groups
 	AuditNotifyEmails []string // Recipients for per-change audit emails (empty disables the feature)
 	TrustedProxies    []string // CIDR list of reverse proxies allowed to set X-Forwarded-For / X-Real-IP (empty = headers ignored)
+	DevMode           bool     // When true, skips ValidateSecrets — only intended for the bundled docker-compose stack
 }
 
 type MailConfig struct {
@@ -92,7 +104,7 @@ func Load() *Config {
 			URL:           getEnv("LDAP_URL", "ldap://localhost:389"),
 			BaseDN:        getEnv("LDAP_BASE_DN", "dc=example,dc=org"),
 			BindDN:        getEnv("LDAP_BIND_DN", "cn=admin,dc=example,dc=org"),
-			BindPass:      getEnv("LDAP_BIND_PASS", "admin"),
+			BindPass:      getEnv("LDAP_BIND_PASS", defaultLDAPBindPass),
 			UserOU:        getEnv("LDAP_USER_OU", "ou=People"),
 			GroupOU:       getEnv("LDAP_GROUP_OU", "ou=Groups"),
 			SudoersOU:     getEnv("LDAP_SUDOERS_OU", "ou=sudoers"),
@@ -103,7 +115,7 @@ func Load() *Config {
 			TLSSkipVerify: getEnvBool("LDAP_TLS_SKIP_VERIFY", false),
 		},
 		Session: SessionConfig{
-			Secret: getEnv("SESSION_SECRET", "change-me-in-production-32bytes!"),
+			Secret: getEnv("SESSION_SECRET", defaultSessionSecret),
 			TTL:    getEnvDuration("SESSION_TTL", 24*time.Hour),
 		},
 		App: AppConfig{
@@ -115,6 +127,7 @@ func Load() *Config {
 			GroupsObjects:     getEnvStringSlice("LDAPWARDEN_GROUPS_OBJECTS", []string{"posixGroup"}),
 			AuditNotifyEmails: getEnvStringSlice("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", nil),
 			TrustedProxies:    getEnvStringSlice("LDAPWARDEN_TRUSTED_PROXIES", nil),
+			DevMode:           getEnvBool("LDAPWARDEN_DEV_MODE", false),
 		},
 		Mail: MailConfig{
 			Host:     getEnv("MAIL_HOST", "localhost"),
@@ -129,6 +142,30 @@ func Load() *Config {
 			PasswordsExpiration: getEnv("LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION", "42 3 * * *"),
 		},
 	}
+}
+
+// ValidateSecrets refuses production startup with the in-repo defaults.
+// Returns nil when cfg.App.DevMode is true so the bundled docker-compose
+// stack and integration tests keep working with their well-known credentials.
+// Errors are aggregated so an operator gets a single boot failure that lists
+// every misconfiguration instead of one round-trip per secret.
+func ValidateSecrets(cfg *Config) error {
+	if cfg.App.DevMode {
+		return nil
+	}
+	var errs []error
+	switch {
+	case cfg.Session.Secret == "":
+		errs = append(errs, errors.New("SESSION_SECRET must be set"))
+	case cfg.Session.Secret == defaultSessionSecret:
+		errs = append(errs, errors.New("SESSION_SECRET is the in-repo default; pick a fresh value"))
+	case len(cfg.Session.Secret) < minSessionSecretLen:
+		errs = append(errs, fmt.Errorf("SESSION_SECRET must be at least %d bytes", minSessionSecretLen))
+	}
+	if cfg.LDAP.BindPass == defaultLDAPBindPass {
+		errs = append(errs, errors.New("LDAP_BIND_PASS is the in-repo default 'admin'; pick a fresh value"))
+	}
+	return errors.Join(errs...)
 }
 
 func getEnv(key, defaultValue string) string {

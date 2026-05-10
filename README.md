@@ -171,6 +171,7 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_GROUPS_OBJECTS` | LDAP objectClasses for groups | `posixGroup` |
 | `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` | Comma-separated recipients that receive an email for every UI modification (audit/traceability). Empty disables. | (empty) |
 | `LDAPWARDEN_TRUSTED_PROXIES` | Comma-separated CIDR list of reverse proxies allowed to set `X-Forwarded-For` / `X-Real-IP`. Empty disables forwarded-header support. | (empty) |
+| `LDAPWARDEN_DEV_MODE` | Bypass production-secrets validation. Only for the bundled compose stack and local tests. | `false` |
 
 #### Module Configuration
 
@@ -225,6 +226,23 @@ is recorded instead.
 - The server **fails to start** if a CIDR is malformed.
 
 Example: `LDAPWARDEN_TRUSTED_PROXIES=10.0.0.0/8,127.0.0.1/32`
+
+#### Production-secrets validation
+
+LDAP Warden refuses to start with the in-repo default values for
+`SESSION_SECRET` and `LDAP_BIND_PASS`. Specifically:
+
+- `SESSION_SECRET` must be set, must be at least 32 bytes, and must not
+  equal the documented default (`change-me-in-production-32bytes!`).
+- `LDAP_BIND_PASS` must not equal the documented default (`admin`).
+
+All checks are skipped when **`LDAPWARDEN_DEV_MODE=1`**. The bundled
+`docker-compose.yaml` sets this on the `ldapwarden` service so the
+local stack keeps working with its well-known credentials. **Do not
+set `LDAPWARDEN_DEV_MODE=1` in a real deployment.**
+
+Errors are aggregated so a misconfigured deployment surfaces every
+issue in a single startup failure.
 
 ### Mail
 
