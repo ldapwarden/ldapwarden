@@ -173,35 +173,26 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed successfully"})
 }
 
+// getAdminEmails returns the mail address of every member of the configured
+// admin group. Called from the unauthenticated handleConfirmPasswordReset, so
+// the implementation does targeted lookups (one search per admin) rather than
+// a ListUsers() full scan per admin — the previous implementation was
+// O(admins × all_users) and cheap to weaponise into a directory-wide DoS.
 func (s *Server) getAdminEmails() []string {
-	// Get all users in the admin group
-	adminGroup := s.config.App.AdminGroup
-	groups, err := s.ldapClient.ListGroups()
+	group, err := s.ldapClient.GetGroupByCN(s.config.App.AdminGroup)
 	if err != nil {
 		return nil
 	}
 
-	var adminMembers []string
-	for _, group := range groups {
-		if group.CN == adminGroup {
-			adminMembers = group.MemberUIDs
-			break
-		}
-	}
-
-	var emails []string
-	for _, uid := range adminMembers {
-		users, err := s.ldapClient.ListUsers()
+	emails := make([]string, 0, len(group.MemberUIDs))
+	for _, uid := range group.MemberUIDs {
+		user, err := s.ldapClient.GetUserByUID(uid)
 		if err != nil {
 			continue
 		}
-		for _, user := range users {
-			if user.UID == uid && user.Mail != "" {
-				emails = append(emails, user.Mail)
-				break
-			}
+		if user.Mail != "" {
+			emails = append(emails, user.Mail)
 		}
 	}
-
 	return emails
 }
