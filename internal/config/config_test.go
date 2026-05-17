@@ -9,7 +9,9 @@ func newCfg(secret, bindPass string, dev bool) *Config {
 	return &Config{
 		Session: SessionConfig{Secret: secret},
 		LDAP:    LDAPConfig{BindPass: bindPass},
-		App:     AppConfig{DevMode: dev},
+		// A safe default that ValidateSecrets does not flag, so individual
+		// cases below only have to override what they want to test.
+		App: AppConfig{PublicURL: "https://ldap.example.org", DevMode: dev},
 	}
 }
 
@@ -61,6 +63,35 @@ func TestValidateSecrets(t *testing.T) {
 			name:    "dev mode bypasses every check",
 			cfg:     newCfg(defaultSessionSecret, defaultLDAPBindPass, true),
 			wantErr: false,
+		},
+		{
+			name: "http public url rejected outside dev",
+			cfg: func() *Config {
+				c := newCfg(goodSecret, "real-password", false)
+				c.App.PublicURL = "http://ldap.example.org"
+				return c
+			}(),
+			wantErr:   true,
+			mustMatch: []string{"LDAPWARDEN_PUBLIC_URL", "https://"},
+		},
+		{
+			name: "http public url tolerated in dev",
+			cfg: func() *Config {
+				c := newCfg(goodSecret, "real-password", true)
+				c.App.PublicURL = "http://ldap.example.org"
+				return c
+			}(),
+			wantErr: false,
+		},
+		{
+			name: "cors wildcard rejected with credentials",
+			cfg: func() *Config {
+				c := newCfg(goodSecret, "real-password", false)
+				c.App.CORSOrigins = []string{"https://app.example.org", "*"}
+				return c
+			}(),
+			wantErr:   true,
+			mustMatch: []string{"LDAPWARDEN_CORS_ORIGINS", "*"},
 		},
 	}
 

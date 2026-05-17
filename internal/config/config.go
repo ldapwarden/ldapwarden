@@ -43,6 +43,7 @@ type AppConfig struct {
 	GroupsObjects     []string // LDAP objectClasses for groups
 	AuditNotifyEmails []string // Recipients for per-change audit emails (empty disables the feature)
 	TrustedProxies    []string // CIDR list of reverse proxies allowed to set X-Forwarded-For / X-Real-IP (empty = headers ignored)
+	CORSOrigins       []string // Origins allowed by the CORS middleware. "*" is refused outside dev because the API uses credentialed requests.
 	DevMode           bool     // When true, skips ValidateSecrets — only intended for the bundled docker-compose stack
 }
 
@@ -127,6 +128,7 @@ func Load() *Config {
 			GroupsObjects:     getEnvStringSlice("LDAPWARDEN_GROUPS_OBJECTS", []string{"posixGroup"}),
 			AuditNotifyEmails: getEnvStringSlice("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", nil),
 			TrustedProxies:    getEnvStringSlice("LDAPWARDEN_TRUSTED_PROXIES", nil),
+			CORSOrigins:       getEnvStringSlice("LDAPWARDEN_CORS_ORIGINS", []string{"http://localhost:5173", "http://localhost:3000"}),
 			DevMode:           getEnvBool("LDAPWARDEN_DEV_MODE", false),
 		},
 		Mail: MailConfig{
@@ -164,6 +166,22 @@ func ValidateSecrets(cfg *Config) error {
 	}
 	if cfg.LDAP.BindPass == defaultLDAPBindPass {
 		errs = append(errs, errors.New("LDAP_BIND_PASS is the in-repo default 'admin'; pick a fresh value"))
+	}
+	// PublicURL drives password-reset links that travel in email. Plain
+	// http:// would let any on-path attacker steal a reset before the user
+	// clicks; require https:// in production.
+	if strings.HasPrefix(strings.ToLower(cfg.App.PublicURL), "http://") {
+		errs = append(errs, errors.New("LDAPWARDEN_PUBLIC_URL must use https:// outside dev mode (reset links would otherwise travel in cleartext)"))
+	}
+	// The CORS middleware is mounted with AllowCredentials: true, which the
+	// CORS spec forbids in combination with "*". Refusing this at startup
+	// avoids a misconfiguration that would either silently void credentials
+	// (modern browsers) or, worse, accept them from any origin.
+	for _, origin := range cfg.App.CORSOrigins {
+		if strings.TrimSpace(origin) == "*" {
+			errs = append(errs, errors.New("LDAPWARDEN_CORS_ORIGINS cannot contain '*' because the API serves credentialed requests; list explicit origins instead"))
+			break
+		}
 	}
 	return errors.Join(errs...)
 }

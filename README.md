@@ -171,7 +171,8 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_GROUPS_OBJECTS` | LDAP objectClasses for groups | `posixGroup` |
 | `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` | Comma-separated recipients that receive an email for every UI modification (audit/traceability). Empty disables. | (empty) |
 | `LDAPWARDEN_TRUSTED_PROXIES` | Comma-separated CIDR list of reverse proxies allowed to set `X-Forwarded-For` / `X-Real-IP`. Empty disables forwarded-header support. | (empty) |
-| `LDAPWARDEN_DEV_MODE` | Bypass production-secrets validation. Only for the bundled compose stack and local tests. | `false` |
+| `LDAPWARDEN_CORS_ORIGINS` | Comma-separated list of origins allowed by the CORS middleware. `*` is refused (the API serves credentialed requests). | `http://localhost:5173,http://localhost:3000` |
+| `LDAPWARDEN_DEV_MODE` | Bypass production-secrets validation (also tolerates plain `http://` `PublicURL`). Only for the bundled compose stack and local tests. | `false` |
 
 #### Module Configuration
 
