@@ -76,6 +76,29 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+// Request-body size caps. defaultMaxBodyBytes covers every JSON payload the
+// API exchanges except user create/update, which carries a base64
+// jpegPhoto. Applied per route group rather than globally because chi
+// middleware ordering makes outer caps win, so a per-route LARGER cap
+// can't loosen an outer one.
+const (
+	defaultMaxBodyBytes int64 = 1 * 1024 * 1024  // 1 MiB
+	photoMaxBodyBytes   int64 = 10 * 1024 * 1024 // 10 MiB
+)
+
+// maxBodyBytes returns a middleware that caps the request body at n bytes
+// using http.MaxBytesReader. The wrapped reader returns an error past the
+// limit, which json.Decode surfaces as a 400. Without this an attacker
+// could buffer hundreds of MB into RAM by streaming a giant JSON body.
+func maxBodyBytes(n int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, n)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // auditMutating writes an audit entry for an action that is about to mutate
 // LDAP state, and refuses to proceed when the insert fails. Callers MUST
 // invoke it before calling the LDAP client and `return` when it returns

@@ -84,6 +84,7 @@ func (s *Server) setupRoutes() chi.Router {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
+			r.Use(maxBodyBytes(defaultMaxBodyBytes))
 			r.With(loginRateLimit()).Post("/login", s.handleLogin)
 
 			r.Group(func(r chi.Router) {
@@ -98,6 +99,9 @@ func (s *Server) setupRoutes() chi.Router {
 			r.Use(s.authMiddleware)
 
 			r.Route("/users", func(r chi.Router) {
+				// jpegPhoto in UpdateUserRequest can carry a base64-encoded
+				// avatar; cap higher than the rest of the API.
+				r.Use(maxBodyBytes(photoMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/", s.handleListUsers)
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/{dn}", s.handleGetUser)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/", s.handleCreateUser)
@@ -119,6 +123,7 @@ func (s *Server) setupRoutes() chi.Router {
 			})
 
 			r.Route("/sudo-roles", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/", s.handleListSudoRoles)
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/{dn}", s.handleGetSudoRole)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/", s.handleCreateSudoRole)
@@ -131,6 +136,7 @@ func (s *Server) setupRoutes() chi.Router {
 			})
 
 			r.Route("/password-policies", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermSettingsRead)).Get("/", s.handleListPasswordPolicies)
 				r.With(s.requirePermission(rbac.PermSettingsRead)).Get("/{dn}", s.handleGetPasswordPolicy)
 				r.With(s.requirePermission(rbac.PermSettingsWrite)).Post("/", s.handleCreatePasswordPolicy)
@@ -139,6 +145,7 @@ func (s *Server) setupRoutes() chi.Router {
 			})
 
 			r.Route("/groups", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/", s.handleListGroups)
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}", s.handleGetGroup)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/", s.handleCreateGroup)
@@ -151,19 +158,23 @@ func (s *Server) setupRoutes() chi.Router {
 			})
 
 			r.Route("/schema", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermSchemaRead)).Get("/", s.handleGetSchema)
 				r.With(s.requirePermission(rbac.PermSchemaWrite)).Post("/refresh", s.handleRefreshSchema)
 			})
 
 			r.Route("/audit-logs", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermAuditRead)).Get("/", s.handleListAuditLogs)
 			})
 
 			r.Route("/next-ids", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Get("/", s.handleGetNextIDs)
 			})
 
 			r.Route("/admin", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermSettingsRead)).Get("/config", s.handleGetConfig)
 
 				// Scheduled tasks management
@@ -178,6 +189,7 @@ func (s *Server) setupRoutes() chi.Router {
 
 		// Public password reset endpoints (no auth required)
 		r.Route("/password-reset", func(r chi.Router) {
+			r.Use(maxBodyBytes(defaultMaxBodyBytes))
 			r.With(passwordResetGetRateLimit()).Get("/{token}", s.handleGetPasswordResetInfo)
 			r.With(passwordResetPostRateLimit()).Post("/{token}", s.handleConfirmPasswordReset)
 		})
