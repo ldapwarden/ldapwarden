@@ -14,13 +14,13 @@ type NextIDsResponse struct {
 func (s *Server) handleGetNextIDs(w http.ResponseWriter, r *http.Request) {
 	nextUID, err := s.ldapClient.NextUID()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get next UID: "+err.Error())
+		writeServerError(w, r, "get next UID", err)
 		return
 	}
 
 	nextGID, err := s.ldapClient.NextGID()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get next GID: "+err.Error())
+		writeServerError(w, r, "get next GID", err)
 		return
 	}
 

@@ -9,7 +9,7 @@ import (
 func (s *Server) handleGetSchema(w http.ResponseWriter, r *http.Request) {
 	schema, err := s.ldapClient.GetSchema()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to fetch schema: "+err.Error())
+		writeServerError(w, r, "fetch schema", err)
 		return
 	}
 
@@ -19,7 +19,7 @@ func (s *Server) handleGetSchema(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRefreshSchema(w http.ResponseWriter, r *http.Request) {
 	schema, err := s.ldapClient.GetSchema()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to refresh schema: "+err.Error())
+		writeServerError(w, r, "refresh schema", err)
 		return
 	}
 

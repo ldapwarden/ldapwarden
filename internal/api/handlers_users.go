@@ -82,7 +82,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.ldapClient.CreateUser(req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create user: "+err.Error())
+		writeServerError(w, r, "create user", err)
 		return
 	}
 
@@ -108,7 +108,7 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.ldapClient.UpdateUser(dn, req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update user: "+err.Error())
+		writeServerError(w, r, "update user", err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.DeleteUser(dn); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to delete user: "+err.Error())
+		writeServerError(w, r, "delete user", err)
 		return
 	}
 
@@ -151,7 +151,7 @@ func (s *Server) handleGetUserGroups(w http.ResponseWriter, r *http.Request) {
 
 	groups, err := s.ldapClient.GetUserGroups(user.UID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get user groups: "+err.Error())
+		writeServerError(w, r, "get user groups", err)
 		return
 	}
 
@@ -173,7 +173,7 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.LockUser(dn); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to lock user: "+err.Error())
+		writeServerError(w, r, "lock user", err)
 		return
 	}
 
@@ -194,7 +194,7 @@ func (s *Server) handleUnlockUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.UnlockUser(dn); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to unlock user: "+err.Error())
+		writeServerError(w, r, "unlock user", err)
 		return
 	}
 
@@ -229,7 +229,7 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := s.ldapClient.SetUserExpiration(dn, req.ExpirationDate); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to set expiration: "+err.Error())
+		writeServerError(w, r, "set expiration", err)
 		return
 	}
 
@@ -262,7 +262,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.ChangePassword(dn, req.Password); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to change password: "+err.Error())
+		writeServerError(w, r, "change password", err)
 		return
 	}
 
@@ -284,7 +284,7 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.RemovePassword(dn); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to remove password: "+err.Error())
+		writeServerError(w, r, "remove password", err)
 		return
 	}
 
@@ -314,7 +314,7 @@ func (s *Server) handleSetSSHKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.SetSSHPublicKeys(dn, req.Keys); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to set SSH keys: "+err.Error())
+		writeServerError(w, r, "set SSH keys", err)
 		return
 	}
 
@@ -348,7 +348,7 @@ func (s *Server) handleAddSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.AddSSHPublicKey(dn, req.Key); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to add SSH key: "+err.Error())
+		writeServerError(w, r, "add SSH key", err)
 		return
 	}
 
@@ -382,7 +382,7 @@ func (s *Server) handleRemoveSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.RemoveSSHPublicKey(dn, req.Key); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to remove SSH key: "+err.Error())
+		writeServerError(w, r, "remove SSH key", err)
 		return
 	}
 
@@ -410,7 +410,7 @@ func (s *Server) handleUpdateUserSamba(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.ldapClient.SetSambaUserAttributes(dn, req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeServerError(w, r, "update samba attributes", err)
 		return
 	}
 
@@ -437,7 +437,7 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 
 	user, err := s.ldapClient.SetShadowUserAttributes(dn, req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeServerError(w, r, "update shadow attributes", err)
 		return
 	}
 

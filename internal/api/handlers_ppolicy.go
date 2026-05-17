@@ -11,7 +11,7 @@ import (
 func (s *Server) handleListPasswordPolicies(w http.ResponseWriter, r *http.Request) {
 	policies, err := s.ldapClient.ListPasswordPolicies()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list password policies: "+err.Error())
+		writeServerError(w, r, "list password policies", err)
 		return
 	}
 
@@ -57,7 +57,7 @@ func (s *Server) handleCreatePasswordPolicy(w http.ResponseWriter, r *http.Reque
 
 	policy, err := s.ldapClient.CreatePasswordPolicy(req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create password policy: "+err.Error())
+		writeServerError(w, r, "create password policy", err)
 		return
 	}
 
@@ -83,7 +83,7 @@ func (s *Server) handleUpdatePasswordPolicy(w http.ResponseWriter, r *http.Reque
 
 	policy, err := s.ldapClient.UpdatePasswordPolicy(dn, req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update password policy: "+err.Error())
+		writeServerError(w, r, "update password policy", err)
 		return
 	}
 
@@ -102,7 +102,7 @@ func (s *Server) handleDeletePasswordPolicy(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := s.ldapClient.DeletePasswordPolicy(dn); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to delete password policy: "+err.Error())
+		writeServerError(w, r, "delete password policy", err)
 		return
 	}
 

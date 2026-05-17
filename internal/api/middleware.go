@@ -2,9 +2,12 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
@@ -74,6 +77,22 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// writeServerError logs the underlying error against the request ID and
+// writes a generic 500 response. The original err — which often carries
+// LDAP / pgx / SMTP diagnostics, library versions or internal paths —
+// never reaches the client; operators correlate by request ID via stderr.
+// `action` is the high-level verb that failed (e.g. "delete user") and is
+// the only context echoed back so support can sanity-check the report.
+func writeServerError(w http.ResponseWriter, r *http.Request, action string, err error) {
+	reqID := middleware.GetReqID(r.Context())
+	log.Printf("server error: action=%q requestId=%s err=%v", action, reqID, err)
+	msg := "internal server error"
+	if reqID != "" {
+		msg += " (requestId=" + reqID + ")"
+	}
+	writeError(w, http.StatusInternalServerError, msg)
 }
 
 // Request-body size caps. defaultMaxBodyBytes covers every JSON payload the

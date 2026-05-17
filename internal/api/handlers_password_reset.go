@@ -47,7 +47,7 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 	// Create password reset token
 	token, err := s.passwordReset.CreateToken(r.Context(), user.DN, user.UID, user.Mail, session.UserDN)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create reset token: "+err.Error())
+		writeServerError(w, r, "create reset token", err)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 		displayName = user.CN
 	}
 	if err := s.mailer.SendPasswordResetEmail(user.Mail, displayName, resetLink); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to send email: "+err.Error())
+		writeServerError(w, r, "send email", err)
 		return
 	}
 
@@ -141,7 +141,7 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 
 	// Change password in LDAP
 	if err := s.ldapClient.ChangePassword(tokenInfo.UserDN, req.Password); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to change password: "+err.Error())
+		writeServerError(w, r, "change password", err)
 		return
 	}
 

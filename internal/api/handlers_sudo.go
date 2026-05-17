@@ -11,7 +11,7 @@ import (
 func (s *Server) handleListSudoRoles(w http.ResponseWriter, r *http.Request) {
 	roles, err := s.ldapClient.ListSudoRoles()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list sudo roles: "+err.Error())
+		writeServerError(w, r, "list sudo roles", err)
 		return
 	}
 
@@ -52,7 +52,7 @@ func (s *Server) handleGetUserSudoRoles(w http.ResponseWriter, r *http.Request) 
 
 	roles, err := s.ldapClient.GetUserSudoRoles(user.UID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get user sudo roles: "+err.Error())
+		writeServerError(w, r, "get user sudo roles", err)
 		return
 	}
 
@@ -82,7 +82,7 @@ func (s *Server) handleCreateSudoRole(w http.ResponseWriter, r *http.Request) {
 
 	role, err := s.ldapClient.CreateSudoRole(req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create sudo role: "+err.Error())
+		writeServerError(w, r, "create sudo role", err)
 		return
 	}
 
@@ -108,7 +108,7 @@ func (s *Server) handleUpdateSudoRole(w http.ResponseWriter, r *http.Request) {
 
 	role, err := s.ldapClient.UpdateSudoRole(dn, req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update sudo role: "+err.Error())
+		writeServerError(w, r, "update sudo role", err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (s *Server) handleDeleteSudoRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.DeleteSudoRole(dn); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to delete sudo role: "+err.Error())
+		writeServerError(w, r, "delete sudo role", err)
 		return
 	}
 
@@ -160,7 +160,7 @@ func (s *Server) handleAddUserToSudoRole(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := s.ldapClient.AddUserToSudoRole(dn, req.UID); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to add user to sudo role: "+err.Error())
+		writeServerError(w, r, "add user to sudo role", err)
 		return
 	}
 
@@ -194,7 +194,7 @@ func (s *Server) handleRemoveUserFromSudoRole(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := s.ldapClient.RemoveUserFromSudoRole(dn, req.UID); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to remove user from sudo role: "+err.Error())
+		writeServerError(w, r, "remove user from sudo role", err)
 		return
 	}
 
@@ -217,7 +217,7 @@ func (s *Server) handleGetGroupSudoRoles(w http.ResponseWriter, r *http.Request)
 
 	roles, err := s.ldapClient.GetGroupSudoRoles(group.CN)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get group sudo roles: "+err.Error())
+		writeServerError(w, r, "get group sudo roles", err)
 		return
 	}
 
@@ -253,7 +253,7 @@ func (s *Server) handleAddGroupToSudoRole(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := s.ldapClient.AddGroupToSudoRole(dn, req.CN); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to add group to sudo role: "+err.Error())
+		writeServerError(w, r, "add group to sudo role", err)
 		return
 	}
 
@@ -287,7 +287,7 @@ func (s *Server) handleRemoveGroupFromSudoRole(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := s.ldapClient.RemoveGroupFromSudoRole(dn, req.CN); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to remove group from sudo role: "+err.Error())
+		writeServerError(w, r, "remove group from sudo role", err)
 		return
 	}
 

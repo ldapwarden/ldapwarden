@@ -82,7 +82,7 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	group, err := s.ldapClient.CreateGroup(req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create group: "+err.Error())
+		writeServerError(w, r, "create group", err)
 		return
 	}
 
@@ -108,7 +108,7 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 
 	group, err := s.ldapClient.UpdateGroup(dn, req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update group: "+err.Error())
+		writeServerError(w, r, "update group", err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.DeleteGroup(dn); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to delete group: "+err.Error())
+		writeServerError(w, r, "delete group", err)
 		return
 	}
 
@@ -162,7 +162,7 @@ func (s *Server) handleAddGroupMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.ldapClient.AddGroupMember(dn, req.MemberUID); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to add member: "+err.Error())
+		writeServerError(w, r, "add member", err)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (s *Server) handleRemoveGroupMember(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := s.ldapClient.RemoveGroupMember(dn, req.MemberUID); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to remove member: "+err.Error())
+		writeServerError(w, r, "remove member", err)
 		return
 	}
 
@@ -224,7 +224,7 @@ func (s *Server) handleUpdateGroupSamba(w http.ResponseWriter, r *http.Request) 
 
 	group, err := s.ldapClient.SetSambaGroupAttributes(dn, req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeServerError(w, r, "update samba group attributes", err)
 		return
 	}
 
