@@ -76,6 +76,35 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+// auditMutating writes an audit entry for an action that is about to mutate
+// LDAP state, and refuses to proceed when the insert fails. Callers MUST
+// invoke it before calling the LDAP client and `return` when it returns
+// false (a 500 response has already been written).
+//
+// Recording the intent first keeps the audit trail authoritative when the
+// audit DB hiccups: we refuse the change rather than letting it land
+// untracked. If the subsequent LDAP op fails the audit row records an
+// attempt that did not complete — preferable to a completed change with no
+// record at all.
+func (s *Server) auditMutating(w http.ResponseWriter, r *http.Request, action audit.Action, resourceType audit.ResourceType, resourceDN string, details map[string]interface{}) bool {
+	if err := s.auditLogger.Log(r.Context(), action, resourceType, resourceDN, details); err != nil {
+		writeError(w, http.StatusInternalServerError, "audit unavailable; refusing to mutate")
+		return false
+	}
+	return true
+}
+
+// auditMutatingWithActor is the variant for endpoints that mutate state
+// without an authenticated session in the context (currently the password
+// reset confirmation flow). Same contract as auditMutating.
+func (s *Server) auditMutatingWithActor(w http.ResponseWriter, r *http.Request, actorDN, actorUID string, action audit.Action, resourceType audit.ResourceType, resourceDN string, details map[string]interface{}) bool {
+	if err := s.auditLogger.LogWithActor(r.Context(), actorDN, actorUID, action, resourceType, resourceDN, details); err != nil {
+		writeError(w, http.StatusInternalServerError, "audit unavailable; refusing to mutate")
+		return false
+	}
+	return true
+}
+
 type PaginatedResponse struct {
 	Data   interface{} `json:"data"`
 	Total  int64       `json:"total"`

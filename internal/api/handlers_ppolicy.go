@@ -49,14 +49,17 @@ func (s *Server) handleCreatePasswordPolicy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	plannedDN := "cn=" + req.CN + "," + s.ldapClient.PpolicyBaseDN()
+	if !s.auditMutating(w, r, audit.ActionPwdPolicyCreate, audit.ResourcePwdPolicy, plannedDN,
+		map[string]interface{}{"cn": req.CN}) {
+		return
+	}
+
 	policy, err := s.ldapClient.CreatePasswordPolicy(req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create password policy: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionPwdPolicyCreate, audit.ResourcePwdPolicy, policy.DN,
-		map[string]interface{}{"cn": policy.CN})
 
 	writeJSON(w, http.StatusCreated, policy)
 }
@@ -74,13 +77,15 @@ func (s *Server) handleUpdatePasswordPolicy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionPwdPolicyUpdate, audit.ResourcePwdPolicy, dn, nil) {
+		return
+	}
+
 	policy, err := s.ldapClient.UpdatePasswordPolicy(dn, req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update password policy: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionPwdPolicyUpdate, audit.ResourcePwdPolicy, policy.DN, nil)
 
 	writeJSON(w, http.StatusOK, policy)
 }
@@ -92,12 +97,14 @@ func (s *Server) handleDeletePasswordPolicy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionPwdPolicyDelete, audit.ResourcePwdPolicy, dn, nil) {
+		return
+	}
+
 	if err := s.ldapClient.DeletePasswordPolicy(dn); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete password policy: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionPwdPolicyDelete, audit.ResourcePwdPolicy, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password policy deleted"})
 }

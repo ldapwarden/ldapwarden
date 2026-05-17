@@ -178,6 +178,15 @@ func (l *Logger) LogWithActor(ctx context.Context, actorDN, actorUID string, act
 	`, actorDN, actorUID, string(action), string(resourceType), resourceDN, detailsJSON, ipAddress, userAgent)
 
 	if err != nil {
+		// Surface the failure on stderr with enough context that an operator
+		// can reconstruct the lost row even when callers swallow the error
+		// (the audit DB being unavailable is exactly when these traces are
+		// most valuable). The error is also returned so strict callers can
+		// refuse to mutate state without a recorded audit.
+		log.Printf(
+			"audit log INSERT failed: action=%s resource=%s resourceDn=%q actorUid=%q actorDn=%q ip=%q details=%s err=%v",
+			action, resourceType, resourceDN, actorUID, actorDN, info.IPAddress, string(detailsJSON), err,
+		)
 		return fmt.Errorf("insert audit log: %w", err)
 	}
 

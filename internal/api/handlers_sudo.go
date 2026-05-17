@@ -74,14 +74,17 @@ func (s *Server) handleCreateSudoRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	plannedDN := "cn=" + req.CN + "," + s.ldapClient.SudoBaseDN()
+	if !s.auditMutating(w, r, audit.ActionSudoRoleCreate, audit.ResourceSudoRole, plannedDN,
+		map[string]interface{}{"cn": req.CN}) {
+		return
+	}
+
 	role, err := s.ldapClient.CreateSudoRole(req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create sudo role: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleCreate, audit.ResourceSudoRole, role.DN,
-		map[string]interface{}{"cn": role.CN})
 
 	writeJSON(w, http.StatusCreated, role)
 }
@@ -99,13 +102,15 @@ func (s *Server) handleUpdateSudoRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionSudoRoleUpdate, audit.ResourceSudoRole, dn, nil) {
+		return
+	}
+
 	role, err := s.ldapClient.UpdateSudoRole(dn, req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update sudo role: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUpdate, audit.ResourceSudoRole, role.DN, nil)
 
 	writeJSON(w, http.StatusOK, role)
 }
@@ -117,12 +122,14 @@ func (s *Server) handleDeleteSudoRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionSudoRoleDelete, audit.ResourceSudoRole, dn, nil) {
+		return
+	}
+
 	if err := s.ldapClient.DeleteSudoRole(dn); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete sudo role: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleDelete, audit.ResourceSudoRole, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "sudo role deleted"})
 }
@@ -147,13 +154,15 @@ func (s *Server) handleAddUserToSudoRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionSudoRoleUserAdd, audit.ResourceSudoRole, dn,
+		map[string]interface{}{"uid": req.UID}) {
+		return
+	}
+
 	if err := s.ldapClient.AddUserToSudoRole(dn, req.UID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to add user to sudo role: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUserAdd, audit.ResourceSudoRole, dn,
-		map[string]interface{}{"uid": req.UID})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)
 	writeJSON(w, http.StatusOK, role)
@@ -179,13 +188,15 @@ func (s *Server) handleRemoveUserFromSudoRole(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionSudoRoleUserDel, audit.ResourceSudoRole, dn,
+		map[string]interface{}{"uid": req.UID}) {
+		return
+	}
+
 	if err := s.ldapClient.RemoveUserFromSudoRole(dn, req.UID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove user from sudo role: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleUserDel, audit.ResourceSudoRole, dn,
-		map[string]interface{}{"uid": req.UID})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)
 	writeJSON(w, http.StatusOK, role)
@@ -236,13 +247,15 @@ func (s *Server) handleAddGroupToSudoRole(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionSudoRoleGroupAdd, audit.ResourceSudoRole, dn,
+		map[string]interface{}{"cn": req.CN}) {
+		return
+	}
+
 	if err := s.ldapClient.AddGroupToSudoRole(dn, req.CN); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to add group to sudo role: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleGroupAdd, audit.ResourceSudoRole, dn,
-		map[string]interface{}{"cn": req.CN})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)
 	writeJSON(w, http.StatusOK, role)
@@ -268,13 +281,15 @@ func (s *Server) handleRemoveGroupFromSudoRole(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionSudoRoleGroupDel, audit.ResourceSudoRole, dn,
+		map[string]interface{}{"cn": req.CN}) {
+		return
+	}
+
 	if err := s.ldapClient.RemoveGroupFromSudoRole(dn, req.CN); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove group from sudo role: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionSudoRoleGroupDel, audit.ResourceSudoRole, dn,
-		map[string]interface{}{"cn": req.CN})
 
 	role, _ := s.ldapClient.GetSudoRole(dn)
 	writeJSON(w, http.StatusOK, role)

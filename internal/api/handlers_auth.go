@@ -93,13 +93,15 @@ func (s *Server) handleChangeMyPassword(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, session.UserDN,
+		map[string]interface{}{"action": "self_password_change"}) {
+		return
+	}
+
 	if err := s.ldapClient.ChangePassword(session.UserDN, req.Password); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to change password: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, session.UserDN,
-		map[string]interface{}{"action": "self_password_change"})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})
 }

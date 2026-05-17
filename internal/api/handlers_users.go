@@ -71,14 +71,20 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// UID is validated above; UserBaseDN comes from config. The DN matches
+	// what CreateUser builds internally (ldap.EscapeDN is a no-op on our
+	// validated charset) so the audit row references the same resource.
+	plannedDN := "uid=" + req.UID + "," + s.ldapClient.UserBaseDN()
+	if !s.auditMutating(w, r, audit.ActionUserCreate, audit.ResourceUser, plannedDN,
+		map[string]interface{}{"uid": req.UID}) {
+		return
+	}
+
 	user, err := s.ldapClient.CreateUser(req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create user: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserCreate, audit.ResourceUser, user.DN,
-		map[string]interface{}{"uid": user.UID})
 
 	writeJSON(w, http.StatusCreated, user)
 }
@@ -96,13 +102,15 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn, nil) {
+		return
+	}
+
 	user, err := s.ldapClient.UpdateUser(dn, req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update user: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, user.DN, nil)
 
 	writeJSON(w, http.StatusOK, user)
 }
@@ -114,13 +122,16 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserDelete, audit.ResourceUser, dn, nil) {
+		return
+	}
+
 	if err := s.ldapClient.DeleteUser(dn); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete user: "+err.Error())
 		return
 	}
 
 	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserDelete, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user deleted"})
 }
@@ -157,13 +168,16 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserLock, audit.ResourceUser, dn, nil) {
+		return
+	}
+
 	if err := s.ldapClient.LockUser(dn); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to lock user: "+err.Error())
 		return
 	}
 
 	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserLock, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user locked"})
 }
@@ -175,12 +189,14 @@ func (s *Server) handleUnlockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUnlock, audit.ResourceUser, dn, nil) {
+		return
+	}
+
 	if err := s.ldapClient.UnlockUser(dn); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to unlock user: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUnlock, audit.ResourceUser, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user unlocked"})
 }
@@ -200,11 +216,6 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := s.ldapClient.SetUserExpiration(dn, req.ExpirationDate); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to set expiration: "+err.Error())
-		return
-	}
-
 	action := "expiration_set"
 	message := "expiration date set"
 	if req.ExpirationDate == "" {
@@ -212,8 +223,15 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 		message = "expiration date cleared"
 	}
 
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": action, "expirationDate": req.ExpirationDate})
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": action, "expirationDate": req.ExpirationDate}) {
+		return
+	}
+
+	if err := s.ldapClient.SetUserExpiration(dn, req.ExpirationDate); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to set expiration: "+err.Error())
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": message})
 }
@@ -238,14 +256,17 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "password_change"}) {
+		return
+	}
+
 	if err := s.ldapClient.ChangePassword(dn, req.Password); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to change password: "+err.Error())
 		return
 	}
 
 	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "password_change"})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})
 }
@@ -257,14 +278,17 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "password_remove"}) {
+		return
+	}
+
 	if err := s.ldapClient.RemovePassword(dn); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove password: "+err.Error())
 		return
 	}
 
 	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "password_remove"})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password removed"})
 }
@@ -284,13 +308,15 @@ func (s *Server) handleSetSSHKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "ssh_keys_update", "keyCount": len(req.Keys)}) {
+		return
+	}
+
 	if err := s.ldapClient.SetSSHPublicKeys(dn, req.Keys); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to set SSH keys: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "ssh_keys_update", "keyCount": len(req.Keys)})
 
 	user, _ := s.ldapClient.GetUser(dn)
 	writeJSON(w, http.StatusOK, user)
@@ -316,13 +342,15 @@ func (s *Server) handleAddSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "ssh_key_add"}) {
+		return
+	}
+
 	if err := s.ldapClient.AddSSHPublicKey(dn, req.Key); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to add SSH key: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "ssh_key_add"})
 
 	user, _ := s.ldapClient.GetUser(dn)
 	writeJSON(w, http.StatusOK, user)
@@ -348,13 +376,15 @@ func (s *Server) handleRemoveSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "ssh_key_remove"}) {
+		return
+	}
+
 	if err := s.ldapClient.RemoveSSHPublicKey(dn, req.Key); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove SSH key: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "ssh_key_remove"})
 
 	user, _ := s.ldapClient.GetUser(dn)
 	writeJSON(w, http.StatusOK, user)
@@ -373,14 +403,16 @@ func (s *Server) handleUpdateUserSamba(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "samba_update"}) {
+		return
+	}
+
 	user, err := s.ldapClient.SetSambaUserAttributes(dn, req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "samba_update"})
 
 	writeJSON(w, http.StatusOK, user)
 }
@@ -398,14 +430,16 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "shadow_update"}) {
+		return
+	}
+
 	user, err := s.ldapClient.SetShadowUserAttributes(dn, req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "shadow_update"})
 
 	writeJSON(w, http.StatusOK, user)
 }

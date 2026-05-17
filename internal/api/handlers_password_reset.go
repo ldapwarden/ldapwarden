@@ -36,6 +36,14 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Record who initiated the reset before any token is issued or email
+	// sent, so an audit-DB hiccup cannot let a reset link leave the building
+	// without a trail.
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
+		map[string]interface{}{"action": "password_reset_sent", "email": user.Mail}) {
+		return
+	}
+
 	// Create password reset token
 	token, err := s.passwordReset.CreateToken(r.Context(), user.DN, user.UID, user.Mail, session.UserDN)
 	if err != nil {
@@ -55,9 +63,6 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "failed to send email: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "password_reset_sent", "email": user.Mail})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password reset email sent"})
 }
@@ -113,25 +118,38 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Use the IP recorded by auditRequestInfoMiddleware, which itself reads
+	// r.RemoteAddr after trustedProxyRealIPMiddleware has applied — so XFF
+	// is honoured only for requests coming from a configured trusted proxy.
+	clientIP := audit.RequestInfoFromContext(r.Context()).IPAddress
+
+	// Get WHOIS info for the IP before audit so the row carries it.
+	whoisInfo := mail.GetWhoisInfo(clientIP)
+
+	// Record the intent before mutating LDAP — the action is unauthenticated,
+	// so a lost trail would leave us without any record of who reset whose
+	// password from where.
+	if !s.auditMutatingWithActor(w, r, tokenInfo.UserDN, tokenInfo.UserUID,
+		audit.ActionUserUpdate, audit.ResourceUser, tokenInfo.UserDN,
+		map[string]interface{}{
+			"action":    "password_reset_completed",
+			"ip":        clientIP,
+			"whoisInfo": whoisInfo,
+		}) {
+		return
+	}
+
 	// Change password in LDAP
 	if err := s.ldapClient.ChangePassword(tokenInfo.UserDN, req.Password); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to change password: "+err.Error())
 		return
 	}
 
-	// Use the IP recorded by auditRequestInfoMiddleware, which itself reads
-	// r.RemoteAddr after trustedProxyRealIPMiddleware has applied — so XFF
-	// is honoured only for requests coming from a configured trusted proxy.
-	clientIP := audit.RequestInfoFromContext(r.Context()).IPAddress
-
 	// Mark token as used
 	if err := s.passwordReset.MarkTokenUsed(r.Context(), tokenInfo.ID, clientIP); err != nil {
 		// Log but don't fail - password was already changed
 		fmt.Printf("failed to mark token as used: %v\n", err)
 	}
-
-	// Get WHOIS info for the IP
-	whoisInfo := mail.GetWhoisInfo(clientIP)
 
 	// Get user display name
 	user, _ := s.ldapClient.GetUser(tokenInfo.UserDN)
@@ -160,15 +178,6 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 		// Log but don't fail
 		fmt.Printf("failed to send notification email: %v\n", err)
 	}
-
-	// Audit log
-	_ = s.auditLogger.LogWithActor(r.Context(), tokenInfo.UserDN, tokenInfo.UserUID,
-		audit.ActionUserUpdate, audit.ResourceUser, tokenInfo.UserDN,
-		map[string]interface{}{
-			"action":    "password_reset_completed",
-			"ip":        clientIP,
-			"whoisInfo": whoisInfo,
-		})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed successfully"})
 }

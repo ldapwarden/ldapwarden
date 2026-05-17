@@ -74,14 +74,17 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	plannedDN := "cn=" + req.CN + "," + s.ldapClient.GroupBaseDN()
+	if !s.auditMutating(w, r, audit.ActionGroupCreate, audit.ResourceGroup, plannedDN,
+		map[string]interface{}{"cn": req.CN}) {
+		return
+	}
+
 	group, err := s.ldapClient.CreateGroup(req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create group: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupCreate, audit.ResourceGroup, group.DN,
-		map[string]interface{}{"cn": group.CN})
 
 	writeJSON(w, http.StatusCreated, group)
 }
@@ -99,13 +102,15 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionGroupUpdate, audit.ResourceGroup, dn, nil) {
+		return
+	}
+
 	group, err := s.ldapClient.UpdateGroup(dn, req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update group: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupUpdate, audit.ResourceGroup, group.DN, nil)
 
 	writeJSON(w, http.StatusOK, group)
 }
@@ -117,12 +122,14 @@ func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionGroupDelete, audit.ResourceGroup, dn, nil) {
+		return
+	}
+
 	if err := s.ldapClient.DeleteGroup(dn); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete group: "+err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupDelete, audit.ResourceGroup, dn, nil)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "group deleted"})
 }
@@ -149,14 +156,17 @@ func (s *Server) handleAddGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionMemberAdd, audit.ResourceGroup, dn,
+		map[string]interface{}{"memberUid": req.MemberUID}) {
+		return
+	}
+
 	if err := s.ldapClient.AddGroupMember(dn, req.MemberUID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to add member: "+err.Error())
 		return
 	}
 
 	s.invalidateIfAdminGroupChange(r, dn, req.MemberUID)
-	_ = s.auditLogger.Log(r.Context(), audit.ActionMemberAdd, audit.ResourceGroup, dn,
-		map[string]interface{}{"memberUid": req.MemberUID})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "member added"})
 }
@@ -179,14 +189,17 @@ func (s *Server) handleRemoveGroupMember(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionMemberRemove, audit.ResourceGroup, dn,
+		map[string]interface{}{"memberUid": req.MemberUID}) {
+		return
+	}
+
 	if err := s.ldapClient.RemoveGroupMember(dn, req.MemberUID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove member: "+err.Error())
 		return
 	}
 
 	s.invalidateIfAdminGroupChange(r, dn, req.MemberUID)
-	_ = s.auditLogger.Log(r.Context(), audit.ActionMemberRemove, audit.ResourceGroup, dn,
-		map[string]interface{}{"memberUid": req.MemberUID})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "member removed"})
 }
@@ -204,14 +217,16 @@ func (s *Server) handleUpdateGroupSamba(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !s.auditMutating(w, r, audit.ActionGroupUpdate, audit.ResourceGroup, dn,
+		map[string]interface{}{"action": "samba_update"}) {
+		return
+	}
+
 	group, err := s.ldapClient.SetSambaGroupAttributes(dn, req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	_ = s.auditLogger.Log(r.Context(), audit.ActionGroupUpdate, audit.ResourceGroup, dn,
-		map[string]interface{}{"action": "samba_update"})
 
 	writeJSON(w, http.StatusOK, group)
 }
