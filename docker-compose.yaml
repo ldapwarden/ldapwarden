@@ -95,6 +95,7 @@ services:
       - openldap_data:/var/lib/ldap
       - openldap_config:/etc/ldap/slapd.d
       - ./ldap/schema/sudo.ldif:/container/service/slapd/assets/config/bootstrap/schema/sudo.ldif
+      - ./ldap/config/ppolicy-overlay.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/40-ppolicy.ldif
       - ./ldap/seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif
     command: --copy-service
 

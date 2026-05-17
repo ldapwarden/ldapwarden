@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -446,84 +445,51 @@ func (c *Client) DeleteUser(dn string) error {
 	return c.Delete(dn)
 }
 
-// LockUser locks a user account by adding ! prefix to userPassword
-// and optionally setting pwdAccountLockedTime for ppolicy compatibility
+// LockUser locks a user account by setting pwdAccountLockedTime (ppolicy).
+// A past timestamp tells the server to deny binds and marks the account as
+// locked in the UI. The previous implementation also prefixed userPassword
+// with "!"; that path was dropped because under olcPPolicyHashCleartext the
+// server re-hashes the prefixed value, making the original password
+// unrecoverable on unlock.
 func (c *Client) LockUser(dn string) error {
-	// Get current password hash and check for existing pwdAccountLockedTime
-	entry, err := c.GetEntry(dn, []string{"userPassword", "pwdAccountLockedTime"})
+	entry, err := c.GetEntry(dn, []string{"pwdAccountLockedTime"})
 	if err != nil {
-		return fmt.Errorf("get user password: %w", err)
+		return fmt.Errorf("get user: %w", err)
 	}
-
-	currentPassword := entry.GetAttributeValue("userPassword")
-	if currentPassword == "" {
-		return fmt.Errorf("user has no password set")
-	}
-
-	// Check if already locked
-	if strings.HasPrefix(currentPassword, "!") {
-		return nil // Already locked
-	}
-
-	// Add ! prefix to lock the account
-	modReq := ldap.NewModifyRequest(dn, nil)
-	modReq.Replace("userPassword", []string{"!" + currentPassword})
-
-	if err := c.Modify(modReq); err != nil {
-		return err
-	}
-
-	// Try to set pwdAccountLockedTime in a separate request
-	// (optional - may fail if ppolicy schema not loaded)
+	existing := entry.GetAttributeValue("pwdAccountLockedTime")
 	now := time.Now().UTC().Format("20060102150405Z")
-	pwdModReq := ldap.NewModifyRequest(dn, nil)
-	if entry.GetAttributeValue("pwdAccountLockedTime") == "" {
-		pwdModReq.Add("pwdAccountLockedTime", []string{now})
-	} else {
-		pwdModReq.Replace("pwdAccountLockedTime", []string{now})
-	}
-	// Ignore error - ppolicy may not be configured; the ! prefix lock still works
-	_ = c.Modify(pwdModReq)
 
-	return nil
+	modReq := ldap.NewModifyRequest(dn, nil)
+	if existing == "" {
+		modReq.Add("pwdAccountLockedTime", []string{now})
+	} else {
+		// Replace whether the existing value is a past lock (idempotent) or a
+		// future expiration (locking now supersedes the schedule).
+		modReq.Replace("pwdAccountLockedTime", []string{now})
+	}
+	return c.Modify(modReq)
 }
 
-// UnlockUser unlocks a user account by removing ! prefix from userPassword
-// and optionally clearing pwdAccountLockedTime for ppolicy compatibility
+// UnlockUser removes a manual lock by deleting pwdAccountLockedTime. If the
+// attribute holds a future timestamp it is a scheduled expiration set via
+// SetUserExpiration, not a lock, so we refuse rather than silently destroying
+// the schedule. userPassword is never touched.
 func (c *Client) UnlockUser(dn string) error {
-	// Get current password hash and pwdAccountLockedTime
-	entry, err := c.GetEntry(dn, []string{"userPassword", "pwdAccountLockedTime"})
+	entry, err := c.GetEntry(dn, []string{"pwdAccountLockedTime"})
 	if err != nil {
-		return fmt.Errorf("get user password: %w", err)
+		return fmt.Errorf("get user: %w", err)
+	}
+	locked := entry.GetAttributeValue("pwdAccountLockedTime")
+	if locked == "" {
+		return nil
+	}
+	if t, perr := time.Parse("20060102150405Z", locked); perr == nil && t.After(time.Now()) {
+		return fmt.Errorf("account has a scheduled expiration, not a manual lock; clear it via the expiration endpoint")
 	}
 
-	currentPassword := entry.GetAttributeValue("userPassword")
-	if currentPassword == "" {
-		return fmt.Errorf("user has no password set")
-	}
-
-	// Check if actually locked
-	if !strings.HasPrefix(currentPassword, "!") {
-		return nil // Not locked
-	}
-
-	// Remove ! prefix to unlock the account
 	modReq := ldap.NewModifyRequest(dn, nil)
-	modReq.Replace("userPassword", []string{strings.TrimPrefix(currentPassword, "!")})
-
-	if err := c.Modify(modReq); err != nil {
-		return err
-	}
-
-	// Try to clear pwdAccountLockedTime if it exists
-	if entry.GetAttributeValue("pwdAccountLockedTime") != "" {
-		pwdModReq := ldap.NewModifyRequest(dn, nil)
-		pwdModReq.Delete("pwdAccountLockedTime", []string{})
-		// Ignore errors - the attribute may not exist
-		_ = c.Modify(pwdModReq)
-	}
-
-	return nil
+	modReq.Delete("pwdAccountLockedTime", []string{})
+	return c.Modify(modReq)
 }
 
 // SetUserExpiration sets or clears the account expiration date (pwdAccountLockedTime)
@@ -855,10 +821,21 @@ func entryToUser(entry *ldap.Entry) User {
 	}
 
 	// Check if user has a password set
-	currentPassword := entry.GetAttributeValue("userPassword")
-	hasPassword := currentPassword != ""
-	// Account is locked if userPassword starts with !
-	accountLocked := strings.HasPrefix(currentPassword, "!")
+	hasPassword := entry.GetAttributeValue("userPassword") != ""
+
+	// Account is locked when pwdAccountLockedTime is set to a past timestamp.
+	// A future value represents a scheduled expiration set via
+	// SetUserExpiration (and is surfaced separately via PwdAccountLockedTime).
+	// An unparseable value (including the ppolicy "000001010000Z" permanent-
+	// lock sentinel) is treated as locked.
+	var accountLocked bool
+	if locked := entry.GetAttributeValue("pwdAccountLockedTime"); locked != "" {
+		if t, err := time.Parse("20060102150405Z", locked); err == nil {
+			accountLocked = !t.After(time.Now())
+		} else {
+			accountLocked = true
+		}
+	}
 
 	// Shadow attributes (all integers)
 	shadowLastChange, _ := strconv.Atoi(entry.GetAttributeValue("shadowLastChange"))

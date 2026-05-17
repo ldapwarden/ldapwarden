@@ -54,6 +54,13 @@ func TestIntegration_Users_CRUDLifecycle(t *testing.T) {
 		t.Errorf("SN after update=%q, want %q", got.SN, newSN)
 	}
 
+	// Sanity-check: the original password binds before we touch anything.
+	resp, _ = doJSON(t, env, http.MethodPost, "/api/auth/login",
+		map[string]string{"username": user.UID, "password": "testpass"}, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("login with original password before lock: status=%d, want 200", resp.StatusCode)
+	}
+
 	// Lock.
 	resp, _ = doJSON(t, env, http.MethodPost, userPath(user.DN)+"/lock", nil, token)
 	if resp.StatusCode != http.StatusOK {
@@ -65,6 +72,12 @@ func TestIntegration_Users_CRUDLifecycle(t *testing.T) {
 	}
 	if !got.AccountLocked {
 		t.Errorf("AccountLocked=false after lock")
+	}
+	// Bind must fail while the account is locked.
+	resp, _ = doJSON(t, env, http.MethodPost, "/api/auth/login",
+		map[string]string{"username": user.UID, "password": "testpass"}, "")
+	if resp.StatusCode == http.StatusOK {
+		t.Errorf("login while locked: status=200, want non-200")
 	}
 
 	// Unlock.
@@ -78,6 +91,15 @@ func TestIntegration_Users_CRUDLifecycle(t *testing.T) {
 	}
 	if got.AccountLocked {
 		t.Errorf("AccountLocked=true after unlock")
+	}
+	// The original password must still work after a lock/unlock cycle (C2
+	// regression check: the previous implementation prefixed userPassword
+	// with "!", which got re-hashed by the ppolicy hash-cleartext overlay
+	// and could not be recovered on unlock).
+	resp, _ = doJSON(t, env, http.MethodPost, "/api/auth/login",
+		map[string]string{"username": user.UID, "password": "testpass"}, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("login with original password after unlock: status=%d, want 200", resp.StatusCode)
 	}
 
 	// Change password, verify by binding.
