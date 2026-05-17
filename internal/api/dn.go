@@ -31,6 +31,26 @@ func validateRDNValue(field, value string) error {
 	return nil
 }
 
+// posixIDMax is the inclusive upper bound for a POSIX uid_t / gid_t. Most
+// kernels treat values at or above 2^31 as reserved (the sign bit catches
+// `(uid_t)-1` / "no change"), and overflowing into negative space breaks
+// shell tools that store the ID in a signed int. We refuse anything above.
+const posixIDMax = (1 << 31) - 1
+
+// validatePOSIXID rejects uidNumber/gidNumber values that fall below the
+// configured floor (admin-reserved range) or above the signed-32-bit POSIX
+// ceiling. Without this an admin could mint a 0 (= root) or a 2_147_483_648
+// account that breaks `id`, NSS, and any consumer that assumes int32.
+func validatePOSIXID(field string, value, min int) error {
+	if value < min {
+		return fmt.Errorf("%s must be >= %d", field, min)
+	}
+	if value > posixIDMax {
+		return fmt.Errorf("%s must be <= %d", field, posixIDMax)
+	}
+	return nil
+}
+
 // errInvalidDN is the generic error surfaced to clients when the {dn} URL
 // parameter cannot be parsed or falls outside the allowed scope. The exact
 // reason is intentionally not echoed back to avoid giving probing tools a

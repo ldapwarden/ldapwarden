@@ -69,8 +69,8 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.GIDNumber == 0 {
-		writeError(w, http.StatusBadRequest, "gidNumber is required")
+	if err := validatePOSIXID("gidNumber", req.GIDNumber, s.ldapClient.MinGID()); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

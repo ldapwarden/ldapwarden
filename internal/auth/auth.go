@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
@@ -86,7 +87,10 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 	groups, err := s.ldapClient.GetUserGroups(user.UID)
 	if err == nil {
 		for _, group := range groups {
-			if group.CN == s.adminGroup {
+			// LDAP CN matching is caseIgnoreMatch — "Admins" and "admins"
+			// designate the same group, and the configured admin-group name
+			// should not silently lose its meaning to a casing mismatch.
+			if strings.EqualFold(group.CN, s.adminGroup) {
 				roleName = "admin"
 				permissions = []string{
 					"users:read", "users:write", "users:delete",

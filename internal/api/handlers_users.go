@@ -61,13 +61,13 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.UIDNumber == 0 {
-		writeError(w, http.StatusBadRequest, "uidNumber is required")
+	if err := validatePOSIXID("uidNumber", req.UIDNumber, s.ldapClient.MinUID()); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if req.GIDNumber == 0 {
-		writeError(w, http.StatusBadRequest, "gidNumber is required")
+	if err := validatePOSIXID("gidNumber", req.GIDNumber, s.ldapClient.MinGID()); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
