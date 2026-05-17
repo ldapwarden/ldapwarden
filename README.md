@@ -116,7 +116,7 @@ The Docker Compose setup includes:
 - **OpenLDAP** — Pre-configured LDAP server with sample data (port 389)
 - **PostgreSQL** — Database for sessions and audit logs (port 5432)
 - **Redis** — Session store (port 6379)
-- **phpLDAPadmin** — Optional LDAP browser for debugging (port 8080)
+- **phpLDAPadmin** — Optional LDAP browser for debugging (port 8080, not started by default). Bring it up with `docker compose --profile debug up -d` or `docker compose up -d phpldapadmin`.
 
 ## Configuration
 

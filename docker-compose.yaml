@@ -48,6 +48,11 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # Datastore and directory ports are bound to 127.0.0.1 only — the
+  # ldapwarden app reaches them over the docker network, and exposing them
+  # on 0.0.0.0 would leak the demo credentials below to any host on the
+  # LAN. Override via host_ip in a compose.override.yaml if you need to
+  # reach them from another machine.
   postgres:
     image: postgres:16-alpine
     container_name: ldapwarden-postgres
@@ -56,7 +61,7 @@ services:
       POSTGRES_PASSWORD: ldapwarden
       POSTGRES_DB: ldapwarden
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -69,7 +74,7 @@ services:
     image: redis:7-alpine
     container_name: ldapwarden-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -78,6 +83,13 @@ services:
       timeout: 5s
       retries: 5
 
+  # The LDAP port stays on 0.0.0.0 — Docker Desktop on macOS cannot bind
+  # privileged ports to 127.0.0.1 without its vmnetd helper, which isn't
+  # universally available. Demo credentials are intentionally well-known;
+  # if you run on a multi-tenant host, drop the host mapping entirely and
+  # reach the directory through the docker network only. The LDAPS port
+  # (636) used to be mapped but the app speaks ldap:// (LDAP_TLS=false), so
+  # nothing on the host actually used it.
   openldap:
     image: osixia/openldap:1.5.0
     container_name: ldapwarden-openldap
@@ -90,7 +102,6 @@ services:
       LDAP_TLS: "false"
     ports:
       - "389:389"
-      - "636:636"
     volumes:
       - openldap_data:/var/lib/ldap
       - openldap_config:/etc/ldap/slapd.d
@@ -99,14 +110,18 @@ services:
       - ./ldap/seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif
     command: --copy-service
 
+  # Opt-in only: start with `docker compose --profile debug up -d` (or
+  # `docker compose up phpldapadmin` to bring it up alongside the default
+  # stack). Default `docker compose up -d` leaves this off.
   phpldapadmin:
     image: osixia/phpldapadmin:0.9.0
     container_name: ldapwarden-phpldapadmin
+    profiles: ["debug"]
     environment:
       PHPLDAPADMIN_LDAP_HOSTS: openldap
       PHPLDAPADMIN_HTTPS: "false"
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     depends_on:
       - openldap
 
