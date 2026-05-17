@@ -95,7 +95,7 @@ func run() error {
 	passwordResetService := passwordreset.NewService(pool)
 
 	// Initialize scheduler for background tasks
-	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger)
+	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger, passwordResetService)
 	if err := sched.Start(ctx); err != nil {
 		log.Printf("Warning: failed to start scheduler: %v", err)
 	}

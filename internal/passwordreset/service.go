@@ -37,6 +37,20 @@ func NewService(pool *pgxpool.Pool) *Service {
 }
 
 func (s *Service) CreateToken(ctx context.Context, userDN, userUID, userEmail, createdByDN string) (string, error) {
+	// Invalidate any still-valid reset tokens for this user before issuing a
+	// new one. A user always has at most one usable token at a time, which
+	// caps the blast radius of token leakage and makes the audit log
+	// unambiguous about which token actually completed the reset.
+	// A row with used = TRUE and used_ip IS NULL marks a token retired by
+	// supersession (vs. a normal confirm flow, which records the client IP).
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE password_reset_tokens
+		SET used = TRUE, used_at = NOW()
+		WHERE user_dn = $1 AND used = FALSE AND expires_at > NOW()
+	`, userDN); err != nil {
+		return "", fmt.Errorf("supersede prior tokens: %w", err)
+	}
+
 	// Generate a random token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
@@ -60,6 +74,36 @@ func (s *Service) CreateToken(ctx context.Context, userDN, userUID, userEmail, c
 	}
 
 	return token, nil
+}
+
+// CountRecentByActor returns how many reset tokens createdByDN has issued
+// during the last `window`. The handler uses this for a per-actor cap so a
+// compromised admin cannot bulk-spam reset emails.
+func (s *Service) CountRecentByActor(ctx context.Context, createdByDN string, window time.Duration) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM password_reset_tokens
+		WHERE created_by_dn = $1 AND created_at > NOW() - $2::interval
+	`, createdByDN, window.String()).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count actor tokens: %w", err)
+	}
+	return count, nil
+}
+
+// CountRecentForUser returns how many reset tokens have been issued for
+// userDN during the last `window`. The handler uses this so a single user
+// cannot be flooded with reset emails regardless of who is issuing them.
+func (s *Service) CountRecentForUser(ctx context.Context, userDN string, window time.Duration) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM password_reset_tokens
+		WHERE user_dn = $1 AND created_at > NOW() - $2::interval
+	`, userDN, window.String()).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count user tokens: %w", err)
+	}
+	return count, nil
 }
 
 func (s *Service) ValidateToken(ctx context.Context, token string) (*Token, error) {

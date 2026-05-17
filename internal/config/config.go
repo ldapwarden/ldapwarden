@@ -32,6 +32,7 @@ type Config struct {
 type ScheduledTasksConfig struct {
 	UsersExpiration     string // Cron format, empty = disabled
 	PasswordsExpiration string // Cron format, empty = disabled
+	TokensCleanup       string // Cron format, empty = disabled. Purges expired password_reset_tokens rows.
 }
 
 type AppConfig struct {
@@ -142,6 +143,7 @@ func Load() *Config {
 		ScheduledTasks: ScheduledTasksConfig{
 			UsersExpiration:     getEnv("LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION", "42 3 * * *"),
 			PasswordsExpiration: getEnv("LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION", "42 3 * * *"),
+			TokensCleanup:       getEnv("LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP", "17 * * * *"),
 		},
 	}
 }

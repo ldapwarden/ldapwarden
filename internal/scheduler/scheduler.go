@@ -14,6 +14,7 @@ import (
 	"github.com/ldapwarden/ldapwarden/internal/config"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 	"github.com/ldapwarden/ldapwarden/internal/mail"
+	"github.com/ldapwarden/ldapwarden/internal/passwordreset"
 )
 
 // Notification intervals for expiration warnings
@@ -30,29 +31,31 @@ var expirationIntervals = []struct {
 
 // Scheduler manages scheduled background tasks
 type Scheduler struct {
-	cron       *cron.Cron
-	config     *config.Config
-	ldapClient *ldap.Client
-	mailer     *mail.Mailer
-	pool       *pgxpool.Pool
-	store      *Store
-	auditLog   *audit.Logger
+	cron          *cron.Cron
+	config        *config.Config
+	ldapClient    *ldap.Client
+	mailer        *mail.Mailer
+	pool          *pgxpool.Pool
+	store         *Store
+	auditLog      *audit.Logger
+	passwordReset *passwordreset.Service
 
 	mu      sync.Mutex
 	running map[string]bool // Track running tasks to prevent overlap
 }
 
 // New creates a new scheduler instance
-func New(cfg *config.Config, ldapClient *ldap.Client, mailer *mail.Mailer, pool *pgxpool.Pool, auditLog *audit.Logger) *Scheduler {
+func New(cfg *config.Config, ldapClient *ldap.Client, mailer *mail.Mailer, pool *pgxpool.Pool, auditLog *audit.Logger, passwordReset *passwordreset.Service) *Scheduler {
 	return &Scheduler{
-		cron:       cron.New(),
-		config:     cfg,
-		ldapClient: ldapClient,
-		mailer:     mailer,
-		pool:       pool,
-		store:      NewStore(pool),
-		auditLog:   auditLog,
-		running:    make(map[string]bool),
+		cron:          cron.New(),
+		config:        cfg,
+		ldapClient:    ldapClient,
+		mailer:        mailer,
+		pool:          pool,
+		store:         NewStore(pool),
+		auditLog:      auditLog,
+		passwordReset: passwordReset,
+		running:       make(map[string]bool),
 	}
 }
 
@@ -88,6 +91,23 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		log.Printf("Scheduled passwords expiration task: %s", s.config.ScheduledTasks.PasswordsExpiration)
 	} else {
 		log.Println("Passwords expiration task disabled (empty schedule)")
+	}
+
+	// Register the password-reset token cleanup. Tokens already become
+	// unusable past expires_at, but the row stays until purged, growing
+	// the table indefinitely and obscuring forensic queries with cold
+	// records. The job is purely DML so we keep it lightweight (no
+	// task-run accounting) and run it more often than the daily tasks.
+	if s.passwordReset != nil && s.config.ScheduledTasks.TokensCleanup != "" {
+		_, err := s.cron.AddFunc(s.config.ScheduledTasks.TokensCleanup, func() {
+			if err := s.passwordReset.DeleteExpiredTokens(context.Background()); err != nil {
+				log.Printf("Password reset cleanup error: %v", err)
+			}
+		})
+		if err != nil {
+			return fmt.Errorf("add tokens cleanup task: %w", err)
+		}
+		log.Printf("Scheduled password-reset tokens cleanup: %s", s.config.ScheduledTasks.TokensCleanup)
 	}
 
 	s.cron.Start()

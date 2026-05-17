@@ -4,11 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
 	"github.com/ldapwarden/ldapwarden/internal/mail"
+)
+
+// Issuance caps for handleSendPasswordReset. Tunable here rather than via
+// env vars because the values are policy, not deployment configuration.
+const (
+	// maxResetsPerUserWindow is how many resets a single user can receive
+	// in any rolling resetUserWindow. Five minutes covers a typical UX
+	// "didn't get the email, try again" while making inbox-flooding hard.
+	maxResetsPerUserWindow = 3
+	resetUserWindow        = 5 * time.Minute
+
+	// maxResetsPerActorWindow blunts a compromised admin account: even if
+	// the attacker can call the endpoint freely, they cannot fan out to
+	// hundreds of users without tripping the cap.
+	maxResetsPerActorWindow = 20
+	resetActorWindow        = 5 * time.Minute
 )
 
 func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +50,30 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 
 	if user.Mail == "" {
 		writeError(w, http.StatusBadRequest, "user has no email address")
+		return
+	}
+
+	// Per-actor cap: stops a compromised admin account from bulk-flooding
+	// the directory with reset emails.
+	actorCount, err := s.passwordReset.CountRecentByActor(r.Context(), session.UserDN, resetActorWindow)
+	if err != nil {
+		writeServerError(w, r, "count actor resets", err)
+		return
+	}
+	if actorCount >= maxResetsPerActorWindow {
+		writeError(w, http.StatusTooManyRequests, "too many password reset issuances; slow down")
+		return
+	}
+
+	// Per-target cap: protects the target user's inbox from being flooded
+	// regardless of who is issuing the resets.
+	userCount, err := s.passwordReset.CountRecentForUser(r.Context(), user.DN, resetUserWindow)
+	if err != nil {
+		writeServerError(w, r, "count user resets", err)
+		return
+	}
+	if userCount >= maxResetsPerUserWindow {
+		writeError(w, http.StatusTooManyRequests, "a password reset was issued for this user recently; try again later")
 		return
 	}
 

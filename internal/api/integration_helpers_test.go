@@ -110,7 +110,7 @@ func setupTestServer(t *testing.T) *testEnv {
 	auditLogger := audit.NewLogger(pool, mailer, cfg.App.AuditNotifyEmails)
 	passwordResetService := passwordreset.NewService(pool)
 	// scheduler is constructed but never Start()-ed: tests don't need cron jobs.
-	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger)
+	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger, passwordResetService)
 
 	server := NewServer(ldapClient, authService, auditLogger, rbacService, cfg, mailer, passwordResetService, sched, nil)
 	httpSrv := httptest.NewServer(server)
