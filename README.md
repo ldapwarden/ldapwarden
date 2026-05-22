@@ -29,10 +29,14 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 
 ## Screenshots
 
-<details>
-<summary><strong>Users List</strong></summary>
+<p align="center">
+  <img src="docs/screenshots/02-users-list.png" alt="LDAP Warden — Users list" width="900">
+</p>
 
-![Users List](docs/screenshots/02-users-list.png)
+<details>
+<summary><strong>Login</strong></summary>
+
+![Login](docs/screenshots/01-login.png)
 </details>
 
 <details>
@@ -79,9 +83,11 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 - **Password Policies** — View and manage password policies (ppolicy overlay), assign policies to users
 - **SSH Key Management** — Store and manage SSH public keys in LDAP (`ldapPublicKey` object class)
 - **Samba Integration** — Optional support for `sambaSamAccount` and `sambaGroupMapping` object classes
-- **LDAP Authentication** — Authenticate users directly against your LDAP directory
-- **Role-Based Access Control** — Admin and read-only roles based on LDAP group membership
-- **Audit Logging** — Track all changes with detailed audit logs
+- **LDAP Authentication** — Authenticate users directly against your LDAP directory; passwords are written via the RFC 3062 `PasswordModify` extended operation so the directory's hashing pipeline always runs
+- **Role-Based Access Control** — Admin and read-only roles based on LDAP group membership, with active sessions invalidated immediately on user/admin-group mutation
+- **Audit Logging** — Track every change in PostgreSQL with actor, IP and User-Agent, plus opt-in per-change email notifications
+- **Email Notifications** — Per-change audit emails, password-reset flow, and proactive account/password expiration reminders to admins and users
+- **Security-First Defaults** — Per-IP rate limiting on auth endpoints, baseline CSP / X-Frame-Options / Referrer-Policy headers, `X-Forwarded-For` allowlist by trusted-proxy CIDR, and fail-fast on default secrets
 - **Modular UI** — Enable/disable features based on your LDAP schema (sudo, policies, Samba)
 - **Photo Support** — Upload and display user photos (JPEG)
 - **Modern UI** — Clean, responsive interface built with React and Tailwind CSS
@@ -108,6 +114,12 @@ open http://localhost:8000
 ```
 
 **Default credentials:** `admin` / `admin123`
+
+> **Production note.** The bundled stack ships with `LDAPWARDEN_DEV_MODE=1`,
+> which tolerates the well-known `SESSION_SECRET` and `LDAP_BIND_PASS=admin`.
+> For a real deployment, drop that variable and provide fresh values — see
+> the [Production-secrets validation](#production-secrets-validation) section
+> below.
 
 ### What's Included
 
