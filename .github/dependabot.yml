@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # GitHub Actions are pinned to commit SHAs (see .github/workflows/*).
+  # Dependabot updates the SHA while keeping the `# vN` comment as a
+  # human-readable reference.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - "*"
