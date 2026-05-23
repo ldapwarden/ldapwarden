@@ -15,19 +15,20 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('token'))
+  // Always probe /me on mount — the session token now lives in an HttpOnly
+  // cookie that JavaScript cannot read, so the only way to know if the
+  // browser has a live session is to ask the server.
+  const [isLoading, setIsLoading] = useState(true)
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) return
     let cancelled = false
     api.auth.me()
       .then(session => {
         if (!cancelled) setSession(session)
       })
       .catch(() => {
-        if (!cancelled) localStorage.removeItem('token')
+        // 401 just means we have no session; nothing to clean up client-side.
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -46,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await api.auth.login(username, password)
-    localStorage.setItem('token', response.token)
+    // The session token is delivered as an HttpOnly cookie; the JSON
+    // response.token is ignored client-side and will be removed in a
+    // follow-up commit.
     setSession(response.session)
   }, [])
 
@@ -58,7 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error
       }
     } finally {
-      localStorage.removeItem('token')
       setSession(null)
       queryClient.clear()
     }

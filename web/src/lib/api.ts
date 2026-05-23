@@ -24,15 +24,9 @@ async function fetchApi<T>(
   schema?: z.ZodType<T>,
   signal?: AbortSignal,
 ): Promise<T> {
-  const token = localStorage.getItem('token')
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
-  }
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
   }
 
   // Compose external signal (from React Query) with a timeout to prevent hung requests
@@ -51,12 +45,15 @@ async function fetchApi<T>(
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers,
+      // Session token now lives in an HttpOnly cookie set by the backend at
+      // login; credentials: 'include' makes the browser ship that cookie on
+      // every API call (including Vite's dev proxy hop).
+      credentials: 'include',
       signal: controller.signal,
     })
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('token')
         onAuthError?.()
         throw new ApiError(response.status, 'Session expired')
       }
