@@ -48,9 +48,13 @@ COPY --from=frontend-builder /app/dist /app/web/dist
 # Copy database migrations
 COPY db/migrations /app/db/migrations
 
-# Create non-root user
-RUN adduser -D -g '' ldapwarden
-USER ldapwarden
+# Create non-root user with a fixed UID/GID so volume mounts and
+# read-only rootfs policies are predictable across rebuilds. 10001 is
+# outside the busybox/alpine system-account range (<1000) and unlikely
+# to clash with named host users.
+RUN addgroup -g 10001 ldapwarden && \
+    adduser -D -u 10001 -G ldapwarden -g '' ldapwarden
+USER 10001:10001
 
 # Expose port
 EXPOSE 8000
