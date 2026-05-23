@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
@@ -36,18 +35,16 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	_ = s.auditLogger.LogWithActor(r.Context(), resp.Session.UserDN, resp.Session.UserUID,
 		audit.ActionLogin, audit.ResourceUser, resp.Session.UserDN, nil)
 
+	s.setSessionCookie(w, resp.Token)
 	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 {
-		writeError(w, http.StatusBadRequest, "invalid authorization header")
+	token := tokenFromRequest(r)
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "missing session token")
 		return
 	}
-
-	token := parts[1]
 	session := auth.GetSessionFromContext(r.Context())
 
 	if err := s.authService.Logout(r.Context(), token); err != nil {
@@ -60,6 +57,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 			audit.ActionLogout, audit.ResourceUser, session.UserDN, nil)
 	}
 
+	s.clearSessionCookie(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 

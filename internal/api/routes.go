@@ -77,6 +77,7 @@ func (s *Server) setupRoutes() chi.Router {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+	r.Use(csrfOriginCheck(s.config.App.CORSOrigins))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

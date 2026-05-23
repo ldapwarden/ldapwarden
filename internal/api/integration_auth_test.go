@@ -121,6 +121,76 @@ func TestIntegration_Me_InvalidToken(t *testing.T) {
 	}
 }
 
+// TestIntegration_Login_SetsSessionCookie asserts that the login response
+// carries an HttpOnly session cookie, that a GET request authed solely
+// with that cookie succeeds, and that logout clears the cookie. The
+// logout call uses Bearer to bypass the CSRF middleware — exercising the
+// cookie path on a non-safe method requires an Origin that matches
+// CORSOrigins, and the httptest server has a random port not declarable
+// in advance. CSRF behavior itself is covered by the unit tests in
+// csrf_test.go.
+func TestIntegration_Login_SetsSessionCookie(t *testing.T) {
+	env := setupTestServer(t)
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/auth/login",
+		map[string]string{"username": "admin", "password": "admin123"}, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("login status=%d body=%s", resp.StatusCode, body)
+	}
+
+	var sessionCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == "ldapwarden_session" {
+			sessionCookie = c
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatalf("login did not set the ldapwarden_session cookie")
+	}
+	if !sessionCookie.HttpOnly {
+		t.Errorf("session cookie is not HttpOnly")
+	}
+	if sessionCookie.SameSite != http.SameSiteLaxMode {
+		t.Errorf("session cookie SameSite=%v, want Lax", sessionCookie.SameSite)
+	}
+
+	var lr auth.LoginResponse
+	if err := json.Unmarshal(body, &lr); err != nil {
+		t.Fatalf("unmarshal login response: %v", err)
+	}
+
+	// Cookie-only auth on a safe method.
+	req, err := http.NewRequest(http.MethodGet, env.Server.URL+"/api/auth/me", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.AddCookie(sessionCookie)
+	r2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	_ = r2.Body.Close()
+	if r2.StatusCode != http.StatusOK {
+		t.Errorf("/me with cookie status=%d, want 200", r2.StatusCode)
+	}
+
+	// Logout via Bearer (CSRF-exempt), confirm the response clears the cookie.
+	logoutResp, _ := doJSON(t, env, http.MethodPost, "/api/auth/logout", nil, lr.Token)
+	if logoutResp.StatusCode != http.StatusOK {
+		t.Errorf("logout status=%d, want 200", logoutResp.StatusCode)
+	}
+	var cleared bool
+	for _, c := range logoutResp.Cookies() {
+		if c.Name == "ldapwarden_session" && c.MaxAge < 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Errorf("logout did not clear the session cookie")
+	}
+}
+
 func TestIntegration_Logout_InvalidatesToken(t *testing.T) {
 	env := setupTestServer(t)
 	lr := loginAs(t, env, "admin", "admin123")

@@ -31,21 +31,32 @@ func auditRequestInfoMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// tokenFromRequest extracts a session token from the HttpOnly session
+// cookie if present, falling back to a Bearer Authorization header.
+// Cookie takes precedence so an old Authorization header lingering in a
+// proxy or browser extension cannot resurrect a logged-out session. Bearer
+// remains supported for machine clients (scripts, monitoring probes) that
+// have no cookie jar.
+func tokenFromRequest(r *http.Request) string {
+	if c, err := r.Cookie(sessionCookieName); err == nil && c.Value != "" {
+		return c.Value
+	}
+	authHeader := r.Header.Get("Authorization")
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return ""
+	}
+	return parts[1]
+}
+
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			writeError(w, http.StatusUnauthorized, "missing authorization header")
+		token := tokenFromRequest(r)
+		if token == "" {
+			writeError(w, http.StatusUnauthorized, "missing session token")
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			writeError(w, http.StatusUnauthorized, "invalid authorization header")
-			return
-		}
-
-		token := parts[1]
 		session, err := s.authService.ValidateToken(r.Context(), token)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "invalid or expired token")
