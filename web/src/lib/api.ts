@@ -137,7 +137,6 @@ export const SessionSchema = z.object({
   userUid: z.string(),
   displayName: z.string(),
   mail: z.string().optional(),
-  jpegPhoto: z.string().optional(),
   roleName: z.string(),
   permissions: z.array(z.string()),
   expiresAt: z.string(),

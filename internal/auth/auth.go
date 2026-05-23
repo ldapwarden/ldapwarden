@@ -24,7 +24,6 @@ type Session struct {
 	UserUID     string    `json:"userUid"`
 	DisplayName string    `json:"displayName"`
 	Mail        string    `json:"mail,omitempty"`
-	JpegPhoto   string    `json:"jpegPhoto,omitempty"`
 	RoleName    string    `json:"roleName"`
 	Permissions []string  `json:"permissions"`
 	ExpiresAt   time.Time `json:"expiresAt"`
@@ -108,7 +107,6 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 		UserUID:     user.UID,
 		DisplayName: user.DisplayName,
 		Mail:        user.Mail,
-		JpegPhoto:   user.JpegPhoto,
 		RoleName:    roleName,
 		Permissions: permissions,
 		ExpiresAt:   time.Now().Add(s.sessionTTL),

@@ -194,7 +194,6 @@ function RootComponent() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-2">
                   <Avatar
-                    src={session?.jpegPhoto}
                     fallback={session?.displayName}
                     size="sm"
                   />
