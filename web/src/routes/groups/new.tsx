@@ -66,7 +66,7 @@ function NewGroupPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.navigate({ to: '/groups' })}>
+        <Button variant="ghost" size="icon" aria-label="Back to groups" onClick={() => router.navigate({ to: '/groups' })}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-2xl font-bold">Create New Group</h1>
@@ -109,6 +109,7 @@ function NewGroupPage() {
                   type="button"
                   variant="outline"
                   size="icon"
+                  aria-label="Auto-generate next available GID"
                   title="Auto-generate next available GID"
                   onClick={() => nextIds && setFormData({ ...formData, gidNumber: nextIds.nextGid.toString() })}
                   disabled={!nextIds}

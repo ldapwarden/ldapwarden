@@ -153,7 +153,7 @@ function NewUserPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.navigate({ to: '/users' })}>
+        <Button variant="ghost" size="icon" aria-label="Back to users" onClick={() => router.navigate({ to: '/users' })}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-2xl font-bold">Create New User</h1>
@@ -239,6 +239,7 @@ function NewUserPage() {
                     type="button"
                     variant="outline"
                     size="icon"
+                    aria-label="Auto-generate next available UID"
                     title="Auto-generate next available UID"
                     onClick={() => nextIds && setFormData({ ...formData, uidNumber: nextIds.nextUid.toString() })}
                     disabled={!nextIds}

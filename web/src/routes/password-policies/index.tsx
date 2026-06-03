@@ -12,20 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
+import { toast } from 'sonner'
 
 type SortField = 'cn' | 'pwdMaxAge' | 'pwdMinLength'
 type SortDirection = 'asc' | 'desc'
@@ -61,6 +55,10 @@ function PasswordPoliciesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['password-policies'] })
       setDeletePolicy(null)
+      toast.success('Password policy deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
     },
   })
 
@@ -254,7 +252,7 @@ function PasswordPoliciesPage() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Link to="/password-policies/$dn" params={{ dn: encodeDN(policy.dn) }}>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" aria-label="Edit password policy">
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </Link>
@@ -262,6 +260,7 @@ function PasswordPoliciesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Delete password policy"
                           onClick={() => setDeletePolicy(policy)}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -293,29 +292,15 @@ function PasswordPoliciesPage() {
         </div>
       )}
 
-      <Dialog open={!!deletePolicy} onOpenChange={() => setDeletePolicy(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Password Policy</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete policy "{deletePolicy?.cn}"?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeletePolicy(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deletePolicy && deleteMutation.mutate(deletePolicy.dn)}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deletePolicy}
+        onOpenChange={(open) => !open && setDeletePolicy(null)}
+        title="Delete Password Policy"
+        description={`Are you sure you want to delete policy "${deletePolicy?.cn}"? This action cannot be undone.`}
+        error={deleteMutation.error?.message}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deletePolicy && deleteMutation.mutate(deletePolicy.dn)}
+      />
     </div>
   )
 }

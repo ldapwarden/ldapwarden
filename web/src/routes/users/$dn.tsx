@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useState, useRef, useMemo } from 'react'
 
 export const Route = createFileRoute('/users/$dn')({
@@ -124,7 +125,7 @@ function UserDetailPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.navigate({ to: '/users' })}>
+        <Button variant="ghost" size="icon" aria-label="Back to users" onClick={() => router.navigate({ to: '/users' })}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Avatar
@@ -833,6 +834,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Remove from group"
                       onClick={() => removeFromGroupMutation.mutate(group.dn)}
                       disabled={removeFromGroupMutation.isPending}
                     >
@@ -1066,6 +1068,7 @@ function SSHKeysTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeo
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Remove SSH key"
                       onClick={() => removeKeyMutation.mutate(key)}
                       disabled={removeKeyMutation.isPending}
                     >
@@ -1818,6 +1821,7 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Remove from sudo role"
                     onClick={() => removeFromRoleMutation.mutate(role.dn)}
                     disabled={removeFromRoleMutation.isPending}
                     className="shrink-0"
@@ -2425,40 +2429,22 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                   Permanently remove this user from the directory. This action cannot be undone.
                 </p>
               </div>
-              <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <DialogTrigger asChild>
+              <ConfirmDialog
+                open={deleteDialogOpen}
+                onOpenChange={setDeleteDialogOpen}
+                trigger={
                   <Button variant="destructive">
                     <Trash2 className="h-4 w-4 mr-1" />
                     Delete User
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Delete User</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to delete user "{user.displayName || user.uid}"?
-                      This action cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  {deleteMutation.error && (
-                    <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-                      {deleteMutation.error.message}
-                    </div>
-                  )}
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => deleteMutation.mutate()}
-                      disabled={deleteMutation.isPending}
-                    >
-                      {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                }
+                title="Delete User"
+                description={`Are you sure you want to delete user "${user.displayName || user.uid}"? This action cannot be undone.`}
+                confirmLabel="Delete User"
+                error={deleteMutation.error?.message}
+                isPending={deleteMutation.isPending}
+                onConfirm={() => deleteMutation.mutate()}
+              />
             </div>
           </CardContent>
         </Card>

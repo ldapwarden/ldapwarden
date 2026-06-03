@@ -12,19 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, ShieldCheck } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
+import { toast } from 'sonner'
 
 type SortField = 'cn' | 'sudoOrder'
 type SortDirection = 'asc' | 'desc'
@@ -60,6 +54,10 @@ function SudoRolesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
       setDeleteRole(null)
+      toast.success('Sudo role deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
     },
   })
 
@@ -233,7 +231,7 @@ function SudoRolesPage() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Link to="/sudo-roles/$dn" params={{ dn: encodeDN(role.dn) }}>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" aria-label="Edit sudo role">
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </Link>
@@ -241,6 +239,7 @@ function SudoRolesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Delete sudo role"
                           onClick={() => setDeleteRole(role)}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -272,29 +271,15 @@ function SudoRolesPage() {
         </div>
       )}
 
-      <Dialog open={!!deleteRole} onOpenChange={() => setDeleteRole(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Sudo Role</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete sudo role "{deleteRole?.cn}"?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteRole(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deleteRole && deleteMutation.mutate(deleteRole.dn)}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteRole}
+        onOpenChange={(open) => !open && setDeleteRole(null)}
+        title="Delete Sudo Role"
+        description={`Are you sure you want to delete sudo role "${deleteRole?.cn}"? This action cannot be undone.`}
+        error={deleteMutation.error?.message}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteRole && deleteMutation.mutate(deleteRole.dn)}
+      />
     </div>
   )
 }
