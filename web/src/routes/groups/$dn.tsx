@@ -327,11 +327,13 @@ function InformationTab({
           <div className="space-y-2">
             <Label htmlFor="cn">Name (CN)</Label>
             <Input id="cn" value={group?.cn || ''} disabled />
+            <p className="text-xs text-muted-foreground">The group name cannot be changed after creation.</p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="gidNumber">GID Number</Label>
             <Input id="gidNumber" value={group?.gidNumber || ''} disabled />
+            <p className="text-xs text-muted-foreground">The GID cannot be changed after creation.</p>
           </div>
 
           <div className="space-y-2">

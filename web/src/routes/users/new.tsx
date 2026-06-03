@@ -178,6 +178,7 @@ function NewUserPage() {
                 value={formData.uid}
                 onChange={(e) => setFormData({ ...formData, uid: e.target.value })}
                 required
+                autoFocus
               />
             </div>
 

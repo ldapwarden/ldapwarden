@@ -470,6 +470,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
               <div className="space-y-2">
                 <Label htmlFor="uid">Username (UID)</Label>
                 <Input id="uid" value={user?.uid || ''} disabled />
+                <p className="text-xs text-muted-foreground">The username cannot be changed after creation.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cn">Common Name (CN)</Label>

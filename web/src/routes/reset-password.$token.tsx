@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { PasswordStrength } from '@/components/ui/password-strength'
 import { Shield, Key, CheckCircle2, AlertCircle } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/reset-password/$token')({
   component: ResetPasswordPage,
@@ -25,22 +26,6 @@ function ResetPasswordPage() {
   const resetMutation = useMutation({
     mutationFn: () => api.passwordReset.confirm(token, password),
   })
-
-  const passwordStrength = useMemo(() => {
-    if (!password) return { score: 0, label: '', color: '' }
-
-    let score = 0
-    if (password.length >= 8) score++
-    if (password.length >= 12) score++
-    if (/[a-z]/.test(password)) score++
-    if (/[A-Z]/.test(password)) score++
-    if (/[0-9]/.test(password)) score++
-    if (/[^a-zA-Z0-9]/.test(password)) score++
-
-    if (score <= 2) return { score, label: 'Weak', color: 'bg-destructive' }
-    if (score <= 4) return { score, label: 'Medium', color: 'bg-yellow-500' }
-    return { score, label: 'Strong', color: 'bg-green-500' }
-  }, [password])
 
   const passwordsMatch = password && confirmPassword && password === confirmPassword
   const passwordsDontMatch = password && confirmPassword && password !== confirmPassword
@@ -136,26 +121,7 @@ function ResetPasswordPage() {
                 autoComplete="new-password"
                 autoFocus
               />
-              {password && (
-                <div className="space-y-1">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                      <div
-                        key={i}
-                        className={`h-1 flex-1 rounded ${
-                          i <= passwordStrength.score ? passwordStrength.color : 'bg-muted'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className={`text-xs ${
-                    passwordStrength.score <= 2 ? 'text-destructive' :
-                    passwordStrength.score <= 4 ? 'text-yellow-600' : 'text-green-600'
-                  }`}>
-                    Password strength: {passwordStrength.label}
-                  </p>
-                </div>
-              )}
+              <PasswordStrength password={password} />
             </div>
 
             <div className="space-y-2">

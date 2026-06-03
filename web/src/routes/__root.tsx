@@ -18,6 +18,7 @@ import { useTheme } from '@/lib/theme'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { PasswordStrength } from '@/components/ui/password-strength'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar } from '@/components/ui/avatar'
@@ -86,22 +87,6 @@ function RootComponent() {
       setConfirmPassword('')
     },
   })
-
-  const passwordStrength = useMemo(() => {
-    if (!newPassword) return { score: 0, label: '', color: '' }
-
-    let score = 0
-    if (newPassword.length >= 8) score++
-    if (newPassword.length >= 12) score++
-    if (/[a-z]/.test(newPassword)) score++
-    if (/[A-Z]/.test(newPassword)) score++
-    if (/[0-9]/.test(newPassword)) score++
-    if (/[^a-zA-Z0-9]/.test(newPassword)) score++
-
-    if (score <= 2) return { score, label: 'Weak', color: 'bg-destructive' }
-    if (score <= 4) return { score, label: 'Medium', color: 'bg-yellow-500' }
-    return { score, label: 'Strong', color: 'bg-green-500' }
-  }, [newPassword])
 
   const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword
   const passwordsDontMatch = newPassword && confirmPassword && newPassword !== confirmPassword
@@ -275,26 +260,7 @@ function RootComponent() {
                       onChange={(e) => setNewPassword(e.target.value)}
                       autoComplete="new-password"
                     />
-                    {newPassword && (
-                      <div className="space-y-1">
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div
-                              key={i}
-                              className={`h-1 flex-1 rounded ${
-                                i <= passwordStrength.score ? passwordStrength.color : 'bg-muted'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <p className={`text-xs ${
-                          passwordStrength.score <= 2 ? 'text-destructive' :
-                          passwordStrength.score <= 4 ? 'text-yellow-600' : 'text-green-600'
-                        }`}>
-                          Password strength: {passwordStrength.label}
-                        </p>
-                      </div>
-                    )}
+                    <PasswordStrength password={newPassword} />
                   </div>
 
                   <div className="space-y-2">

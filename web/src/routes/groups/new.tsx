@@ -91,6 +91,7 @@ function NewGroupPage() {
                 value={formData.cn}
                 onChange={(e) => setFormData({ ...formData, cn: e.target.value })}
                 required
+                autoFocus
               />
             </div>
 

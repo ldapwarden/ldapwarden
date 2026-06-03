@@ -93,6 +93,7 @@ function NewPasswordPolicyPage() {
                 onChange={(e) => setFormData({ ...formData, cn: e.target.value })}
                 placeholder="e.g., default-policy"
                 required
+                autoFocus
               />
             </div>
             <div className="space-y-2">
