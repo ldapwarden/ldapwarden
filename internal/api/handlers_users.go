@@ -9,15 +9,16 @@ import (
 )
 
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := s.ldapClient.ListUsers()
+	users, truncated, err := s.ldapClient.SearchUsers(r.URL.Query().Get("search"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list users")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":  users,
-		"total": len(users),
+		"data":      users,
+		"total":     len(users),
+		"truncated": truncated,
 	})
 }
 

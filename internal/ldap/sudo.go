@@ -78,6 +78,24 @@ func (c *Client) ListSudoRoles() ([]SudoRole, error) {
 	return roles, nil
 }
 
+// SearchSudoRoles lists sudo roles matching an optional substring search (cn,
+// description, sudoUser, sudoCommand), bounded by the configured search size
+// limit. It returns truncated=true when more matches exist than were returned.
+func (c *Client) SearchSudoRoles(search string) ([]SudoRole, bool, error) {
+	filter := andFilter("(objectClass=sudoRole)", substringFilter(search, "cn", "description", "sudoUser", "sudoCommand"))
+	entries, truncated, err := c.SearchLimited(c.SudoBaseDN(), filter, defaultSudoAttributes)
+	if err != nil {
+		return nil, false, err
+	}
+
+	roles := make([]SudoRole, 0, len(entries))
+	for _, entry := range entries {
+		roles = append(roles, entryToSudoRole(entry))
+	}
+
+	return roles, truncated, nil
+}
+
 // GetSudoRole returns a sudo role by DN
 func (c *Client) GetSudoRole(dn string) (*SudoRole, error) {
 	entry, err := c.GetEntry(dn, defaultSudoAttributes)

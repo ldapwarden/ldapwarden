@@ -9,47 +9,47 @@ import (
 
 // PasswordPolicy represents an LDAP password policy (pwdPolicy objectClass)
 type PasswordPolicy struct {
-	DN                   string `json:"dn"`
-	CN                   string `json:"cn"`
-	Description          string `json:"description,omitempty"`
-	PwdAttribute         string `json:"pwdAttribute,omitempty"`
-	PwdMinAge            int    `json:"pwdMinAge,omitempty"`
-	PwdMaxAge            int    `json:"pwdMaxAge,omitempty"`
-	PwdInHistory         int    `json:"pwdInHistory,omitempty"`
-	PwdCheckQuality      int    `json:"pwdCheckQuality,omitempty"`
-	PwdMinLength         int    `json:"pwdMinLength,omitempty"`
-	PwdExpireWarning     int    `json:"pwdExpireWarning,omitempty"`
-	PwdGraceAuthNLimit   int    `json:"pwdGraceAuthNLimit,omitempty"`
-	PwdLockout           bool   `json:"pwdLockout"`
-	PwdLockoutDuration   int    `json:"pwdLockoutDuration,omitempty"`
-	PwdMaxFailure        int    `json:"pwdMaxFailure,omitempty"`
-	PwdFailureCountInterval int `json:"pwdFailureCountInterval,omitempty"`
-	PwdMustChange        bool   `json:"pwdMustChange"`
-	PwdAllowUserChange   bool   `json:"pwdAllowUserChange"`
-	PwdSafeModify        bool   `json:"pwdSafeModify"`
-	PwdCheckModule       string `json:"pwdCheckModule,omitempty"`
+	DN                      string `json:"dn"`
+	CN                      string `json:"cn"`
+	Description             string `json:"description,omitempty"`
+	PwdAttribute            string `json:"pwdAttribute,omitempty"`
+	PwdMinAge               int    `json:"pwdMinAge,omitempty"`
+	PwdMaxAge               int    `json:"pwdMaxAge,omitempty"`
+	PwdInHistory            int    `json:"pwdInHistory,omitempty"`
+	PwdCheckQuality         int    `json:"pwdCheckQuality,omitempty"`
+	PwdMinLength            int    `json:"pwdMinLength,omitempty"`
+	PwdExpireWarning        int    `json:"pwdExpireWarning,omitempty"`
+	PwdGraceAuthNLimit      int    `json:"pwdGraceAuthNLimit,omitempty"`
+	PwdLockout              bool   `json:"pwdLockout"`
+	PwdLockoutDuration      int    `json:"pwdLockoutDuration,omitempty"`
+	PwdMaxFailure           int    `json:"pwdMaxFailure,omitempty"`
+	PwdFailureCountInterval int    `json:"pwdFailureCountInterval,omitempty"`
+	PwdMustChange           bool   `json:"pwdMustChange"`
+	PwdAllowUserChange      bool   `json:"pwdAllowUserChange"`
+	PwdSafeModify           bool   `json:"pwdSafeModify"`
+	PwdCheckModule          string `json:"pwdCheckModule,omitempty"`
 }
 
 // CreatePasswordPolicyRequest is used for creating new password policies
 type CreatePasswordPolicyRequest struct {
-	CN                   string `json:"cn"`
-	Description          string `json:"description,omitempty"`
-	PwdAttribute         string `json:"pwdAttribute"`
-	PwdMinAge            int    `json:"pwdMinAge,omitempty"`
-	PwdMaxAge            int    `json:"pwdMaxAge,omitempty"`
-	PwdInHistory         int    `json:"pwdInHistory,omitempty"`
-	PwdCheckQuality      int    `json:"pwdCheckQuality,omitempty"`
-	PwdMinLength         int    `json:"pwdMinLength,omitempty"`
-	PwdExpireWarning     int    `json:"pwdExpireWarning,omitempty"`
-	PwdGraceAuthNLimit   int    `json:"pwdGraceAuthNLimit,omitempty"`
-	PwdLockout           bool   `json:"pwdLockout"`
-	PwdLockoutDuration   int    `json:"pwdLockoutDuration,omitempty"`
-	PwdMaxFailure        int    `json:"pwdMaxFailure,omitempty"`
-	PwdFailureCountInterval int `json:"pwdFailureCountInterval,omitempty"`
-	PwdMustChange        bool   `json:"pwdMustChange"`
-	PwdAllowUserChange   bool   `json:"pwdAllowUserChange"`
-	PwdSafeModify        bool   `json:"pwdSafeModify"`
-	PwdCheckModule       string `json:"pwdCheckModule,omitempty"`
+	CN                      string `json:"cn"`
+	Description             string `json:"description,omitempty"`
+	PwdAttribute            string `json:"pwdAttribute"`
+	PwdMinAge               int    `json:"pwdMinAge,omitempty"`
+	PwdMaxAge               int    `json:"pwdMaxAge,omitempty"`
+	PwdInHistory            int    `json:"pwdInHistory,omitempty"`
+	PwdCheckQuality         int    `json:"pwdCheckQuality,omitempty"`
+	PwdMinLength            int    `json:"pwdMinLength,omitempty"`
+	PwdExpireWarning        int    `json:"pwdExpireWarning,omitempty"`
+	PwdGraceAuthNLimit      int    `json:"pwdGraceAuthNLimit,omitempty"`
+	PwdLockout              bool   `json:"pwdLockout"`
+	PwdLockoutDuration      int    `json:"pwdLockoutDuration,omitempty"`
+	PwdMaxFailure           int    `json:"pwdMaxFailure,omitempty"`
+	PwdFailureCountInterval int    `json:"pwdFailureCountInterval,omitempty"`
+	PwdMustChange           bool   `json:"pwdMustChange"`
+	PwdAllowUserChange      bool   `json:"pwdAllowUserChange"`
+	PwdSafeModify           bool   `json:"pwdSafeModify"`
+	PwdCheckModule          string `json:"pwdCheckModule,omitempty"`
 }
 
 // UpdatePasswordPolicyRequest is used for updating password policies
@@ -99,6 +99,24 @@ func (c *Client) ListPasswordPolicies() ([]PasswordPolicy, error) {
 	}
 
 	return policies, nil
+}
+
+// SearchPasswordPolicies lists policies matching an optional substring search
+// (cn, description), bounded by the configured search size limit. It returns
+// truncated=true when more matches exist than were returned.
+func (c *Client) SearchPasswordPolicies(search string) ([]PasswordPolicy, bool, error) {
+	filter := andFilter("(objectClass=pwdPolicy)", substringFilter(search, "cn", "description"))
+	entries, truncated, err := c.SearchLimited(c.PpolicyBaseDN(), filter, defaultPolicyAttributes)
+	if err != nil {
+		return nil, false, err
+	}
+
+	policies := make([]PasswordPolicy, 0, len(entries))
+	for _, entry := range entries {
+		policies = append(policies, entryToPasswordPolicy(entry))
+	}
+
+	return policies, truncated, nil
 }
 
 // GetPasswordPolicy returns a password policy by DN

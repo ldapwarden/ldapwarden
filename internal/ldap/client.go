@@ -2,6 +2,7 @@ package ldap
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -154,6 +155,70 @@ func (c *Client) Search(baseDN, filter string, attributes []string) ([]*ldap.Ent
 	}
 
 	return result.Entries, nil
+}
+
+// SearchLimited runs a subtree search bounded by the configured search size
+// limit. When more matching entries exist than the limit allows, the first N
+// entries are returned with truncated=true instead of an error, so callers can
+// surface a "refine your search" hint. A limit of 0 means no bound.
+func (c *Client) SearchLimited(baseDN, filter string, attributes []string) (entries []*ldap.Entry, truncated bool, err error) {
+	conn, err := c.connect()
+	if err != nil {
+		return nil, false, err
+	}
+
+	searchRequest := ldap.NewSearchRequest(
+		baseDN,
+		ldap.ScopeWholeSubtree,
+		ldap.NeverDerefAliases,
+		c.config.SearchSizeLimit, 0, false,
+		filter,
+		attributes,
+		nil,
+	)
+	// Also stop client-side once the limit is reached, in case the server
+	// does not enforce the requested SizeLimit (e.g. when bound as rootdn).
+	searchRequest.EnforceSizeLimit = c.config.SearchSizeLimit > 0
+
+	result, err := conn.Search(searchRequest)
+	if err != nil {
+		// On size-limit overflow go-ldap still returns the partial result; we
+		// treat that as a successful, truncated search rather than an error.
+		if result != nil && (errors.Is(err, ldap.ErrSizeLimitExceeded) || ldap.IsErrorWithCode(err, ldap.LDAPResultSizeLimitExceeded)) {
+			return result.Entries, true, nil
+		}
+		return nil, false, fmt.Errorf("search LDAP: %w", err)
+	}
+
+	return result.Entries, false, nil
+}
+
+// substringFilter builds an OR of case-insensitive substring matches across
+// the given attributes for an (untrusted) search term, e.g.
+// "(|(uid=*term*)(cn=*term*))". Returns "" when the term is empty so callers
+// can fall back to their base filter.
+func substringFilter(term string, attrs ...string) string {
+	term = strings.TrimSpace(term)
+	if term == "" {
+		return ""
+	}
+	esc := ldap.EscapeFilter(term)
+	var b strings.Builder
+	b.WriteString("(|")
+	for _, a := range attrs {
+		fmt.Fprintf(&b, "(%s=*%s*)", a, esc)
+	}
+	b.WriteString(")")
+	return b.String()
+}
+
+// andFilter combines a base filter with an optional extra clause:
+// andFilter("(objectClass=x)", "(cn=*y*)") -> "(&(objectClass=x)(cn=*y*))".
+func andFilter(base, extra string) string {
+	if extra == "" {
+		return base
+	}
+	return "(&" + base + extra + ")"
 }
 
 func (c *Client) GetEntry(dn string, attributes []string) (*ldap.Entry, error) {

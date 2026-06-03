@@ -29,15 +29,16 @@ func (s *Server) invalidateIfAdminGroupChange(r *http.Request, groupDN, memberUI
 }
 
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
-	groups, err := s.ldapClient.ListGroups()
+	groups, truncated, err := s.ldapClient.SearchGroups(r.URL.Query().Get("search"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list groups")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":  groups,
-		"total": len(groups),
+		"data":      groups,
+		"total":     len(groups),
+		"truncated": truncated,
 	})
 }
 

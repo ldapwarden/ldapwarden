@@ -9,15 +9,16 @@ import (
 )
 
 func (s *Server) handleListSudoRoles(w http.ResponseWriter, r *http.Request) {
-	roles, err := s.ldapClient.ListSudoRoles()
+	roles, truncated, err := s.ldapClient.SearchSudoRoles(r.URL.Query().Get("search"))
 	if err != nil {
 		writeServerError(w, r, "list sudo roles", err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":  roles,
-		"total": len(roles),
+		"data":      roles,
+		"total":     len(roles),
+		"truncated": truncated,
 	})
 }
 

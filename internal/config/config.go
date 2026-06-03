@@ -71,18 +71,19 @@ type RedisConfig struct {
 }
 
 type LDAPConfig struct {
-	URL               string
-	BaseDN            string
-	BindDN            string
-	BindPass          string
-	UserOU            string
-	GroupOU           string
-	SudoersOU         string
-	PpolicyOU         string
-	MinUID            int
-	MinGID            int
-	TLSMode           string // "none", "ssl", "starttls"
-	TLSSkipVerify     bool   // Skip certificate verification (for self-signed certs)
+	URL             string
+	BaseDN          string
+	BindDN          string
+	BindPass        string
+	UserOU          string
+	GroupOU         string
+	SudoersOU       string
+	PpolicyOU       string
+	MinUID          int
+	MinGID          int
+	TLSMode         string // "none", "ssl", "starttls"
+	TLSSkipVerify   bool   // Skip certificate verification (for self-signed certs)
+	SearchSizeLimit int    // Max entries returned by UI list/search endpoints (0 = no limit)
 }
 
 type SessionConfig struct {
@@ -103,18 +104,19 @@ func Load() *Config {
 			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
 		},
 		LDAP: LDAPConfig{
-			URL:           getEnv("LDAP_URL", "ldap://localhost:389"),
-			BaseDN:        getEnv("LDAP_BASE_DN", "dc=example,dc=org"),
-			BindDN:        getEnv("LDAP_BIND_DN", "cn=admin,dc=example,dc=org"),
-			BindPass:      getEnv("LDAP_BIND_PASS", defaultLDAPBindPass),
-			UserOU:        getEnv("LDAP_USER_OU", "ou=People"),
-			GroupOU:       getEnv("LDAP_GROUP_OU", "ou=Groups"),
-			SudoersOU:     getEnv("LDAP_SUDOERS_OU", "ou=sudoers"),
-			PpolicyOU:     getEnv("LDAP_PPOLICY_OU", "ou=policies"),
-			MinUID:        getEnvInt("LDAP_MIN_UID", 1000),
-			MinGID:        getEnvInt("LDAP_MIN_GID", 1000),
-			TLSMode:       getEnv("LDAP_TLS_MODE", "none"),
-			TLSSkipVerify: getEnvBool("LDAP_TLS_SKIP_VERIFY", false),
+			URL:             getEnv("LDAP_URL", "ldap://localhost:389"),
+			BaseDN:          getEnv("LDAP_BASE_DN", "dc=example,dc=org"),
+			BindDN:          getEnv("LDAP_BIND_DN", "cn=admin,dc=example,dc=org"),
+			BindPass:        getEnv("LDAP_BIND_PASS", defaultLDAPBindPass),
+			UserOU:          getEnv("LDAP_USER_OU", "ou=People"),
+			GroupOU:         getEnv("LDAP_GROUP_OU", "ou=Groups"),
+			SudoersOU:       getEnv("LDAP_SUDOERS_OU", "ou=sudoers"),
+			PpolicyOU:       getEnv("LDAP_PPOLICY_OU", "ou=policies"),
+			MinUID:          getEnvInt("LDAP_MIN_UID", 1000),
+			MinGID:          getEnvInt("LDAP_MIN_GID", 1000),
+			TLSMode:         getEnv("LDAP_TLS_MODE", "none"),
+			TLSSkipVerify:   getEnvBool("LDAP_TLS_SKIP_VERIFY", false),
+			SearchSizeLimit: getEnvInt("LDAP_SEARCH_SIZE_LIMIT", 500),
 		},
 		Session: SessionConfig{
 			Secret: getEnv("SESSION_SECRET", defaultSessionSecret),

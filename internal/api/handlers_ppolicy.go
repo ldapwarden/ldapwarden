@@ -9,15 +9,16 @@ import (
 )
 
 func (s *Server) handleListPasswordPolicies(w http.ResponseWriter, r *http.Request) {
-	policies, err := s.ldapClient.ListPasswordPolicies()
+	policies, truncated, err := s.ldapClient.SearchPasswordPolicies(r.URL.Query().Get("search"))
 	if err != nil {
 		writeServerError(w, r, "list password policies", err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":  policies,
-		"total": len(policies),
+		"data":      policies,
+		"total":     len(policies),
+		"truncated": truncated,
 	})
 }
 

@@ -14,9 +14,9 @@ type Group struct {
 	Description string   `json:"description,omitempty"`
 	MemberUIDs  []string `json:"memberUid,omitempty"`
 	// Samba attributes (sambaGroupMapping)
-	SambaSID       string `json:"sambaSID,omitempty"`
-	SambaGroupType string `json:"sambaGroupType,omitempty"`
-	DisplayName    string `json:"displayName,omitempty"`
+	SambaSID       string   `json:"sambaSID,omitempty"`
+	SambaGroupType string   `json:"sambaGroupType,omitempty"`
+	DisplayName    string   `json:"displayName,omitempty"`
 	ObjectClasses  []string `json:"objectClasses"`
 }
 
@@ -50,6 +50,24 @@ func (c *Client) ListGroups() ([]Group, error) {
 	}
 
 	return groups, nil
+}
+
+// SearchGroups lists groups matching an optional substring search (cn,
+// description), bounded by the configured search size limit. It returns
+// truncated=true when more matches exist than were returned.
+func (c *Client) SearchGroups(search string) ([]Group, bool, error) {
+	filter := andFilter("(objectClass=posixGroup)", substringFilter(search, "cn", "description"))
+	entries, truncated, err := c.SearchLimited(c.GroupBaseDN(), filter, defaultGroupAttributes)
+	if err != nil {
+		return nil, false, err
+	}
+
+	groups := make([]Group, 0, len(entries))
+	for _, entry := range entries {
+		groups = append(groups, entryToGroup(entry))
+	}
+
+	return groups, truncated, nil
 }
 
 func (c *Client) GetGroup(dn string) (*Group, error) {

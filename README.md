@@ -161,6 +161,7 @@ LDAP Warden is configured via environment variables:
 | `LDAP_SUDOERS_OU` | Organizational Unit for sudo roles | `ou=sudoers` |
 | `LDAP_MIN_UID` | Minimum UID for new users | `1000` |
 | `LDAP_MIN_GID` | Minimum GID for new groups | `1000` |
+| `LDAP_SEARCH_SIZE_LIMIT` | Max entries returned by UI list/search endpoints (0 = no limit) | `500` |
 | `LDAP_TLS_MODE` | TLS mode: `none`, `ssl`, or `starttls` | `none` |
 | `LDAP_TLS_SKIP_VERIFY` | Skip TLS certificate verification (for self-signed certs) | `false` |
 

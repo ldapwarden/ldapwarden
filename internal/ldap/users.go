@@ -68,50 +68,50 @@ type User struct {
 }
 
 type CreateUserRequest struct {
-	UID             string   `json:"uid"`
-	GivenName       string   `json:"givenName"`
-	SN              string   `json:"sn"`
-	CN              string   `json:"cn,omitempty"`
-	DisplayName     string   `json:"displayName,omitempty"`
-	Mail            string   `json:"mail,omitempty"`
-	TelephoneNumber string   `json:"telephoneNumber,omitempty"`
-	Title           string   `json:"title,omitempty"`
-	Department      string   `json:"departmentNumber,omitempty"`
-	Organization    string   `json:"o,omitempty"`
-	EmployeeNumber  string   `json:"employeeNumber,omitempty"`
-	EmployeeType    string   `json:"employeeType,omitempty"`
-	Initials        string   `json:"initials,omitempty"`
-	Manager         string   `json:"manager,omitempty"`
-	UIDNumber       int      `json:"uidNumber"`
-	GIDNumber       int      `json:"gidNumber"`
-	HomeDirectory   string   `json:"homeDirectory,omitempty"`
-	LoginShell      string   `json:"loginShell,omitempty"`
-	Gecos           string   `json:"gecos,omitempty"`
-	Password        string   `json:"password,omitempty"`
-	Description     string   `json:"description,omitempty"`
-	ObjectClasses   []string `json:"objectClasses,omitempty"`
-	Groups              []string `json:"groups,omitempty"`              // Group CNs to add the user to
-	CreatePrimaryGroup  bool     `json:"createPrimaryGroup,omitempty"`  // If true, create a posixGroup with CN=UID and the given gidNumber
-	ExpirationDate      string   `json:"expirationDate,omitempty"`      // ISO date string for account expiration (stored in pwdAccountLockedTime)
+	UID                string   `json:"uid"`
+	GivenName          string   `json:"givenName"`
+	SN                 string   `json:"sn"`
+	CN                 string   `json:"cn,omitempty"`
+	DisplayName        string   `json:"displayName,omitempty"`
+	Mail               string   `json:"mail,omitempty"`
+	TelephoneNumber    string   `json:"telephoneNumber,omitempty"`
+	Title              string   `json:"title,omitempty"`
+	Department         string   `json:"departmentNumber,omitempty"`
+	Organization       string   `json:"o,omitempty"`
+	EmployeeNumber     string   `json:"employeeNumber,omitempty"`
+	EmployeeType       string   `json:"employeeType,omitempty"`
+	Initials           string   `json:"initials,omitempty"`
+	Manager            string   `json:"manager,omitempty"`
+	UIDNumber          int      `json:"uidNumber"`
+	GIDNumber          int      `json:"gidNumber"`
+	HomeDirectory      string   `json:"homeDirectory,omitempty"`
+	LoginShell         string   `json:"loginShell,omitempty"`
+	Gecos              string   `json:"gecos,omitempty"`
+	Password           string   `json:"password,omitempty"`
+	Description        string   `json:"description,omitempty"`
+	ObjectClasses      []string `json:"objectClasses,omitempty"`
+	Groups             []string `json:"groups,omitempty"`             // Group CNs to add the user to
+	CreatePrimaryGroup bool     `json:"createPrimaryGroup,omitempty"` // If true, create a posixGroup with CN=UID and the given gidNumber
+	ExpirationDate     string   `json:"expirationDate,omitempty"`     // ISO date string for account expiration (stored in pwdAccountLockedTime)
 }
 
 type UpdateUserRequest struct {
-	GivenName       *string `json:"givenName,omitempty"`
-	SN              *string `json:"sn,omitempty"`
-	CN              *string `json:"cn,omitempty"`
-	DisplayName     *string `json:"displayName,omitempty"`
-	Mail            *string `json:"mail,omitempty"`
-	TelephoneNumber *string `json:"telephoneNumber,omitempty"`
-	Title           *string `json:"title,omitempty"`
-	Department      *string `json:"departmentNumber,omitempty"`
-	Organization    *string `json:"o,omitempty"`
-	EmployeeNumber  *string `json:"employeeNumber,omitempty"`
-	EmployeeType    *string `json:"employeeType,omitempty"`
-	Initials        *string `json:"initials,omitempty"`
-	Manager         *string `json:"manager,omitempty"`
-	HomeDirectory   *string `json:"homeDirectory,omitempty"`
-	LoginShell      *string `json:"loginShell,omitempty"`
-	Gecos           *string `json:"gecos,omitempty"`
+	GivenName         *string `json:"givenName,omitempty"`
+	SN                *string `json:"sn,omitempty"`
+	CN                *string `json:"cn,omitempty"`
+	DisplayName       *string `json:"displayName,omitempty"`
+	Mail              *string `json:"mail,omitempty"`
+	TelephoneNumber   *string `json:"telephoneNumber,omitempty"`
+	Title             *string `json:"title,omitempty"`
+	Department        *string `json:"departmentNumber,omitempty"`
+	Organization      *string `json:"o,omitempty"`
+	EmployeeNumber    *string `json:"employeeNumber,omitempty"`
+	EmployeeType      *string `json:"employeeType,omitempty"`
+	Initials          *string `json:"initials,omitempty"`
+	Manager           *string `json:"manager,omitempty"`
+	HomeDirectory     *string `json:"homeDirectory,omitempty"`
+	LoginShell        *string `json:"loginShell,omitempty"`
+	Gecos             *string `json:"gecos,omitempty"`
 	Password          *string `json:"password,omitempty"`
 	Description       *string `json:"description,omitempty"`
 	JpegPhoto         *string `json:"jpegPhoto,omitempty"`
@@ -148,6 +148,24 @@ func (c *Client) ListUsers() ([]User, error) {
 	}
 
 	return users, nil
+}
+
+// SearchUsers lists users matching an optional substring search (uid, cn,
+// mail, displayName), bounded by the configured search size limit. It returns
+// truncated=true when more matches exist than were returned.
+func (c *Client) SearchUsers(search string) ([]User, bool, error) {
+	filter := andFilter("(objectClass=inetOrgPerson)", substringFilter(search, "uid", "cn", "mail", "displayName"))
+	entries, truncated, err := c.SearchLimited(c.UserBaseDN(), filter, defaultUserAttributes)
+	if err != nil {
+		return nil, false, err
+	}
+
+	users := make([]User, 0, len(entries))
+	for _, entry := range entries {
+		users = append(users, entryToUser(entry))
+	}
+
+	return users, truncated, nil
 }
 
 func (c *Client) GetUser(dn string) (*User, error) {
