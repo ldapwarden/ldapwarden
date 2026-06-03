@@ -97,10 +97,10 @@ func Load() *Config {
 			Port: getEnvInt("SERVER_PORT", 8000),
 		},
 		Database: DatabaseConfig{
-			URL: getEnv("DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5433/ldapwarden?sslmode=disable"),
+			URL: getEnv("DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable"),
 		},
 		Redis: RedisConfig{
-			URL: getEnv("REDIS_URL", "redis://localhost:6380"),
+			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
 		},
 		LDAP: LDAPConfig{
 			URL:           getEnv("LDAP_URL", "ldap://localhost:389"),

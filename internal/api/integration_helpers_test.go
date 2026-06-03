@@ -54,8 +54,7 @@ func setupTestServer(t *testing.T) *testEnv {
 		t.Skip("set LDAPWARDEN_TEST_INTEGRATION=1 (and start docker compose) to run integration tests")
 	}
 
-	// config defaults target a non-standard local setup; align with the ports
-	// docker-compose actually publishes.
+	// Point at the host ports docker-compose publishes for the bundled stack.
 	setEnvIfUnset(t, "DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable")
 	setEnvIfUnset(t, "REDIS_URL", "redis://localhost:6379")
 	setEnvIfUnset(t, "LDAP_URL", "ldap://localhost:389")
