@@ -257,13 +257,13 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   // Fetch all groups to find available ones
   const { data: allGroups } = useQuery({
     queryKey: ['groups'],
-    queryFn: ({ signal }) => api.groups.list(signal),
+    queryFn: ({ signal }) => api.groups.list(undefined, signal),
   })
 
   // Fetch all users for manager dropdown
   const { data: allUsers } = useQuery({
     queryKey: ['users'],
-    queryFn: ({ signal }) => api.users.list(signal),
+    queryFn: ({ signal }) => api.users.list(undefined, signal),
   })
 
   // Filter users for manager dropdown (exclude current user)
@@ -1648,7 +1648,7 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
   // Fetch all sudo roles
   const { data: allSudoRoles } = useQuery({
     queryKey: ['sudo-roles'],
-    queryFn: ({ signal }) => api.sudoRoles.list(signal),
+    queryFn: ({ signal }) => api.sudoRoles.list(undefined, signal),
   })
 
   // Sudo roles the user is NOT a member of
@@ -1871,7 +1871,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
 
   const { data: passwordPolicies } = useQuery({
     queryKey: ['password-policies'],
-    queryFn: ({ signal }) => api.passwordPolicies.list(signal),
+    queryFn: ({ signal }) => api.passwordPolicies.list(undefined, signal),
     enabled: showPoliciesModule,
   })
 

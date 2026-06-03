@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import { Plus, Search, Users } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
+import { useDebounced } from '@/lib/use-debounced'
 
 type SortField = 'cn' | 'description' | 'gidNumber' | 'members'
 type SortDirection = 'asc' | 'desc'
@@ -39,10 +40,12 @@ function GroupsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const debouncedSearch = useDebounced(search)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['groups'],
-    queryFn: ({ signal }) => api.groups.list(signal),
+    queryKey: ['groups', debouncedSearch],
+    queryFn: ({ signal }) => api.groups.list(debouncedSearch, signal),
+    placeholderData: keepPreviousData,
   })
 
   const canWrite = hasPermission('groups:write')
@@ -57,15 +60,8 @@ function GroupsPage() {
   }
 
   const { sortedGroups, totalFiltered, totalPages } = useMemo(() => {
-    const filtered = data?.data.filter((group) => {
-      const searchLower = search.toLowerCase()
-      return (
-        group.cn.toLowerCase().includes(searchLower) ||
-        group.description?.toLowerCase().includes(searchLower)
-      )
-    }) ?? []
-
-    const sorted = [...filtered].sort((a, b) => {
+    // Search is applied server-side; sort and paginate the returned set here.
+    const sorted = [...(data?.data ?? [])].sort((a, b) => {
       let aVal: string | number = ''
       let bVal: string | number = ''
 
@@ -102,7 +98,7 @@ function GroupsPage() {
       totalFiltered: sorted.length,
       totalPages,
     }
-  }, [data?.data, search, sortField, sortDirection, currentPage, pageSize])
+  }, [data?.data, sortField, sortDirection, currentPage, pageSize])
 
   // Reset to first page when search changes
   const handleSearchChange = (value: string) => {
@@ -151,6 +147,12 @@ function GroupsPage() {
           {totalFiltered} groups
         </span>
       </div>
+
+      {data?.truncated && (
+        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-700 dark:text-yellow-500">
+          Showing the first {data.total} matches. Refine your search to narrow the results.
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8">

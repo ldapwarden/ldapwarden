@@ -207,6 +207,7 @@ export const UserSchema = z.object({
 export const UsersResponseSchema = z.object({
   data: z.array(UserSchema),
   total: z.number(),
+  truncated: z.boolean().optional(),
 })
 
 export const GroupSchema = z.object({
@@ -225,6 +226,7 @@ export const GroupSchema = z.object({
 export const GroupsResponseSchema = z.object({
   data: z.array(GroupSchema),
   total: z.number(),
+  truncated: z.boolean().optional(),
 })
 
 export const AuditLogSchema = z.object({
@@ -273,6 +275,7 @@ export const SudoRoleSchema = z.object({
 export const SudoRolesResponseSchema = z.object({
   data: z.array(SudoRoleSchema),
   total: z.number(),
+  truncated: z.boolean().optional(),
 })
 
 export const PasswordPolicySchema = z.object({
@@ -300,6 +303,7 @@ export const PasswordPolicySchema = z.object({
 export const PasswordPoliciesResponseSchema = z.object({
   data: z.array(PasswordPolicySchema),
   total: z.number(),
+  truncated: z.boolean().optional(),
 })
 
 export const ConfigValueSchema = z.object({
@@ -435,6 +439,13 @@ export type TriggerTaskResponse = z.infer<typeof TriggerTaskResponseSchema>
 export type ScheduledTasksConfig = z.infer<typeof ScheduledTasksConfigSchema>
 export type Schema = z.infer<typeof SchemaSchema>
 
+// Builds a "?search=..." query string for list endpoints, or "" when no
+// search term is provided.
+function searchQuery(search?: string): string {
+  const trimmed = search?.trim()
+  return trimmed ? `?search=${encodeURIComponent(trimmed)}` : ''
+}
+
 // API functions
 export const api = {
   auth: {
@@ -458,8 +469,8 @@ export const api = {
   },
 
   users: {
-    list: (signal?: AbortSignal) =>
-      fetchApi('/users', {}, UsersResponseSchema, signal),
+    list: (search?: string, signal?: AbortSignal) =>
+      fetchApi(`/users${searchQuery(search)}`, {}, UsersResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/users/${encodeURIComponent(dn)}`, {}, UserSchema, signal),
@@ -581,8 +592,8 @@ export const api = {
   },
 
   groups: {
-    list: (signal?: AbortSignal) =>
-      fetchApi('/groups', {}, GroupsResponseSchema, signal),
+    list: (search?: string, signal?: AbortSignal) =>
+      fetchApi(`/groups${searchQuery(search)}`, {}, GroupsResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/groups/${encodeURIComponent(dn)}`, {}, GroupSchema, signal),
@@ -634,8 +645,8 @@ export const api = {
   },
 
   sudoRoles: {
-    list: (signal?: AbortSignal) =>
-      fetchApi('/sudo-roles', {}, SudoRolesResponseSchema, signal),
+    list: (search?: string, signal?: AbortSignal) =>
+      fetchApi(`/sudo-roles${searchQuery(search)}`, {}, SudoRolesResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/sudo-roles/${encodeURIComponent(dn)}`, {}, SudoRoleSchema, signal),
@@ -706,8 +717,8 @@ export const api = {
   },
 
   passwordPolicies: {
-    list: (signal?: AbortSignal) =>
-      fetchApi('/password-policies', {}, PasswordPoliciesResponseSchema, signal),
+    list: (search?: string, signal?: AbortSignal) =>
+      fetchApi(`/password-policies${searchQuery(search)}`, {}, PasswordPoliciesResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/password-policies/${encodeURIComponent(dn)}`, {}, PasswordPolicySchema, signal),

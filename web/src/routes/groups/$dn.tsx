@@ -51,7 +51,7 @@ function GroupDetailPage() {
 
   const { data: usersData } = useQuery({
     queryKey: ['users'],
-    queryFn: ({ signal }) => api.users.list(signal),
+    queryFn: ({ signal }) => api.users.list(undefined, signal),
   })
 
   const { data: config } = useQuery({
@@ -718,7 +718,7 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
   // Fetch all sudo roles
   const { data: allSudoRoles } = useQuery({
     queryKey: ['sudo-roles'],
-    queryFn: ({ signal }) => api.sudoRoles.list(signal),
+    queryFn: ({ signal }) => api.sudoRoles.list(undefined, signal),
   })
 
   // Sudo roles the group is NOT a member of

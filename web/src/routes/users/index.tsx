@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ import { Plus, Search, CheckCircle2, Circle, Users, CalendarClock } from 'lucide
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN, parseLdapTimestamp } from '@/lib/utils'
+import { useDebounced } from '@/lib/use-debounced'
 import { Avatar } from '@/components/ui/avatar'
 
 type SortField = 'uid' | 'displayName' | 'mail' | 'employeeType' | 'groupsCount'
@@ -80,15 +81,17 @@ function UsersPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const debouncedSearch = useDebounced(search)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['users'],
-    queryFn: ({ signal }) => api.users.list(signal),
+    queryKey: ['users', debouncedSearch],
+    queryFn: ({ signal }) => api.users.list(debouncedSearch, signal),
+    placeholderData: keepPreviousData,
   })
 
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
-    queryFn: ({ signal }) => api.groups.list(signal),
+    queryFn: ({ signal }) => api.groups.list(undefined, signal),
   })
 
   // Build a map of uid -> number of groups
@@ -125,24 +128,13 @@ function UsersPage() {
   }
 
   const { sortedUsers, totalFiltered, totalPages, inactiveCount } = useMemo(() => {
+    // Search is applied server-side; only the active-status filter remains
+    // client-side. Account is inactive if locked OR expired.
     const filtered = data?.data.filter((user) => {
-      // Filter by active status
-      // Account is inactive if locked OR if expiration date is in the past
       const expDate = getAccountExpiration(user)
       const isExpired = expDate && expDate < new Date()
       const isInactive = user.accountLocked || isExpired
-      if (!showInactive && isInactive) {
-        return false
-      }
-
-      // Filter by search
-      const searchLower = search.toLowerCase()
-      return (
-        user.uid.toLowerCase().includes(searchLower) ||
-        user.cn.toLowerCase().includes(searchLower) ||
-        user.mail?.toLowerCase().includes(searchLower) ||
-        user.displayName?.toLowerCase().includes(searchLower)
-      )
+      return showInactive || !isInactive
     }) ?? []
 
     // Count inactive users for display
@@ -194,7 +186,7 @@ function UsersPage() {
       totalPages,
       inactiveCount,
     }
-  }, [data?.data, search, showInactive, sortField, sortDirection, currentPage, pageSize, userGroupsCount])
+  }, [data?.data, showInactive, sortField, sortDirection, currentPage, pageSize, userGroupsCount])
 
   // Reset to first page when search changes
   const handleSearchChange = (value: string) => {
@@ -258,6 +250,12 @@ function UsersPage() {
           {totalFiltered} user{totalFiltered !== 1 ? 's' : ''}
         </span>
       </div>
+
+      {data?.truncated && (
+        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-700 dark:text-yellow-500">
+          Showing the first {data.total} matches. Refine your search to narrow the results.
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8">

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api, type PasswordPolicy } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
+import { useDebounced } from '@/lib/use-debounced'
 import { toast } from 'sonner'
 
 type SortField = 'cn' | 'pwdMaxAge' | 'pwdMinLength'
@@ -44,10 +45,12 @@ function PasswordPoliciesPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const debouncedSearch = useDebounced(search)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['password-policies'],
-    queryFn: ({ signal }) => api.passwordPolicies.list(signal),
+    queryKey: ['password-policies', debouncedSearch],
+    queryFn: ({ signal }) => api.passwordPolicies.list(debouncedSearch, signal),
+    placeholderData: keepPreviousData,
   })
 
   const deleteMutation = useMutation({
@@ -82,15 +85,8 @@ function PasswordPoliciesPage() {
   }
 
   const { sortedPolicies, totalFiltered, totalPages } = useMemo(() => {
-    const filtered = data?.data.filter((policy) => {
-      const searchLower = search.toLowerCase()
-      return (
-        policy.cn.toLowerCase().includes(searchLower) ||
-        policy.description?.toLowerCase().includes(searchLower)
-      )
-    }) ?? []
-
-    const sorted = [...filtered].sort((a, b) => {
+    // Search is applied server-side; sort and paginate the returned set here.
+    const sorted = [...(data?.data ?? [])].sort((a, b) => {
       let aVal: string | number = ''
       let bVal: string | number = ''
 
@@ -123,7 +119,7 @@ function PasswordPoliciesPage() {
       totalFiltered: sorted.length,
       totalPages,
     }
-  }, [data?.data, search, sortField, sortDirection, currentPage, pageSize])
+  }, [data?.data, sortField, sortDirection, currentPage, pageSize])
 
   const handleSearchChange = (value: string) => {
     setSearch(value)
@@ -171,6 +167,12 @@ function PasswordPoliciesPage() {
           {totalFiltered} policies
         </span>
       </div>
+
+      {data?.truncated && (
+        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-700 dark:text-yellow-500">
+          Showing the first {data.total} matches. Refine your search to narrow the results.
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8">

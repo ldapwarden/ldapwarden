@@ -36,7 +36,7 @@ function NewUserPage() {
 
   const { data: allGroups } = useQuery({
     queryKey: ['groups'],
-    queryFn: ({ signal }) => api.groups.list(signal),
+    queryFn: ({ signal }) => api.groups.list(undefined, signal),
   })
 
   const { data: config } = useQuery({
