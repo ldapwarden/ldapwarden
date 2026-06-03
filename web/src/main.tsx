@@ -4,6 +4,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { routeTree } from './routeTree.gen'
 import { AuthProvider, useAuth } from './lib/auth'
+import { ThemeProvider } from './lib/theme'
 import { ApiError } from './lib/api'
 import './index.css'
 
@@ -44,9 +45,11 @@ function InnerApp() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <InnerApp />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <InnerApp />
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }

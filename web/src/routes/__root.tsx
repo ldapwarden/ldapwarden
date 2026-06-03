@@ -14,8 +14,10 @@ const TanStackRouterDevtools = import.meta.env.DEV
   : () => null
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth'
+import { useTheme } from '@/lib/theme'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar } from '@/components/ui/avatar'
@@ -48,6 +50,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootComponent() {
   const { isAuthenticated, session, logout, isLoading } = useAuth()
+  const { theme } = useTheme()
   const router = useRouter()
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [newPassword, setNewPassword] = useState('')
@@ -190,6 +193,8 @@ function RootComponent() {
                 )}
               </div>
             </div>
+            <div className="flex items-center gap-1">
+            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-2">
@@ -238,6 +243,7 @@ function RootComponent() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
 
             <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
               <DialogContent className="sm:max-w-md">
@@ -341,7 +347,7 @@ function RootComponent() {
       <Suspense>
         <TanStackRouterDevtools />
       </Suspense>
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-right" theme={theme} />
     </div>
   )
 }

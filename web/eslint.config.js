@@ -21,7 +21,7 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
-        { allowConstantExport: true, allowExportNames: ["Route", "useAuth", "badgeVariants", "buttonVariants"] },
+        { allowConstantExport: true, allowExportNames: ["Route", "useAuth", "useTheme", "badgeVariants", "buttonVariants"] },
       ],
     },
   },
