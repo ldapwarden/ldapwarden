@@ -6,6 +6,7 @@ import { routeTree } from './routeTree.gen'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ThemeProvider } from './lib/theme'
 import { ApiError } from './lib/api'
+import { NotFound } from './components/not-found'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -27,6 +28,7 @@ const router = createRouter({
     queryClient,
   },
   defaultPreload: false,
+  defaultNotFoundComponent: NotFound,
 })
 
 declare module '@tanstack/react-router' {
