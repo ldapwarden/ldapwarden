@@ -235,6 +235,17 @@ func (l *Logger) maybeNotify(action Action, actorDN, actorUID string, resourceTy
 	changes := changesToMaps(details[DetailsKeyChanges])
 
 	go func() {
+		// Never let a panic in the notification path (the mailer renders
+		// attacker-influenced LDAP attributes through go-premailer/goquery)
+		// escape this goroutine — a bare goroutine panic would crash the whole
+		// process and drop every live session. A failed notification must stay
+		// a logged non-event.
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("audit notification: panic recovered: %v", r)
+			}
+		}()
+
 		if err := l.notifier.SendAuditNotification(
 			recipients,
 			timestamp,
