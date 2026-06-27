@@ -128,18 +128,33 @@ func (s *Service) ValidateToken(ctx context.Context, token string) (*Token, erro
 	return &t, nil
 }
 
-func (s *Service) MarkTokenUsed(ctx context.Context, tokenID uuid.UUID, usedIP string) error {
-	_, err := s.pool.Exec(ctx, `
+// ConsumeToken atomically claims a valid, unexpired, unused reset token: the
+// same statement that verifies the token is still redeemable also marks it
+// used, so two concurrent requests carrying the same token cannot both
+// succeed — at most one UPDATE matches `used = FALSE` and the loser's
+// RETURNING yields no row. Callers must invoke this exactly once, before
+// acting on the token, so a replay is impossible. The trade-off is fail-closed:
+// if the caller's subsequent action (the LDAP password change) fails, the
+// token is already spent and the user must request a fresh one.
+func (s *Service) ConsumeToken(ctx context.Context, token, usedIP string) (*Token, error) {
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	var t Token
+	err := s.pool.QueryRow(ctx, `
 		UPDATE password_reset_tokens
 		SET used = TRUE, used_at = NOW(), used_ip = $2
-		WHERE id = $1
-	`, tokenID, usedIP)
-
+		WHERE token_hash = $1 AND expires_at > NOW() AND used = FALSE
+		RETURNING id, user_dn, user_uid, user_email, token_hash, expires_at, used, used_at, used_ip, created_at, created_by_dn
+	`, tokenHash, usedIP).Scan(
+		&t.ID, &t.UserDN, &t.UserUID, &t.UserEmail, &t.TokenHash,
+		&t.ExpiresAt, &t.Used, &t.UsedAt, &t.UsedIP, &t.CreatedAt, &t.CreatedByDN,
+	)
 	if err != nil {
-		return fmt.Errorf("mark token used: %w", err)
+		return nil, fmt.Errorf("token not found, expired, or already used")
 	}
 
-	return nil
+	return &t, nil
 }
 
 func (s *Service) DeleteExpiredTokens(ctx context.Context) error {

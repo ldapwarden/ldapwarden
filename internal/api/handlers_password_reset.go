@@ -152,17 +152,20 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Validate token
-	tokenInfo, err := s.passwordReset.ValidateToken(r.Context(), token)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "invalid or expired token")
-		return
-	}
-
 	// Use the IP recorded by auditRequestInfoMiddleware, which itself reads
 	// r.RemoteAddr after trustedProxyRealIPMiddleware has applied — so XFF
 	// is honoured only for requests coming from a configured trusted proxy.
 	clientIP := audit.RequestInfoFromContext(r.Context()).IPAddress
+
+	// Atomically claim the token. ConsumeToken validates and marks it used in a
+	// single statement, so two requests racing with the same token cannot both
+	// proceed. We claim it *before* touching LDAP: a replay is then impossible,
+	// at the cost of burning the token if the password change below fails.
+	tokenInfo, err := s.passwordReset.ConsumeToken(r.Context(), token, clientIP)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "invalid or expired token")
+		return
+	}
 
 	// Get WHOIS info for the IP before audit so the row carries it.
 	whoisInfo := mail.GetWhoisInfo(clientIP)
@@ -180,16 +183,11 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Change password in LDAP
+	// Change password in LDAP. The token is already spent at this point; if this
+	// fails the user must request a fresh reset (the fail-closed direction).
 	if err := s.ldapClient.ChangePassword(tokenInfo.UserDN, req.Password); err != nil {
 		writeServerError(w, r, "change password", err)
 		return
-	}
-
-	// Mark token as used
-	if err := s.passwordReset.MarkTokenUsed(r.Context(), tokenInfo.ID, clientIP); err != nil {
-		// Log but don't fail - password was already changed
-		fmt.Printf("failed to mark token as used: %v\n", err)
 	}
 
 	// Get user display name
