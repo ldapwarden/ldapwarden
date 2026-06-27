@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 )
@@ -20,13 +21,27 @@ type ipAPIResponse struct {
 }
 
 func GetWhoisInfo(ip string) string {
-	// Skip lookup for private/local IPs
-	if isPrivateIP(ip) {
+	// Parse and classify before doing anything with the value. A string that
+	// is not a valid IP, or that is not a globally-routable unicast address,
+	// never reaches the outbound request — this both avoids leaking internal
+	// topology to the third-party service and closes the SSRF surface (the
+	// caller-influenced IP, which on a misconfigured trusted-proxy setup can be
+	// attacker-supplied, can no longer steer the request).
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return "Unknown"
+	}
+	if !isGlobalUnicast(addr) {
 		return "Private/Local Network"
 	}
 
+	// NOTE: ip-api.com's free endpoint is HTTP-only (HTTPS requires a paid
+	// plan), so this lookup still travels in cleartext and discloses the
+	// end-user IP to a third party — an accepted trade-off for the free geo
+	// data. addr.String() re-serialises the parsed address, so the URL carries
+	// only canonical IP characters; there is no path/query injection vector.
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://ip-api.com/json/%s", ip))
+	resp, err := client.Get("http://ip-api.com/json/" + addr.String())
 	if err != nil {
 		return "Unknown"
 	}
@@ -64,24 +79,24 @@ func GetWhoisInfo(ip string) string {
 	return location
 }
 
-func isPrivateIP(ip string) bool {
-	privateRanges := []string{
-		"10.",
-		"172.16.", "172.17.", "172.18.", "172.19.",
-		"172.20.", "172.21.", "172.22.", "172.23.",
-		"172.24.", "172.25.", "172.26.", "172.27.",
-		"172.28.", "172.29.", "172.30.", "172.31.",
-		"192.168.",
-		"127.",
-		"::1",
-		"fe80:",
+// isGlobalUnicast reports whether addr is a globally-routable unicast address
+// worth resolving. It rejects every non-routable or internal class: RFC 1918
+// private and IPv6 ULA (IsPrivate), loopback, link-local unicast/multicast,
+// any multicast, the unspecified address, and — which the stdlib helpers do
+// NOT cover — the RFC 6598 CGNAT shared range 100.64.0.0/10.
+func isGlobalUnicast(addr netip.Addr) bool {
+	if !addr.IsValid() {
+		return false
 	}
-
-	for _, prefix := range privateRanges {
-		if strings.HasPrefix(ip, prefix) {
-			return true
+	if addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() ||
+		addr.IsLinkLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
+		return false
+	}
+	if addr.Is4() {
+		b := addr.As4()
+		if b[0] == 100 && b[1] >= 64 && b[1] <= 127 { // 100.64.0.0/10 (CGNAT)
+			return false
 		}
 	}
-
-	return false
+	return true
 }
