@@ -12,18 +12,40 @@ import (
 )
 
 // Notifier is implemented by anything that can deliver a per-change audit
-// notification (e.g. *mail.Mailer). Args are primitives so implementers do not
-// need to import this package.
+// notification (e.g. *mail.Mailer). Args are primitives (the change list is a
+// slice of plain string maps) so implementers do not need to import this
+// package.
 type Notifier interface {
 	SendAuditNotification(
 		recipients []string,
 		timestamp time.Time,
 		actorUID, actorDN string,
-		action, resourceType, resourceDN string,
+		action, resourceType, resourceDN, resourceName string,
+		changes []map[string]string,
 		details map[string]interface{},
 		ipAddress, userAgent string,
 	) error
 }
+
+// FieldChange records a single attribute mutation for an update action. It is
+// stored under details["changes"] by the handlers (so the diff is persisted in
+// the audit_logs row too) and forwarded to the Notifier. Masked changes carry
+// no Old/New values — used for secrets such as passwords, where the fact that
+// the field changed is auditable but the value must never appear in an email.
+type FieldChange struct {
+	Field  string `json:"field"`
+	Old    string `json:"old,omitempty"`
+	New    string `json:"new,omitempty"`
+	Masked bool   `json:"masked,omitempty"`
+}
+
+// DetailsKeyChanges and DetailsKeyResourceName are the reserved keys handlers
+// use to pass the structured diff and a human-readable resource name through
+// the details map. maybeNotify strips them back out before notifying.
+const (
+	DetailsKeyChanges      = "changes"
+	DetailsKeyResourceName = "resourceName"
+)
 
 // RequestInfo carries the request-side metadata (IP, User-Agent) attached to
 // audit log entries. It is set by the HTTP middleware and read in LogWithActor.
@@ -209,18 +231,45 @@ func (l *Logger) maybeNotify(action Action, actorDN, actorUID string, resourceTy
 	recipients := append([]string(nil), l.notifyRecipients...)
 	timestamp := time.Now()
 
+	resourceName, _ := details[DetailsKeyResourceName].(string)
+	changes := changesToMaps(details[DetailsKeyChanges])
+
 	go func() {
 		if err := l.notifier.SendAuditNotification(
 			recipients,
 			timestamp,
 			actorUID, actorDN,
-			string(action), string(resourceType), resourceDN,
+			string(action), string(resourceType), resourceDN, resourceName,
+			changes,
 			details,
 			info.IPAddress, info.UserAgent,
 		); err != nil {
 			log.Printf("audit notification: %v", err)
 		}
 	}()
+}
+
+// changesToMaps converts the typed FieldChange slice stored in details into the
+// primitive []map[string]string the Notifier consumes, so the mail package
+// stays free of an audit import. Masked changes are forwarded with only the
+// field name and a "masked" flag; their values are deliberately dropped.
+func changesToMaps(v interface{}) []map[string]string {
+	changes, ok := v.([]FieldChange)
+	if !ok || len(changes) == 0 {
+		return nil
+	}
+	out := make([]map[string]string, 0, len(changes))
+	for _, c := range changes {
+		m := map[string]string{"field": c.Field}
+		if c.Masked {
+			m["masked"] = "true"
+		} else {
+			m["old"] = c.Old
+			m["new"] = c.New
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64, error) {

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
@@ -76,8 +77,11 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	// what CreateUser builds internally (ldap.EscapeDN is a no-op on our
 	// validated charset) so the audit row references the same resource.
 	plannedDN := "uid=" + req.UID + "," + s.ldapClient.UserBaseDN()
-	if !s.auditMutating(w, r, audit.ActionUserCreate, audit.ResourceUser, plannedDN,
-		map[string]interface{}{"uid": req.UID}) {
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: createUserDisplayName(req),
+		audit.DetailsKeyChanges:      userCreateFields(req),
+	}
+	if !s.auditMutating(w, r, audit.ActionUserCreate, audit.ResourceUser, plannedDN, details) {
 		return
 	}
 
@@ -103,7 +107,18 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn, nil) {
+	// Capture the pre-update state so the audit log (and notification email)
+	// can record a field-level diff. Best-effort: a failed read just yields no
+	// diff and must not block the mutation.
+	var details map[string]interface{}
+	if before, err := s.ldapClient.GetUser(dn); err == nil && before != nil {
+		details = map[string]interface{}{audit.DetailsKeyResourceName: userDisplayName(before)}
+		if changes := userUpdateChanges(before, req); len(changes) > 0 {
+			details[audit.DetailsKeyChanges] = changes
+		}
+	}
+
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn, details) {
 		return
 	}
 
@@ -443,4 +458,108 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, user)
+}
+
+// userDisplayName picks the most human-friendly label available for a user,
+// used for audit subjects and notification headers.
+func userDisplayName(u *ldap.User) string {
+	switch {
+	case u.DisplayName != "":
+		return u.DisplayName
+	case u.GivenName != "" || u.SN != "":
+		return strings.TrimSpace(u.GivenName + " " + u.SN)
+	case u.CN != "":
+		return u.CN
+	default:
+		return u.UID
+	}
+}
+
+// createUserDisplayName picks the friendliest label from a creation request.
+func createUserDisplayName(req ldap.CreateUserRequest) string {
+	switch {
+	case req.DisplayName != "":
+		return req.DisplayName
+	case req.GivenName != "" || req.SN != "":
+		return strings.TrimSpace(req.GivenName + " " + req.SN)
+	case req.CN != "":
+		return req.CN
+	default:
+		return req.UID
+	}
+}
+
+// userCreateFields produces the "field: value" dump shown in the creation
+// notification. Only non-empty attributes are listed; the password is masked.
+func userCreateFields(req ldap.CreateUserRequest) []audit.FieldChange {
+	var fields []audit.FieldChange
+	add := func(label, value string) {
+		if value != "" {
+			fields = append(fields, audit.FieldChange{Field: label, New: value})
+		}
+	}
+
+	add("Username", req.UID)
+	add("Email", req.Mail)
+	add("Title", req.Title)
+	add("Department", req.Department)
+	add("Organization", req.Organization)
+	add("Employee number", req.EmployeeNumber)
+	add("Employee type", req.EmployeeType)
+	add("Manager", req.Manager)
+	add("Login shell", req.LoginShell)
+	add("Home directory", req.HomeDirectory)
+	add("Expiration date", req.ExpirationDate)
+	if len(req.Groups) > 0 {
+		add("Groups", strings.Join(req.Groups, ", "))
+	}
+	if req.Password != "" {
+		fields = append(fields, audit.FieldChange{Field: "Password", Masked: true})
+	}
+
+	return fields
+}
+
+// userUpdateChanges diffs the requested update against the pre-update user,
+// returning one FieldChange per attribute that actually changes. Only fields
+// present in the request (non-nil pointers) are considered. Password and photo
+// are masked: the change is recorded but the (secret or bulky) value is never
+// emitted.
+func userUpdateChanges(before *ldap.User, req ldap.UpdateUserRequest) []audit.FieldChange {
+	var changes []audit.FieldChange
+
+	str := func(label string, newVal *string, oldVal string) {
+		if newVal == nil || *newVal == oldVal {
+			return
+		}
+		changes = append(changes, audit.FieldChange{Field: label, Old: oldVal, New: *newVal})
+	}
+
+	str("First name", req.GivenName, before.GivenName)
+	str("Last name", req.SN, before.SN)
+	str("Common name", req.CN, before.CN)
+	str("Display name", req.DisplayName, before.DisplayName)
+	str("Email", req.Mail, before.Mail)
+	str("Phone", req.TelephoneNumber, before.TelephoneNumber)
+	str("Title", req.Title, before.Title)
+	str("Department", req.Department, before.Department)
+	str("Organization", req.Organization, before.Organization)
+	str("Employee number", req.EmployeeNumber, before.EmployeeNumber)
+	str("Employee type", req.EmployeeType, before.EmployeeType)
+	str("Initials", req.Initials, before.Initials)
+	str("Manager", req.Manager, before.Manager)
+	str("Home directory", req.HomeDirectory, before.HomeDirectory)
+	str("Login shell", req.LoginShell, before.LoginShell)
+	str("GECOS", req.Gecos, before.Gecos)
+	str("Description", req.Description, before.Description)
+	str("Password policy", req.PwdPolicySubentry, before.PwdPolicySubentry)
+
+	if req.Password != nil {
+		changes = append(changes, audit.FieldChange{Field: "Password", Masked: true})
+	}
+	if req.JpegPhoto != nil && *req.JpegPhoto != before.JpegPhoto {
+		changes = append(changes, audit.FieldChange{Field: "Photo", Masked: true})
+	}
+
+	return changes
 }

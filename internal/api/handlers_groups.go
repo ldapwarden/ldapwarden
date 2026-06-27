@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
@@ -76,8 +77,11 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	plannedDN := "cn=" + req.CN + "," + s.ldapClient.GroupBaseDN()
-	if !s.auditMutating(w, r, audit.ActionGroupCreate, audit.ResourceGroup, plannedDN,
-		map[string]interface{}{"cn": req.CN}) {
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: req.CN,
+		audit.DetailsKeyChanges:      groupCreateFields(req),
+	}
+	if !s.auditMutating(w, r, audit.ActionGroupCreate, audit.ResourceGroup, plannedDN, details) {
 		return
 	}
 
@@ -103,7 +107,16 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.auditMutating(w, r, audit.ActionGroupUpdate, audit.ResourceGroup, dn, nil) {
+	// Capture the pre-update state for a field-level audit diff (best-effort).
+	var details map[string]interface{}
+	if before, err := s.ldapClient.GetGroup(dn); err == nil && before != nil {
+		details = map[string]interface{}{audit.DetailsKeyResourceName: groupDisplayName(before)}
+		if changes := groupUpdateChanges(before, req); len(changes) > 0 {
+			details[audit.DetailsKeyChanges] = changes
+		}
+	}
+
+	if !s.auditMutating(w, r, audit.ActionGroupUpdate, audit.ResourceGroup, dn, details) {
 		return
 	}
 
@@ -230,4 +243,69 @@ func (s *Server) handleUpdateGroupSamba(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, group)
+}
+
+// groupCreateFields produces the "field: value" dump for the group creation
+// notification. Only non-empty attributes are listed.
+func groupCreateFields(req ldap.CreateGroupRequest) []audit.FieldChange {
+	var fields []audit.FieldChange
+	add := func(label, value string) {
+		if value != "" {
+			fields = append(fields, audit.FieldChange{Field: label, New: value})
+		}
+	}
+
+	add("Name", req.CN)
+	if req.GIDNumber != 0 {
+		add("GID number", strconv.Itoa(req.GIDNumber))
+	}
+	add("Description", req.Description)
+	if len(req.MemberUIDs) > 0 {
+		add("Members", strings.Join(req.MemberUIDs, ", "))
+	}
+
+	return fields
+}
+
+// groupDisplayName picks the most human-friendly label for a group.
+func groupDisplayName(g *ldap.Group) string {
+	if g.DisplayName != "" {
+		return g.DisplayName
+	}
+	return g.CN
+}
+
+// groupUpdateChanges diffs a group update against its pre-update state. The
+// description is a plain old/new change; membership changes are emitted as one
+// entry per added or removed member. Members are only diffed when the request
+// actually carries a member list (non-nil slice).
+func groupUpdateChanges(before *ldap.Group, req ldap.UpdateGroupRequest) []audit.FieldChange {
+	var changes []audit.FieldChange
+
+	if req.Description != nil && *req.Description != before.Description {
+		changes = append(changes, audit.FieldChange{Field: "Description", Old: before.Description, New: *req.Description})
+	}
+
+	if req.MemberUIDs != nil {
+		oldSet := make(map[string]struct{}, len(before.MemberUIDs))
+		for _, uid := range before.MemberUIDs {
+			oldSet[uid] = struct{}{}
+		}
+		newSet := make(map[string]struct{}, len(req.MemberUIDs))
+		for _, uid := range req.MemberUIDs {
+			newSet[uid] = struct{}{}
+		}
+		for _, uid := range req.MemberUIDs {
+			if _, ok := oldSet[uid]; !ok {
+				changes = append(changes, audit.FieldChange{Field: "Member added", New: uid})
+			}
+		}
+		for _, uid := range before.MemberUIDs {
+			if _, ok := newSet[uid]; !ok {
+				changes = append(changes, audit.FieldChange{Field: "Member removed", Old: uid})
+			}
+		}
+	}
+
+	return changes
 }

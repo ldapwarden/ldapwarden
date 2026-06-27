@@ -3,16 +3,18 @@ package mail
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html/template"
+	"log"
 	"net"
 	"net/smtp"
 	"strings"
 	"time"
 
 	"github.com/ldapwarden/ldapwarden/internal/config"
+	"github.com/vanng822/go-premailer/premailer"
 )
 
 // errHeaderInjection is returned by buildMessage when a value destined for an
@@ -36,12 +38,14 @@ func validateHeaderValue(s string) error {
 type Mailer struct {
 	config       *config.MailConfig
 	organization string
+	publicURL    string
 }
 
-func NewMailer(cfg *config.MailConfig, organization string) *Mailer {
+func NewMailer(cfg *config.MailConfig, organization, publicURL string) *Mailer {
 	return &Mailer{
 		config:       cfg,
 		organization: organization,
+		publicURL:    strings.TrimRight(publicURL, "/"),
 	}
 }
 
@@ -106,14 +110,45 @@ func (m *Mailer) SendAccountExpirationNotification(to, uid, displayName string, 
 	return m.sendEmail(to, subject, body)
 }
 
+// auditChangeView is one rendered diff row. Masked rows show the field name
+// without any value (used for secrets such as passwords).
+type auditChangeView struct {
+	Field  string
+	Old    string
+	New    string
+	Masked bool
+}
+
+// auditEmailData is the template model for an audit notification.
+type auditEmailData struct {
+	Organization string
+	Subject      string
+	Actor        string
+	HasChanges   bool
+	// IsFieldList renders Changes as a "field: value" dump (creations) rather
+	// than an "old → new" diff (modifications). Field-list entries carry their
+	// value in New.
+	IsFieldList bool
+	Changes     []auditChangeView
+	Summary     string
+	DetailsURL  string
+	Timestamp   string
+	ActorDN     string
+	ResourceDN  string
+	IPAddress   string
+	UserAgent   string
+}
+
 // SendAuditNotification sends a per-change audit email to each recipient.
-// Args are primitives to keep this package free of an internal/audit import.
-// Each modification action recorded in the audit log produces one call.
+// Args are primitives (changes is a slice of plain string maps) to keep this
+// package free of an internal/audit import. Each modification action recorded
+// in the audit log produces one call.
 func (m *Mailer) SendAuditNotification(
 	recipients []string,
 	timestamp time.Time,
 	actorUID, actorDN string,
-	action, resourceType, resourceDN string,
+	action, resourceType, resourceDN, resourceName string,
+	changes []map[string]string,
 	details map[string]interface{},
 	ipAddress, userAgent string,
 ) error {
@@ -121,26 +156,30 @@ func (m *Mailer) SendAuditNotification(
 		return nil
 	}
 
-	subject := fmt.Sprintf("[%s] %s by %s", m.organization, action, displayActor(actorUID, actorDN))
-
-	detailsJSON := ""
-	if len(details) > 0 {
-		if b, err := json.MarshalIndent(details, "", "  "); err == nil {
-			detailsJSON = string(b)
-		}
+	actor := displayActor(actorUID, actorDN)
+	typeLabel := humanResourceType(resourceType)
+	name := resourceName
+	if name == "" {
+		name = rdnValue(resourceDN)
 	}
 
-	data := map[string]string{
-		"Organization": m.organization,
-		"Timestamp":    timestamp.UTC().Format("2006-01-02 15:04:05 MST"),
-		"Actor":        displayActor(actorUID, actorDN),
-		"ActorDN":      actorDN,
-		"Action":       action,
-		"ResourceType": resourceType,
-		"ResourceDN":   resourceDN,
-		"Details":      detailsJSON,
-		"IPAddress":    ipAddress,
-		"UserAgent":    userAgent,
+	views := toChangeViews(changes)
+	subject := auditSubject(action, typeLabel, name)
+
+	data := auditEmailData{
+		Organization: m.organization,
+		Subject:      subject,
+		Actor:        actor,
+		HasChanges:   len(views) > 0,
+		IsFieldList:  strings.HasSuffix(action, ".create"),
+		Changes:      views,
+		Summary:      auditSummary(action, typeLabel, name, details),
+		DetailsURL:   m.resourceURL(resourceType, resourceDN),
+		Timestamp:    timestamp.UTC().Format("2006-01-02 15:04:05 MST"),
+		ActorDN:      actorDN,
+		ResourceDN:   resourceDN,
+		IPAddress:    ipAddress,
+		UserAgent:    userAgent,
 	}
 
 	body, err := m.renderTemplate(auditNotificationTemplate, data)
@@ -155,6 +194,136 @@ func (m *Mailer) SendAuditNotification(
 	}
 
 	return nil
+}
+
+func toChangeViews(changes []map[string]string) []auditChangeView {
+	out := make([]auditChangeView, 0, len(changes))
+	for _, c := range changes {
+		out = append(out, auditChangeView{
+			Field:  c["field"],
+			Old:    c["old"],
+			New:    c["new"],
+			Masked: c["masked"] == "true",
+		})
+	}
+	return out
+}
+
+// auditSubject mirrors the human-readable subjects used elsewhere: creations,
+// deletions and membership changes get their own phrasing; everything else is
+// treated as a modification.
+func auditSubject(action, typeLabel, name string) string {
+	switch {
+	case strings.HasSuffix(action, ".create"):
+		return fmt.Sprintf("New %s created: %s", typeLabel, name)
+	case strings.HasSuffix(action, ".delete"):
+		return fmt.Sprintf("%s deleted: %s", capitalize(typeLabel), name)
+	case action == "user.lock":
+		return fmt.Sprintf("Account locked: %s", name)
+	case action == "user.unlock":
+		return fmt.Sprintf("Account unlocked: %s", name)
+	case strings.Contains(action, "member"):
+		return fmt.Sprintf("Membership change: %s", name)
+	default:
+		return fmt.Sprintf("Modification of %s", name)
+	}
+}
+
+// auditSummary is the one-line description shown when there is no field-level
+// diff to render (creations, deletions, membership and secret-only changes).
+func auditSummary(action, typeLabel, name string, details map[string]interface{}) string {
+	switch {
+	case strings.HasSuffix(action, ".create"):
+		return fmt.Sprintf("A new %s was created: %s.", typeLabel, name)
+	case strings.HasSuffix(action, ".delete"):
+		return fmt.Sprintf("The %s %s was deleted.", typeLabel, name)
+	case action == "user.lock":
+		return fmt.Sprintf("The account %s was locked.", name)
+	case action == "user.unlock":
+		return fmt.Sprintf("The account %s was unlocked.", name)
+	case action == "group.member.add":
+		return fmt.Sprintf("%s was added to the group %s.", detailString(details, "memberUid"), name)
+	case action == "group.member.remove":
+		return fmt.Sprintf("%s was removed from the group %s.", detailString(details, "memberUid"), name)
+	}
+	if a := detailString(details, "action"); a != "" {
+		return fmt.Sprintf("%s was updated (%s).", name, humanizeToken(a))
+	}
+	return fmt.Sprintf("%s was modified.", name)
+}
+
+// resourceURL builds a link to the resource's page in the web UI, matching the
+// frontend's base64url DN encoding (encodeDN). Returns "" when no public URL is
+// configured or the resource type has no detail page.
+func (m *Mailer) resourceURL(resourceType, dn string) string {
+	if m.publicURL == "" || dn == "" {
+		return ""
+	}
+	var seg string
+	switch resourceType {
+	case "user":
+		seg = "users"
+	case "group":
+		seg = "groups"
+	default:
+		return ""
+	}
+	return fmt.Sprintf("%s/%s/%s", m.publicURL, seg, base64.RawURLEncoding.EncodeToString([]byte(dn)))
+}
+
+// humanResourceType turns an audit resource type into a label for prose.
+func humanResourceType(t string) string {
+	switch t {
+	case "user":
+		return "account"
+	case "group":
+		return "group"
+	case "sudorole":
+		return "sudo role"
+	case "pwdpolicy":
+		return "password policy"
+	default:
+		if t == "" {
+			return "resource"
+		}
+		return t
+	}
+}
+
+// rdnValue returns the value of the first RDN of a DN (uid=jdoe,ou=… → jdoe),
+// used as a fallback display name when no resourceName was supplied.
+func rdnValue(dn string) string {
+	if dn == "" {
+		return "unknown"
+	}
+	first := dn
+	if i := strings.IndexByte(dn, ','); i >= 0 {
+		first = dn[:i]
+	}
+	if i := strings.IndexByte(first, '='); i >= 0 {
+		return strings.TrimSpace(first[i+1:])
+	}
+	return strings.TrimSpace(first)
+}
+
+// humanizeToken turns a snake_case action token into a readable phrase
+// ("samba_update" → "samba update").
+func humanizeToken(s string) string {
+	return strings.ReplaceAll(s, "_", " ")
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func detailString(details map[string]interface{}, key string) string {
+	if v, ok := details[key].(string); ok {
+		return v
+	}
+	return ""
 }
 
 func displayActor(uid, dn string) string {
@@ -362,7 +531,7 @@ func (m *Mailer) sendWithClient(client *smtp.Client, to string, msg []byte, encr
 	return client.Quit()
 }
 
-func (m *Mailer) renderTemplate(tmpl string, data map[string]string) (string, error) {
+func (m *Mailer) renderTemplate(tmpl string, data interface{}) (string, error) {
 	t, err := template.New("email").Parse(tmpl)
 	if err != nil {
 		return "", err
@@ -373,7 +542,26 @@ func (m *Mailer) renderTemplate(tmpl string, data map[string]string) (string, er
 		return "", err
 	}
 
-	return buf.String(), nil
+	return inlineCSS(buf.String()), nil
+}
+
+// inlineCSS rewrites the <style> rules of an HTML email into inline style
+// attributes so the styling survives mail clients that strip the <head>
+// (Outlook's Word engine, several Gmail contexts). On any premailer error the
+// original HTML is returned unchanged — a degraded but still-readable email
+// beats no email at all.
+func inlineCSS(html string) string {
+	prem, err := premailer.NewPremailerFromString(html, premailer.NewOptions())
+	if err != nil {
+		log.Printf("mail: premailer init failed, sending non-inlined HTML: %v", err)
+		return html
+	}
+	out, err := prem.Transform()
+	if err != nil {
+		log.Printf("mail: premailer transform failed, sending non-inlined HTML: %v", err)
+		return html
+	}
+	return out
 }
 
 const passwordResetTemplate = `<!DOCTYPE html>
@@ -498,37 +686,76 @@ const auditNotificationTemplate = `<!DOCTYPE html>
     <meta charset="utf-8">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #222; max-width: 640px; margin: 0 auto; padding: 20px; }
-        .header { background: #1a1a2e; color: white; padding: 16px 20px; border-radius: 8px 8px 0 0; }
-        .header h2 { margin: 0; font-size: 18px; }
-        .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; }
-        table.meta { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
-        table.meta td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 14px; }
-        table.meta td.k { width: 140px; color: #6b7280; font-weight: 600; }
+        .header { background: #1a1a2e; color: white; padding: 18px 22px; border-radius: 8px 8px 0 0; }
+        .header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+        .header .sub { margin: 4px 0 0; font-size: 13px; color: #b9bdd4; }
+        .content { background: #f8f9fa; padding: 22px; border-radius: 0 0 8px 8px; }
+        .summary { font-size: 15px; margin: 0 0 18px; }
+        table.changes { width: 100%; border-collapse: collapse; margin: 4px 0 18px; }
+        table.changes th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; padding: 6px 8px; border-bottom: 2px solid #e5e7eb; }
+        table.changes td { padding: 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 14px; }
+        table.changes td.field { font-weight: 600; width: 34%; }
+        .old { color: #b91c1c; text-decoration: line-through; }
+        .new { color: #047857; font-weight: 600; }
+        .arrow { color: #9ca3af; padding: 0 6px; }
+        .muted { color: #9ca3af; }
+        .badge { display: inline-block; background: #e5e7eb; color: #374151; font-size: 12px; padding: 2px 8px; border-radius: 9999px; }
+        .btn-wrap { margin: 6px 0 18px; }
+        .button { display: inline-block; background: #3b82f6; color: #ffffff; padding: 11px 22px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; }
+        table.meta { width: 100%; border-collapse: collapse; margin: 8px 0 0; }
+        table.meta td { padding: 5px 8px; border-top: 1px solid #e5e7eb; vertical-align: top; font-size: 12px; color: #6b7280; }
+        table.meta td.k { width: 130px; font-weight: 600; }
         table.meta td.v { word-break: break-all; }
-        pre { background: #1f2937; color: #e5e7eb; padding: 12px; border-radius: 6px; font-size: 13px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
-        .footer { margin-top: 16px; font-size: 12px; color: #6b7280; }
+        .footer { margin-top: 18px; font-size: 12px; color: #6b7280; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2>{{.Organization}} — Audit notification</h2>
+        <h1>{{.Subject}}</h1>
+        <p class="sub">{{.Organization}}{{if .Actor}} &middot; by {{.Actor}}{{end}}</p>
     </div>
     <div class="content">
-        <p>The following change was just recorded in the audit log:</p>
+        {{if .HasChanges}}
+        {{if .IsFieldList}}
+        <p class="summary">{{.Summary}}</p>
+        <table class="changes">
+            <tr><th>Field</th><th>Value</th></tr>
+            {{range .Changes}}
+            <tr>
+                <td class="field">{{.Field}}</td>
+                <td>{{if .Masked}}<span class="badge">set</span>{{else if .New}}<span class="new">{{.New}}</span>{{else}}<span class="muted">(empty)</span>{{end}}</td>
+            </tr>
+            {{end}}
+        </table>
+        {{else}}
+        <p class="summary">The following changes were made by <strong>{{.Actor}}</strong>:</p>
+        <table class="changes">
+            <tr><th>Field</th><th>Change</th></tr>
+            {{range .Changes}}
+            <tr>
+                <td class="field">{{.Field}}</td>
+                <td>
+                    {{if .Masked}}<span class="badge">updated</span>{{else}}<span class="old">{{if .Old}}{{.Old}}{{else}}(empty){{end}}</span><span class="arrow">&rarr;</span><span class="new">{{if .New}}{{.New}}{{else}}(empty){{end}}</span>{{end}}
+                </td>
+            </tr>
+            {{end}}
+        </table>
+        {{end}}
+        {{else}}
+        <p class="summary">{{.Summary}}</p>
+        {{end}}
+        {{if .DetailsURL}}
+        <div class="btn-wrap">
+            <a href="{{.DetailsURL}}" class="button">View details</a>
+        </div>
+        {{end}}
         <table class="meta">
             <tr><td class="k">When</td><td class="v">{{.Timestamp}}</td></tr>
-            <tr><td class="k">Actor</td><td class="v">{{.Actor}}</td></tr>
             <tr><td class="k">Actor DN</td><td class="v">{{.ActorDN}}</td></tr>
-            <tr><td class="k">Action</td><td class="v"><code>{{.Action}}</code></td></tr>
-            <tr><td class="k">Resource type</td><td class="v">{{.ResourceType}}</td></tr>
             {{if .ResourceDN}}<tr><td class="k">Resource DN</td><td class="v">{{.ResourceDN}}</td></tr>{{end}}
             {{if .IPAddress}}<tr><td class="k">IP address</td><td class="v">{{.IPAddress}}</td></tr>{{end}}
             {{if .UserAgent}}<tr><td class="k">User agent</td><td class="v">{{.UserAgent}}</td></tr>{{end}}
         </table>
-        {{if .Details}}
-        <p style="margin-bottom: 6px;"><strong>Details</strong></p>
-        <pre>{{.Details}}</pre>
-        {{end}}
         <div class="footer">
             <p>This is an automated audit notification from {{.Organization}}. Please do not reply to this email.</p>
         </div>
