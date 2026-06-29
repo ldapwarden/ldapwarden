@@ -52,3 +52,9 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Security audit report — keep out of the repository history
+REPORT.md
