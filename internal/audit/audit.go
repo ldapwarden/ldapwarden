@@ -290,6 +290,9 @@ func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64
 	if params.Limit > 100 {
 		params.Limit = 100
 	}
+	if params.Offset < 0 {
+		params.Offset = 0
+	}
 
 	countQuery := `SELECT COUNT(*) FROM audit_logs WHERE 1=1`
 	query := `SELECT id, actor_dn, actor_uid, action, resource_type, resource_dn, details, ip_address, user_agent, created_at

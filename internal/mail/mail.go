@@ -426,20 +426,22 @@ func (m *Mailer) sendWithStartTLS(addr, to string, msg []byte) error {
 	}
 	defer func() { _ = client.Close() }()
 
-	// Check if STARTTLS is supported and upgrade
-	encrypted := false
-	if ok, _ := client.Extension("STARTTLS"); ok {
-		tlsConfig := &tls.Config{
-			ServerName: m.config.Host,
-			MinVersion: tls.VersionTLS12,
-		}
-		if err := client.StartTLS(tlsConfig); err != nil {
-			return fmt.Errorf("starttls: %w", err)
-		}
-		encrypted = true
+	// MAIL_SSL=starttls is an explicit request for an encrypted channel. If the
+	// server does not advertise STARTTLS, refuse to send rather than silently
+	// downgrading to cleartext — otherwise an active MITM that strips the
+	// advertisement would harvest the message and any SMTP AUTH credentials.
+	if ok, _ := client.Extension("STARTTLS"); !ok {
+		return fmt.Errorf("starttls: server does not advertise STARTTLS; refusing to send unencrypted")
+	}
+	tlsConfig := &tls.Config{
+		ServerName: m.config.Host,
+		MinVersion: tls.VersionTLS12,
+	}
+	if err := client.StartTLS(tlsConfig); err != nil {
+		return fmt.Errorf("starttls: %w", err)
 	}
 
-	return m.sendWithClient(client, to, msg, encrypted)
+	return m.sendWithClient(client, to, msg, true)
 }
 
 // sendWithSSL sends email over implicit TLS connection

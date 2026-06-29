@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -433,6 +434,31 @@ func (s *Server) handleUpdateUserSamba(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user)
 }
 
+// validateShadowRequest rejects nonsensical shadow integers. -1 is the
+// documented "delete this attribute" sentinel; any other negative value is
+// invalid for a shadow day-count field, so we reject it rather than writing it
+// to LDAP. Zero and positive values are passed through unchanged.
+func validateShadowRequest(req ldap.UpdateShadowUserRequest) error {
+	fields := []struct {
+		name string
+		val  *int
+	}{
+		{"shadowLastChange", req.ShadowLastChange},
+		{"shadowMin", req.ShadowMin},
+		{"shadowMax", req.ShadowMax},
+		{"shadowWarning", req.ShadowWarning},
+		{"shadowInactive", req.ShadowInactive},
+		{"shadowExpire", req.ShadowExpire},
+		{"shadowFlag", req.ShadowFlag},
+	}
+	for _, f := range fields {
+		if f.val != nil && *f.val < -1 {
+			return fmt.Errorf("%s must be >= -1 (-1 deletes the attribute)", f.name)
+		}
+	}
+	return nil
+}
+
 func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) {
 	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
@@ -443,6 +469,11 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 	var req ldap.UpdateShadowUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := validateShadowRequest(req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

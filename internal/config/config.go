@@ -187,6 +187,21 @@ func ValidateSecrets(cfg *Config) error {
 			break
 		}
 	}
+	// Audit-notification recipients are written verbatim into the To: header.
+	// The mailer rejects control characters at send time, but that surfaces only
+	// when the first notification fires; validate here so a malformed address is
+	// a boot failure the operator sees immediately.
+	for _, addr := range cfg.App.AuditNotifyEmails {
+		a := strings.TrimSpace(addr)
+		if a == "" {
+			continue
+		}
+		if strings.ContainsAny(a, "\r\n\x00") {
+			errs = append(errs, fmt.Errorf("LDAPWARDEN_AUDIT_NOTIFY_EMAILS entry %q contains control characters", a))
+		} else if !strings.Contains(a, "@") {
+			errs = append(errs, fmt.Errorf("LDAPWARDEN_AUDIT_NOTIFY_EMAILS entry %q is not a valid email address", a))
+		}
+	}
 	return errors.Join(errs...)
 }
 
