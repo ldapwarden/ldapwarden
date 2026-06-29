@@ -148,7 +148,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
+	s.invalidateSessions(r, dn, "user deleted")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user deleted"})
 }
@@ -194,7 +194,7 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
+	s.invalidateSessions(r, dn, "user locked")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user locked"})
 }
@@ -283,7 +283,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
+	s.invalidateSessions(r, dn, "password changed")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})
 }
@@ -305,7 +305,7 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.authService.InvalidateUserSessions(r.Context(), dn)
+	s.invalidateSessions(r, dn, "password removed")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password removed"})
 }

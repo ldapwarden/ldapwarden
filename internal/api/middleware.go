@@ -106,6 +106,20 @@ func writeServerError(w http.ResponseWriter, r *http.Request, action string, err
 	writeError(w, http.StatusInternalServerError, msg)
 }
 
+// invalidateSessions revokes every live session for dn after a
+// security-relevant mutation (lock, delete, password change, admin-group
+// change). The mutation has already committed by the time this runs, so a
+// revocation failure cannot fail the HTTP request — but it is logged loudly
+// rather than swallowed, because a session that survives for a locked, deleted
+// or demoted user is a security gap an operator needs to act on.
+func (s *Server) invalidateSessions(r *http.Request, dn, reason string) {
+	if err := s.authService.InvalidateUserSessions(r.Context(), dn); err != nil {
+		reqID := middleware.GetReqID(r.Context())
+		log.Printf("session revocation FAILED (sessions may survive): reason=%q dn=%q requestId=%s err=%v",
+			reason, dn, reqID, err)
+	}
+}
+
 // Request-body size caps. defaultMaxBodyBytes covers every JSON payload the
 // API exchanges except user create/update, which carries a base64
 // jpegPhoto. Applied per route group rather than globally because chi

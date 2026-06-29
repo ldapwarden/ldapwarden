@@ -26,7 +26,7 @@ func (s *Server) invalidateIfAdminGroupChange(r *http.Request, groupDN, memberUI
 	if err != nil {
 		return
 	}
-	_ = s.authService.InvalidateUserSessions(r.Context(), user.DN)
+	s.invalidateSessions(r, user.DN, "admin-group membership change")
 }
 
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
