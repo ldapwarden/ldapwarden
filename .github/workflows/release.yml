@@ -34,7 +34,10 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "20"
+          # 24, not 20: pnpm 11 imports the node:sqlite built-in, which does
+          # not exist on Node 20 (ERR_UNKNOWN_BUILTIN_MODULE), and vite 8
+          # requires >=20.19 || >=22.12 anyway.
+          node-version: "24"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4

@@ -18,7 +18,9 @@ COPY db/ db/
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /ldapwarden ./cmd/server
 
 # Build stage for React frontend
-FROM node:20-alpine AS frontend-builder
+# node:24, not node:20 — pnpm 11 imports the node:sqlite built-in, absent on
+# Node 20 (ERR_UNKNOWN_BUILTIN_MODULE), and vite 8 requires Node >=20.19.
+FROM node:24-alpine AS frontend-builder
 
 WORKDIR /app
 
