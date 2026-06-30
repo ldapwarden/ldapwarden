@@ -295,7 +295,11 @@ func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64
 	}
 
 	countQuery := `SELECT COUNT(*) FROM audit_logs WHERE 1=1`
-	query := `SELECT id, actor_dn, actor_uid, action, resource_type, resource_dn, details, ip_address, user_agent, created_at
+	// ip_address is an INET column; pgx cannot scan INET into *string, so a row
+	// with a non-null IP would fail the scan and 500 the whole listing (it only
+	// ever worked when every visible row had a null IP). host() returns the
+	// address as plain text, which scans cleanly.
+	query := `SELECT id, actor_dn, actor_uid, action, resource_type, resource_dn, details, host(ip_address) AS ip_address, user_agent, created_at
 	          FROM audit_logs WHERE 1=1`
 
 	args := []interface{}{}
