@@ -123,12 +123,16 @@ function LoginPage() {
       `}</style>
 
       {/* Login card */}
-      <Card className="relative z-10 w-full max-w-md mx-4 bg-white/95 backdrop-blur-xs shadow-2xl">
+      {/* The card is intentionally always white (it sits on a fixed dark
+          gradient, theme-independent). Force dark text so inputs, labels and
+          description stay readable in dark mode — otherwise they inherit the
+          dark-theme light foreground and vanish on the white surface. */}
+      <Card className="relative z-10 w-full max-w-md mx-4 bg-white/95 text-gray-900 backdrop-blur-xs shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <img src="/ldapwarden-logo.svg" alt="LDAP Warden" className="h-24 w-auto" />
           </div>
-          <CardDescription>Sign in with your LDAP credentials</CardDescription>
+          <CardDescription className="text-gray-600">Sign in with your LDAP credentials</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -145,6 +149,7 @@ function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
+                className="placeholder:text-gray-400"
                 required
                 autoFocus
               />
@@ -157,6 +162,7 @@ function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                className="placeholder:text-gray-400"
                 required
               />
             </div>
