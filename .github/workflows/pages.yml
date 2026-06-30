@@ -27,6 +27,11 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        with:
+          # Create/enable the Pages site if it does not exist yet, instead of
+          # failing with "Get Pages site failed: Not Found". Requires the
+          # pages: write permission granted above.
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
