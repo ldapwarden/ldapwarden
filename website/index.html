@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LDAP Warden - Modern LDAP Directory Management</title>
-  <meta name="description" content="LDAP Warden is a modern, open-source web application for managing OpenLDAP directories. User management, group management, sudo roles, and more.">
-  <meta name="keywords" content="LDAP, OpenLDAP, directory management, user management, open source, self-hosted">
+  <meta name="description" content="LDAP Warden is a modern, open-source web application for managing OpenLDAP directories. User and group management, sudo roles, password policies, self-service password reset, audit logging, and email notifications.">
+  <meta name="keywords" content="LDAP, OpenLDAP, directory management, user management, password policies, password reset, audit logging, sudoers, open source, self-hosted">
 
   <!-- Open Graph -->
   <meta property="og:title" content="LDAP Warden - Modern LDAP Directory Management">
@@ -221,7 +221,7 @@
       </h1>
       <p class="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
         A powerful, self-hosted web application for managing OpenLDAP directories.
-        User management, groups, sudo roles, and audit logging — all in one beautiful interface.
+        User management, groups, sudo roles, password policies, and audit logging — all in one beautiful interface.
       </p>
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
         <a href="https://github.com/ldapwarden/ldapwarden" target="_blank" rel="noopener"
@@ -339,6 +339,33 @@
           </div>
           <h3 class="text-xl font-semibold mb-2">REST API</h3>
           <p class="text-gray-400">Full-featured REST API for automation. Integrate with your existing tools and workflows.</p>
+        </div>
+
+        <!-- Feature 10 -->
+        <div class="feature-card bg-gray-800/50 border border-gray-700 rounded-2xl p-6">
+          <div class="w-12 h-12 bg-teal-500/10 rounded-xl flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">Password Policies</h3>
+          <p class="text-gray-400">Define and enforce OpenLDAP ppolicy from the UI — password expiration, account lockout, complexity and history.</p>
+        </div>
+
+        <!-- Feature 11 -->
+        <div class="feature-card bg-gray-800/50 border border-gray-700 rounded-2xl p-6">
+          <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">Self-Service Password Reset</h3>
+          <p class="text-gray-400">Email-based password reset with single-use, expiring tokens, so users recover access without an admin round-trip.</p>
+        </div>
+
+        <!-- Feature 12 -->
+        <div class="feature-card bg-gray-800/50 border border-gray-700 rounded-2xl p-6">
+          <div class="w-12 h-12 bg-rose-500/10 rounded-xl flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">Email Notifications</h3>
+          <p class="text-gray-400">Optional email alerts for directory changes and password events, plus scheduled account- and password-expiration runs.</p>
         </div>
       </div>
     </div>
