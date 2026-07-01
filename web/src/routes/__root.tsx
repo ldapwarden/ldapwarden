@@ -65,6 +65,16 @@ function RootComponent() {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   })
 
+  // Fetch the current user's avatar. It is served separately from the session
+  // (which no longer carries the base64 photo) and cached so it is loaded once
+  // per app session rather than on every request.
+  const { data: avatar } = useQuery({
+    queryKey: ['me-avatar'],
+    queryFn: ({ signal }) => api.auth.avatar(signal),
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+  })
+
   // Get enabled modules from config (default to all if not available)
   const enabledModules = useMemo(() => {
     const modulesValue = config?.app?.modules?.value
@@ -184,6 +194,7 @@ function RootComponent() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-2">
                   <Avatar
+                    src={avatar?.jpegPhoto}
                     fallback={session?.displayName}
                     size="sm"
                   />

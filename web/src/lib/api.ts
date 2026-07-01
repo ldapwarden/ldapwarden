@@ -147,6 +147,12 @@ export const LoginResponseSchema = z.object({
   session: SessionSchema,
 })
 
+// MeAvatarSchema is the current user's photo, fetched separately from the
+// session (which no longer carries the base64 photo to keep session blobs lean).
+export const MeAvatarSchema = z.object({
+  jpegPhoto: z.string().optional(),
+})
+
 export const UserSchema = z.object({
   dn: z.string(),
   uid: z.string(),
@@ -460,6 +466,9 @@ export const api = {
 
     me: (signal?: AbortSignal) =>
       fetchApi('/auth/me', {}, SessionSchema, signal),
+
+    avatar: (signal?: AbortSignal) =>
+      fetchApi('/auth/me/avatar', {}, MeAvatarSchema, signal),
 
     changePassword: (password: string) =>
       fetchApi('/auth/change-password', {

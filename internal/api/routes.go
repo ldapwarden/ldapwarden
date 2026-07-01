@@ -92,6 +92,7 @@ func (s *Server) setupRoutes() chi.Router {
 				r.Use(s.authMiddleware)
 				r.Post("/logout", s.handleLogout)
 				r.Get("/me", s.handleGetMe)
+				r.Get("/me/avatar", s.handleGetMyAvatar)
 				r.Post("/change-password", s.handleChangeMyPassword)
 			})
 		})

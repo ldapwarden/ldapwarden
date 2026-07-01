@@ -71,6 +71,26 @@ func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, session)
 }
 
+// handleGetMyAvatar returns the current user's jpegPhoto (base64) for the
+// header avatar. The photo is deliberately not carried in the session blob —
+// it can weigh megabytes and would be deserialised on every authenticated
+// request — so it is fetched from LDAP on demand here and cached by the client.
+// A missing photo (or a failed lookup) yields an empty value; the header avatar
+// falls back to the user's initials.
+func (s *Server) handleGetMyAvatar(w http.ResponseWriter, r *http.Request) {
+	session := auth.GetSessionFromContext(r.Context())
+	if session == nil {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+
+	var photo string
+	if user, err := s.ldapClient.GetUser(session.UserDN); err == nil && user != nil {
+		photo = user.JpegPhoto
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"jpegPhoto": photo})
+}
+
 func (s *Server) handleChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 	session := auth.GetSessionFromContext(r.Context())
 	if session == nil {
