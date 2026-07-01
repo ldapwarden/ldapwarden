@@ -78,7 +78,7 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	plannedDN := "cn=" + req.CN + "," + s.ldapClient.GroupBaseDN()
 	details := map[string]interface{}{
-		audit.DetailsKeyResourceName: req.CN,
+		audit.DetailsKeyResourceName: labelWithID(req.Description, req.CN),
 		audit.DetailsKeyChanges:      groupCreateFields(req),
 	}
 	if !s.auditMutating(w, r, audit.ActionGroupCreate, audit.ResourceGroup, plannedDN, details) {
@@ -136,7 +136,7 @@ func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.auditMutating(w, r, audit.ActionGroupDelete, audit.ResourceGroup, dn, nil) {
+	if !s.auditMutating(w, r, audit.ActionGroupDelete, audit.ResourceGroup, dn, s.groupNameDetails(dn)) {
 		return
 	}
 
@@ -267,12 +267,27 @@ func groupCreateFields(req ldap.CreateGroupRequest) []audit.FieldChange {
 	return fields
 }
 
-// groupDisplayName picks the most human-friendly label for a group.
-func groupDisplayName(g *ldap.Group) string {
-	if g.DisplayName != "" {
-		return g.DisplayName
+// groupNameDetails does a best-effort lookup of a group so an audit entry that
+// carries no field diff (delete) can still name the resource as
+// "description (cn)" in the notification. The lookup happens before the
+// mutation, so the entry still exists. A failed read yields nil — the mutation
+// and its audit row must never depend on it.
+func (s *Server) groupNameDetails(dn string) map[string]interface{} {
+	if before, err := s.ldapClient.GetGroup(dn); err == nil && before != nil {
+		return map[string]interface{}{audit.DetailsKeyResourceName: groupDisplayName(before)}
 	}
-	return g.CN
+	return nil
+}
+
+// groupDisplayName picks the most human-friendly label for a group. When a
+// description (or Samba displayName) is set it is qualified with the cn
+// ("Engineering team (engineers)"); otherwise it falls back to the bare cn.
+func groupDisplayName(g *ldap.Group) string {
+	friendly := g.Description
+	if friendly == "" {
+		friendly = g.DisplayName
+	}
+	return labelWithID(friendly, g.CN)
 }
 
 // groupUpdateChanges diffs a group update against its pre-update state. The

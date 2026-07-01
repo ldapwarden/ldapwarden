@@ -139,7 +139,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.auditMutating(w, r, audit.ActionUserDelete, audit.ResourceUser, dn, nil) {
+	if !s.auditMutating(w, r, audit.ActionUserDelete, audit.ResourceUser, dn, s.userNameDetails(dn)) {
 		return
 	}
 
@@ -185,7 +185,7 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.auditMutating(w, r, audit.ActionUserLock, audit.ResourceUser, dn, nil) {
+	if !s.auditMutating(w, r, audit.ActionUserLock, audit.ResourceUser, dn, s.userNameDetails(dn)) {
 		return
 	}
 
@@ -206,7 +206,7 @@ func (s *Server) handleUnlockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.auditMutating(w, r, audit.ActionUserUnlock, audit.ResourceUser, dn, nil) {
+	if !s.auditMutating(w, r, audit.ActionUserUnlock, audit.ResourceUser, dn, s.userNameDetails(dn)) {
 		return
 	}
 
@@ -492,32 +492,55 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 }
 
 // userDisplayName picks the most human-friendly label available for a user,
-// used for audit subjects and notification headers.
+// used for audit subjects and notification headers. When a friendly name
+// exists it is qualified with the uid ("Romain Besson (rbesson)") so the email
+// carries both the readable name and the stable identifier; with no friendly
+// name it falls back to the bare uid.
 func userDisplayName(u *ldap.User) string {
-	switch {
-	case u.DisplayName != "":
-		return u.DisplayName
-	case u.GivenName != "" || u.SN != "":
-		return strings.TrimSpace(u.GivenName + " " + u.SN)
-	case u.CN != "":
-		return u.CN
-	default:
-		return u.UID
-	}
+	return labelWithID(userFriendlyName(u.DisplayName, u.GivenName, u.SN, u.CN), u.UID)
 }
 
 // createUserDisplayName picks the friendliest label from a creation request.
 func createUserDisplayName(req ldap.CreateUserRequest) string {
-	switch {
-	case req.DisplayName != "":
-		return req.DisplayName
-	case req.GivenName != "" || req.SN != "":
-		return strings.TrimSpace(req.GivenName + " " + req.SN)
-	case req.CN != "":
-		return req.CN
-	default:
-		return req.UID
+	return labelWithID(userFriendlyName(req.DisplayName, req.GivenName, req.SN, req.CN), req.UID)
+}
+
+// userNameDetails does a best-effort lookup of a user so an audit entry that
+// carries no field diff (lock/unlock/delete) can still name the resource as
+// "displayName (uid)" in the notification. The lookup happens before the
+// mutation, so the entry still exists. A failed read yields nil — the mutation
+// and its audit row must never depend on it.
+func (s *Server) userNameDetails(dn string) map[string]interface{} {
+	if before, err := s.ldapClient.GetUser(dn); err == nil && before != nil {
+		return map[string]interface{}{audit.DetailsKeyResourceName: userDisplayName(before)}
 	}
+	return nil
+}
+
+// userFriendlyName returns the best human-readable name for a user from the
+// available name attributes, or "" when none is set.
+func userFriendlyName(displayName, givenName, sn, cn string) string {
+	switch {
+	case displayName != "":
+		return displayName
+	case givenName != "" || sn != "":
+		return strings.TrimSpace(givenName + " " + sn)
+	case cn != "":
+		return cn
+	default:
+		return ""
+	}
+}
+
+// labelWithID renders a resource label as "friendly (id)" when a friendly name
+// is present and distinct from the identifier, otherwise just the identifier.
+// It is the shared shape for audit subjects: "displayName (uid)" for users,
+// "description (cn)" for groups.
+func labelWithID(friendly, id string) string {
+	if friendly == "" || friendly == id {
+		return id
+	}
+	return fmt.Sprintf("%s (%s)", friendly, id)
 }
 
 // userCreateFields produces the "field: value" dump shown in the creation
