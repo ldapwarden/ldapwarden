@@ -7,12 +7,25 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 
 export const Route = createFileRoute('/login')({
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
+  }),
   component: LoginPage,
 })
+
+// safeRedirect guards against open-redirect: only same-origin absolute paths
+// ("/users", "/groups/…") are honoured, never "//evil.com" or "https://…".
+function safeRedirect(target: string | undefined): string {
+  if (target && target.startsWith('/') && !target.startsWith('//')) {
+    return target
+  }
+  return '/'
+}
 
 function LoginPage() {
   const { login, isAuthenticated } = useAuth()
   const router = useRouter()
+  const { redirect } = Route.useSearch()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -20,9 +33,9 @@ function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.navigate({ to: '/' })
+      router.navigate({ to: safeRedirect(redirect) })
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, redirect, router])
 
   if (isAuthenticated) {
     return null

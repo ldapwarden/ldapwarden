@@ -1,4 +1,4 @@
-import { createRootRouteWithContext, Outlet, Link, useRouter } from '@tanstack/react-router'
+import { createRootRouteWithContext, Outlet, Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { encodeDN } from '@/lib/utils'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
@@ -38,7 +38,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 
 interface RouterContext {
   auth: ReturnType<typeof useAuth>
@@ -98,6 +98,21 @@ function RootComponent() {
     },
   })
 
+  // Public routes render without a session; everything else is protected.
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isPublicRoute = pathname === '/login' || pathname.startsWith('/reset-password')
+
+  // When the session ends mid-visit (expiry or server-side revocation), a 401
+  // clears the auth state via onAuthError. Route beforeLoad guards only run on
+  // navigation, so without this a user sitting on a protected page would be
+  // stranded on a chrome-less error screen instead of the login page. Redirect
+  // them explicitly, preserving where they were so login can send them back.
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !isPublicRoute) {
+      router.navigate({ to: '/login', search: { redirect: pathname } })
+    }
+  }, [isLoading, isAuthenticated, isPublicRoute, pathname, router])
+
   const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword
   const passwordsDontMatch = newPassword && confirmPassword && newPassword !== confirmPassword
 
@@ -117,6 +132,16 @@ function RootComponent() {
   }
 
   if (!isAuthenticated) {
+    // Public routes (login, password reset) render normally. On a protected
+    // route the effect above is navigating to /login — show the spinner rather
+    // than briefly rendering the now-unauthenticated page's error state.
+    if (!isPublicRoute) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      )
+    }
     return <Outlet />
   }
 
