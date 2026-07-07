@@ -33,6 +33,7 @@ services:
       MAIL_USER: ""
       MAIL_PASSWORD: ""
       MAIL_FROM: "noreply@example.org"
+      MAIL_FROM_NAME: ""
       # Bundled stack only: bypasses the production-secrets refusal so the
       # well-known SESSION_SECRET / LDAP_BIND_PASS above keep working. Do NOT
       # set this in a real deployment.

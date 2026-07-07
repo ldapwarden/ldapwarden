@@ -80,6 +80,19 @@ func TestBuildMessage_AcceptsCleanInputs(t *testing.T) {
 	}
 }
 
+// TestBuildMessage_FromName checks the optional display name is rendered as
+// "Name <addr>" in the From header, while a bare address is left untouched.
+func TestBuildMessage_FromName(t *testing.T) {
+	m := NewMailer(&config.MailConfig{From: "noreply@example.org", FromName: "LDAP Warden"}, "Example", "https://ldap.example.org")
+	msg, err := m.buildMessage("victim@example.org", "Hello world", "<p>body</p>")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := "From: \"LDAP Warden\" <noreply@example.org>\r\n"; !strings.Contains(string(msg), want) {
+		t.Errorf("From header = %q, want it to contain %q", string(msg), want)
+	}
+}
+
 func TestAuditSubject(t *testing.T) {
 	cases := []struct {
 		action    string

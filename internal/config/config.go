@@ -54,6 +54,7 @@ type MailConfig struct {
 	User     string
 	Password string
 	From     string
+	FromName string // optional display name for the From header
 	SSL      string // "none", "starttls", "ssl"
 }
 
@@ -140,6 +141,7 @@ func Load() *Config {
 			User:     getEnv("MAIL_USER", ""),
 			Password: getEnv("MAIL_PASSWORD", ""),
 			From:     getEnv("MAIL_FROM", "noreply@example.org"),
+			FromName: getEnv("MAIL_FROM_NAME", ""),
 			SSL:      getEnv("MAIL_SSL", "none"),
 		},
 		ScheduledTasks: ScheduledTasksConfig{

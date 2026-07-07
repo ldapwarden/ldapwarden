@@ -267,6 +267,7 @@ issue in a single startup failure.
 | `MAIL_USER` | SMTP username | (empty) |
 | `MAIL_PASSWORD` | SMTP password | (empty) |
 | `MAIL_FROM` | Sender email address | `noreply@example.org` |
+| `MAIL_FROM_NAME` | Optional sender display name (e.g. `LDAP Warden`) | (empty) |
 | `MAIL_SSL` | SSL mode: `none`, `starttls`, or `ssl` | `none` |
 
 ### Scheduled Tasks

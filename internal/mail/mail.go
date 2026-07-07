@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"strings"
 	"time"
@@ -379,13 +380,20 @@ func (m *Mailer) sendEmail(to, subject, htmlBody string) error {
 }
 
 func (m *Mailer) buildMessage(to, subject, htmlBody string) ([]byte, error) {
-	for _, h := range []string{m.config.From, to, subject} {
+	for _, h := range []string{m.config.From, m.config.FromName, to, subject} {
 		if err := validateHeaderValue(h); err != nil {
 			return nil, err
 		}
 	}
+	// Only the From header carries the optional display name ("Name <addr>");
+	// mail.Address.String() handles quoting and RFC 2047 encoding of the name.
+	// The SMTP envelope sender (client.Mail) always uses the bare address.
+	fromHeader := m.config.From
+	if m.config.FromName != "" {
+		fromHeader = (&mail.Address{Name: m.config.FromName, Address: m.config.From}).String()
+	}
 	var msg bytes.Buffer
-	msg.WriteString(fmt.Sprintf("From: %s\r\n", m.config.From))
+	msg.WriteString(fmt.Sprintf("From: %s\r\n", fromHeader))
 	msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
 	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
 	msg.WriteString("MIME-Version: 1.0\r\n")
