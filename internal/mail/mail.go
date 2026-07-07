@@ -138,6 +138,9 @@ type auditEmailData struct {
 	ResourceDN  string
 	IPAddress   string
 	UserAgent   string
+	// Accent is the hex colour keyed to the action category (create/delete/
+	// lock/…); it tints the header's top border so the action reads at a glance.
+	Accent string
 }
 
 // SendAuditNotification sends a per-change audit email to each recipient.
@@ -180,7 +183,8 @@ func (m *Mailer) SendAuditNotification(
 		ActorDN:      actorDN,
 		ResourceDN:   resourceDN,
 		IPAddress:    ipAddress,
-		UserAgent:    userAgent,
+		UserAgent:    humanizeUserAgent(userAgent),
+		Accent:       auditAccent(action),
 	}
 
 	body, err := m.renderTemplate(auditNotificationTemplate, data)
@@ -228,6 +232,108 @@ func auditSubject(action, typeLabel, name string) string {
 	default:
 		return fmt.Sprintf("Modification of %s", name)
 	}
+}
+
+// auditAccent maps an action to a hex colour used for the header's top border,
+// so the action category (creation, deletion, lockout, …) reads at a glance.
+// The colours double as a semantic signal: green creates, red deletes, amber
+// lockouts, teal reinstatements, violet membership, blue everything else.
+func auditAccent(action string) string {
+	switch {
+	case strings.HasSuffix(action, ".create"):
+		return "#059669" // green
+	case strings.HasSuffix(action, ".delete"):
+		return "#dc2626" // red
+	case action == "user.lock":
+		return "#d97706" // amber
+	case action == "user.unlock":
+		return "#0d9488" // teal
+	case strings.Contains(action, "member"):
+		return "#7c3aed" // violet
+	default:
+		return "#2563eb" // blue
+	}
+}
+
+// humanizeUserAgent turns a raw User-Agent string into a short "Browser N · OS"
+// label for the notification. Best-effort: an unrecognised agent falls back to
+// the raw string so no information is lost.
+func humanizeUserAgent(ua string) string {
+	if ua == "" {
+		return ""
+	}
+	browser, os := uaBrowser(ua), uaOS(ua)
+	switch {
+	case browser != "" && os != "":
+		return browser + " · " + os
+	case browser != "":
+		return browser
+	case os != "":
+		return os
+	default:
+		return ua
+	}
+}
+
+// uaBrowser returns the browser and its major version ("Firefox 152"). Order
+// matters: Edge and Opera user agents also contain "Chrome", and Safari's
+// contains "Version".
+func uaBrowser(ua string) string {
+	switch {
+	case strings.Contains(ua, "Edg/"):
+		return joinVersion("Edge", uaMajorVersion(ua, "Edg/"))
+	case strings.Contains(ua, "OPR/"):
+		return joinVersion("Opera", uaMajorVersion(ua, "OPR/"))
+	case strings.Contains(ua, "Firefox/"):
+		return joinVersion("Firefox", uaMajorVersion(ua, "Firefox/"))
+	case strings.Contains(ua, "Chrome/"):
+		return joinVersion("Chrome", uaMajorVersion(ua, "Chrome/"))
+	case strings.Contains(ua, "Version/") && strings.Contains(ua, "Safari/"):
+		return joinVersion("Safari", uaMajorVersion(ua, "Version/"))
+	}
+	return ""
+}
+
+// uaOS returns a friendly OS name. Android must be tested before Linux (its UA
+// carries both) and the mobile Apple devices before generic macOS heuristics.
+func uaOS(ua string) string {
+	switch {
+	case strings.Contains(ua, "Windows NT"):
+		return "Windows"
+	case strings.Contains(ua, "CrOS"):
+		return "ChromeOS"
+	case strings.Contains(ua, "Android"):
+		return "Android"
+	case strings.Contains(ua, "iPhone"), strings.Contains(ua, "iPad"):
+		return "iOS"
+	case strings.Contains(ua, "Mac OS X"), strings.Contains(ua, "Macintosh"):
+		return "macOS"
+	case strings.Contains(ua, "Linux"):
+		return "Linux"
+	}
+	return ""
+}
+
+// uaMajorVersion reads the digits immediately following token (up to the first
+// non-digit), i.e. the major version. Returns "" when token is absent.
+func uaMajorVersion(ua, token string) string {
+	i := strings.Index(ua, token)
+	if i < 0 {
+		return ""
+	}
+	rest := ua[i+len(token):]
+	j := 0
+	for j < len(rest) && rest[j] >= '0' && rest[j] <= '9' {
+		j++
+	}
+	return rest[:j]
+}
+
+func joinVersion(name, ver string) string {
+	if ver == "" {
+		return name
+	}
+	return name + " " + ver
 }
 
 // auditSummary is the one-line description shown when there is no field-level
@@ -733,7 +839,7 @@ const auditNotificationTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header" style="border-top: 5px solid {{.Accent}};">
         <h1>{{.Subject}}</h1>
         <p class="sub">Audit notification{{if .Organization}} &middot; {{.Organization}}{{end}}</p>
     </div>

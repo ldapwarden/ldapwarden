@@ -77,6 +77,8 @@ func TestDumpPreview(t *testing.T) {
 			ActorDN:      "uid=prodige,ou=people,dc=anyware,dc=corp",
 			ResourceDN:   s.dn,
 			IPAddress:    "10.0.0.42",
+			UserAgent:    humanizeUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:152.0) Gecko/20100101 Firefox/152.0"),
+			Accent:       auditAccent(s.action),
 		}
 		body, err := m.renderTemplate(auditNotificationTemplate, data)
 		if err != nil {

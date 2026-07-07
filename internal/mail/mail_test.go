@@ -115,6 +115,39 @@ func TestAuditSubject(t *testing.T) {
 	}
 }
 
+func TestHumanizeUserAgent(t *testing.T) {
+	cases := map[string]string{
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:152.0) Gecko/20100101 Firefox/152.0":                                                     "Firefox 152 · macOS",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36":                           "Chrome 126 · Windows",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0":             "Edge 126 · Windows",
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15":                     "Safari 17 · macOS",
+		"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36":                     "Chrome 126 · Android",
+		"curl/8.4.0": "curl/8.4.0", // unrecognised → raw fallback
+		"":           "",
+	}
+	for ua, want := range cases {
+		if got := humanizeUserAgent(ua); got != want {
+			t.Errorf("humanizeUserAgent(%q) = %q, want %q", ua, got, want)
+		}
+	}
+}
+
+func TestAuditAccent(t *testing.T) {
+	cases := map[string]string{
+		"user.create":      "#059669",
+		"group.delete":     "#dc2626",
+		"user.lock":        "#d97706",
+		"user.unlock":      "#0d9488",
+		"group.member.add": "#7c3aed",
+		"user.update":      "#2563eb",
+	}
+	for action, want := range cases {
+		if got := auditAccent(action); got != want {
+			t.Errorf("auditAccent(%q) = %q, want %q", action, got, want)
+		}
+	}
+}
+
 func TestRDNValue(t *testing.T) {
 	cases := map[string]string{
 		"uid=jdoe,ou=people,dc=example,dc=org": "jdoe",
