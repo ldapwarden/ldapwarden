@@ -81,7 +81,11 @@ func (s *Server) handleSendPasswordReset(w http.ResponseWriter, r *http.Request)
 	// sent, so an audit-DB hiccup cannot let a reset link leave the building
 	// without a trail.
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "password_reset_sent", "email": user.Mail}) {
+		map[string]interface{}{
+			"action":                     "password_reset_sent",
+			"email":                      user.Mail,
+			audit.DetailsKeyResourceName: userDisplayName(user),
+		}) {
 		return
 	}
 

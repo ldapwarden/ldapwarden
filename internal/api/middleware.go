@@ -165,7 +165,7 @@ func (s *Server) auditMutating(w http.ResponseWriter, r *http.Request, action au
 // without an authenticated session in the context (currently the password
 // reset confirmation flow). Same contract as auditMutating.
 func (s *Server) auditMutatingWithActor(w http.ResponseWriter, r *http.Request, actorDN, actorUID string, action audit.Action, resourceType audit.ResourceType, resourceDN string, details map[string]interface{}) bool {
-	if err := s.auditLogger.LogWithActor(r.Context(), actorDN, actorUID, action, resourceType, resourceDN, details); err != nil {
+	if err := s.auditLogger.LogWithActor(r.Context(), actorDN, actorUID, "", action, resourceType, resourceDN, details); err != nil {
 		writeError(w, http.StatusInternalServerError, "audit unavailable; refusing to mutate")
 		return false
 	}

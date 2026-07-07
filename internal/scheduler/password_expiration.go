@@ -146,7 +146,7 @@ func (s *Scheduler) runPasswordExpirationTask(ctx context.Context, triggeredBy s
 		result.NotificationsSent++
 
 		// Audit log the notification
-		_ = s.auditLog.LogWithActor(ctx, "system", triggeredBy, audit.ActionPasswordExpirationNotification, audit.ResourceUser, user.DN, map[string]interface{}{
+		_ = s.auditLog.LogWithActor(ctx, "system", triggeredBy, "", audit.ActionPasswordExpirationNotification, audit.ResourceUser, user.DN, map[string]interface{}{
 			"userUid":        user.UID,
 			"displayName":    displayName,
 			"expirationDate": expTime.Format(time.RFC3339),

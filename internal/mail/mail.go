@@ -147,7 +147,7 @@ type auditEmailData struct {
 func (m *Mailer) SendAuditNotification(
 	recipients []string,
 	timestamp time.Time,
-	actorUID, actorDN string,
+	actorUID, actorName, actorDN string,
 	action, resourceType, resourceDN, resourceName string,
 	changes []map[string]string,
 	details map[string]interface{},
@@ -157,7 +157,7 @@ func (m *Mailer) SendAuditNotification(
 		return nil
 	}
 
-	actor := displayActor(actorUID, actorDN)
+	actor := displayActor(actorName, actorUID, actorDN)
 	typeLabel := humanResourceType(resourceType)
 	name := resourceName
 	if name == "" {
@@ -327,14 +327,27 @@ func detailString(details map[string]interface{}, key string) string {
 	return ""
 }
 
-func displayActor(uid, dn string) string {
+// displayActor formats the actor for the notification: the friendly name
+// qualified with the uid ("Lionel Porcheron (lionel)") when a display name is
+// available, otherwise the bare uid, then the DN, then "unknown".
+func displayActor(name, uid, dn string) string {
 	if uid != "" {
-		return uid
+		return nameWithUID(name, uid)
 	}
 	if dn != "" {
 		return dn
 	}
 	return "unknown"
+}
+
+// nameWithUID renders "name (uid)" when name is set and distinct from uid,
+// otherwise the bare uid. Mirrors the resource-name format built by the API
+// layer (this package deliberately stays free of an api/audit import).
+func nameWithUID(name, uid string) string {
+	if name == "" || name == uid {
+		return uid
+	}
+	return fmt.Sprintf("%s (%s)", name, uid)
 }
 
 // SendPasswordExpirationNotification sends password expiration warnings to users
@@ -710,7 +723,7 @@ const auditNotificationTemplate = `<!DOCTYPE html>
         .arrow { color: #9ca3af; padding: 0 6px; }
         .muted { color: #9ca3af; }
         .badge { display: inline-block; background: #e5e7eb; color: #374151; font-size: 12px; padding: 2px 8px; border-radius: 9999px; }
-        .btn-wrap { margin: 6px 0 18px; }
+        .btn-wrap { margin: 18px 0; text-align: center; }
         .button { display: inline-block; background: #3b82f6; color: #ffffff; padding: 11px 22px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; }
         table.meta { width: 100%; border-collapse: collapse; margin: 8px 0 0; }
         table.meta td { padding: 5px 8px; border-top: 1px solid #e5e7eb; vertical-align: top; font-size: 12px; color: #6b7280; }
@@ -722,7 +735,7 @@ const auditNotificationTemplate = `<!DOCTYPE html>
 <body>
     <div class="header">
         <h1>{{.Subject}}</h1>
-        <p class="sub">{{.Organization}}{{if .Actor}} &middot; by {{.Actor}}{{end}}</p>
+        <p class="sub">Audit notification{{if .Organization}} &middot; {{.Organization}}{{end}}</p>
     </div>
     <div class="content">
         {{if .HasChanges}}
@@ -738,7 +751,7 @@ const auditNotificationTemplate = `<!DOCTYPE html>
             {{end}}
         </table>
         {{else}}
-        <p class="summary">The following changes were made by <strong>{{.Actor}}</strong>:</p>
+        <p class="summary">The following changes were made:</p>
         <table class="changes">
             <tr><th>Field</th><th>Change</th></tr>
             {{range .Changes}}
@@ -754,18 +767,19 @@ const auditNotificationTemplate = `<!DOCTYPE html>
         {{else}}
         <p class="summary">{{.Summary}}</p>
         {{end}}
-        {{if .DetailsURL}}
-        <div class="btn-wrap">
-            <a href="{{.DetailsURL}}" class="button">View details</a>
-        </div>
-        {{end}}
         <table class="meta">
             <tr><td class="k">When</td><td class="v">{{.Timestamp}}</td></tr>
+            {{if .Actor}}<tr><td class="k">Performed by</td><td class="v">{{.Actor}}</td></tr>{{end}}
             <tr><td class="k">Actor DN</td><td class="v">{{.ActorDN}}</td></tr>
             {{if .ResourceDN}}<tr><td class="k">Resource DN</td><td class="v">{{.ResourceDN}}</td></tr>{{end}}
             {{if .IPAddress}}<tr><td class="k">IP address</td><td class="v">{{.IPAddress}}</td></tr>{{end}}
             {{if .UserAgent}}<tr><td class="k">User agent</td><td class="v">{{.UserAgent}}</td></tr>{{end}}
         </table>
+        {{if .DetailsURL}}
+        <div class="btn-wrap">
+            <a href="{{.DetailsURL}}" class="button">View details</a>
+        </div>
+        {{end}}
         <div class="footer">
             <p>This is an automated audit notification from {{.Organization}}. Please do not reply to this email.</p>
         </div>

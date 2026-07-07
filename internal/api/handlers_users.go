@@ -241,7 +241,7 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": action, "expirationDate": req.ExpirationDate}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": action, "expirationDate": req.ExpirationDate})) {
 		return
 	}
 
@@ -274,7 +274,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "password_change"}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": "password_change"})) {
 		return
 	}
 
@@ -296,7 +296,7 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "password_remove"}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": "password_remove"})) {
 		return
 	}
 
@@ -326,7 +326,7 @@ func (s *Server) handleSetSSHKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "ssh_keys_update", "keyCount": len(req.Keys)}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": "ssh_keys_update", "keyCount": len(req.Keys)})) {
 		return
 	}
 
@@ -360,7 +360,7 @@ func (s *Server) handleAddSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "ssh_key_add"}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": "ssh_key_add"})) {
 		return
 	}
 
@@ -394,7 +394,7 @@ func (s *Server) handleRemoveSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "ssh_key_remove"}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": "ssh_key_remove"})) {
 		return
 	}
 
@@ -421,7 +421,7 @@ func (s *Server) handleUpdateUserSamba(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "samba_update"}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": "samba_update"})) {
 		return
 	}
 
@@ -478,7 +478,7 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn,
-		map[string]interface{}{"action": "shadow_update"}) {
+		s.userActionDetails(dn, map[string]interface{}{"action": "shadow_update"})) {
 		return
 	}
 
@@ -489,6 +489,19 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, user)
+}
+
+// userActionDetails builds the audit details map for a user sub-action
+// (password reset, SSH keys, Samba, shadow, …) that records a generic
+// user.update. It attaches a best-effort friendly resource name so the
+// notification reads "Alexandre Duffez (aduffez)" rather than the bare uid,
+// then merges the action-specific fields. A failed lookup simply omits the
+// name and the mailer falls back to the RDN.
+func (s *Server) userActionDetails(dn string, extra map[string]interface{}) map[string]interface{} {
+	if before, err := s.ldapClient.GetUser(dn); err == nil && before != nil {
+		extra[audit.DetailsKeyResourceName] = userDisplayName(before)
+	}
+	return extra
 }
 
 // userDisplayName picks the most human-friendly label available for a user,

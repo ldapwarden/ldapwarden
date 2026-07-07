@@ -19,7 +19,7 @@ type Notifier interface {
 	SendAuditNotification(
 		recipients []string,
 		timestamp time.Time,
-		actorUID, actorDN string,
+		actorUID, actorName, actorDN string,
 		action, resourceType, resourceDN, resourceName string,
 		changes []map[string]string,
 		details map[string]interface{},
@@ -179,10 +179,14 @@ func (l *Logger) Log(ctx context.Context, action Action, resourceType ResourceTy
 		return fmt.Errorf("no session in context")
 	}
 
-	return l.LogWithActor(ctx, session.UserDN, session.UserUID, action, resourceType, resourceDN, details)
+	return l.LogWithActor(ctx, session.UserDN, session.UserUID, session.DisplayName, action, resourceType, resourceDN, details)
 }
 
-func (l *Logger) LogWithActor(ctx context.Context, actorDN, actorUID string, action Action, resourceType ResourceType, resourceDN string, details map[string]interface{}) error {
+// LogWithActor records an audit entry for an explicit actor. actorName is the
+// actor's human-readable display name (may be empty); it is not persisted (the
+// DN and uid are the stored identity) but is forwarded to the notifier so the
+// email can read "Performed by: Lionel Porcheron (lionel)".
+func (l *Logger) LogWithActor(ctx context.Context, actorDN, actorUID, actorName string, action Action, resourceType ResourceType, resourceDN string, details map[string]interface{}) error {
 	detailsJSON, _ := json.Marshal(details)
 	info := RequestInfoFromContext(ctx)
 
@@ -212,7 +216,7 @@ func (l *Logger) LogWithActor(ctx context.Context, actorDN, actorUID string, act
 		return fmt.Errorf("insert audit log: %w", err)
 	}
 
-	l.maybeNotify(action, actorDN, actorUID, resourceType, resourceDN, details, info)
+	l.maybeNotify(action, actorDN, actorUID, actorName, resourceType, resourceDN, details, info)
 
 	return nil
 }
@@ -220,7 +224,7 @@ func (l *Logger) LogWithActor(ctx context.Context, actorDN, actorUID string, act
 // maybeNotify dispatches an audit-notification email for modification actions
 // when recipients are configured. The send runs in a goroutine so SMTP latency
 // never blocks the calling HTTP handler; failures are logged.
-func (l *Logger) maybeNotify(action Action, actorDN, actorUID string, resourceType ResourceType, resourceDN string, details map[string]interface{}, info RequestInfo) {
+func (l *Logger) maybeNotify(action Action, actorDN, actorUID, actorName string, resourceType ResourceType, resourceDN string, details map[string]interface{}, info RequestInfo) {
 	if l.notifier == nil || len(l.notifyRecipients) == 0 {
 		return
 	}
@@ -249,7 +253,7 @@ func (l *Logger) maybeNotify(action Action, actorDN, actorUID string, resourceTy
 		if err := l.notifier.SendAuditNotification(
 			recipients,
 			timestamp,
-			actorUID, actorDN,
+			actorUID, actorName, actorDN,
 			string(action), string(resourceType), resourceDN, resourceName,
 			changes,
 			details,

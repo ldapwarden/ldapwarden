@@ -26,13 +26,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		// unknown (auth failed before we could resolve it) so we leave it
 		// blank; the recorded actor_uid lets operators correlate brute-force
 		// attempts with the rate-limit middleware's 429s.
-		_ = s.auditLogger.LogWithActor(r.Context(), "", req.Username,
+		_ = s.auditLogger.LogWithActor(r.Context(), "", req.Username, "",
 			audit.ActionLoginFailed, audit.ResourceUser, "", nil)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
-	_ = s.auditLogger.LogWithActor(r.Context(), resp.Session.UserDN, resp.Session.UserUID,
+	_ = s.auditLogger.LogWithActor(r.Context(), resp.Session.UserDN, resp.Session.UserUID, resp.Session.DisplayName,
 		audit.ActionLogin, audit.ResourceUser, resp.Session.UserDN, nil)
 
 	s.setSessionCookie(w, resp.Token)
@@ -53,7 +53,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if session != nil {
-		_ = s.auditLogger.LogWithActor(r.Context(), session.UserDN, session.UserUID,
+		_ = s.auditLogger.LogWithActor(r.Context(), session.UserDN, session.UserUID, session.DisplayName,
 			audit.ActionLogout, audit.ResourceUser, session.UserDN, nil)
 	}
 
@@ -112,7 +112,10 @@ func (s *Server) handleChangeMyPassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, session.UserDN,
-		map[string]interface{}{"action": "self_password_change"}) {
+		map[string]interface{}{
+			"action":                     "self_password_change",
+			audit.DetailsKeyResourceName: labelWithID(session.DisplayName, session.UserUID),
+		}) {
 		return
 	}
 

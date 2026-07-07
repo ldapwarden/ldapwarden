@@ -147,7 +147,7 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 		}
 
 		// Audit log the notification
-		_ = s.auditLog.LogWithActor(ctx, "system", triggeredBy, audit.ActionAccountExpirationNotification, audit.ResourceUser, user.DN, map[string]interface{}{
+		_ = s.auditLog.LogWithActor(ctx, "system", triggeredBy, "", audit.ActionAccountExpirationNotification, audit.ResourceUser, user.DN, map[string]interface{}{
 			"userUid":        user.UID,
 			"displayName":    displayName,
 			"expirationDate": expTime.Format(time.RFC3339),

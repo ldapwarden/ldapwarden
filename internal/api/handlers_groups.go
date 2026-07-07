@@ -232,7 +232,7 @@ func (s *Server) handleUpdateGroupSamba(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !s.auditMutating(w, r, audit.ActionGroupUpdate, audit.ResourceGroup, dn,
-		map[string]interface{}{"action": "samba_update"}) {
+		s.groupActionDetails(dn, map[string]interface{}{"action": "samba_update"})) {
 		return
 	}
 
@@ -277,6 +277,16 @@ func (s *Server) groupNameDetails(dn string) map[string]interface{} {
 		return map[string]interface{}{audit.DetailsKeyResourceName: groupDisplayName(before)}
 	}
 	return nil
+}
+
+// groupActionDetails is the group counterpart of userActionDetails: it attaches
+// a best-effort friendly resource name to a group sub-action (Samba) that logs
+// a generic group.update, then merges the action-specific fields.
+func (s *Server) groupActionDetails(dn string, extra map[string]interface{}) map[string]interface{} {
+	if before, err := s.ldapClient.GetGroup(dn); err == nil && before != nil {
+		extra[audit.DetailsKeyResourceName] = groupDisplayName(before)
+	}
+	return extra
 }
 
 // groupDisplayName picks the most human-friendly label for a group. When a
