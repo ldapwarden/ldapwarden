@@ -192,6 +192,30 @@ func (c *Client) GetUserByUID(uid string) (*User, error) {
 	return &user, nil
 }
 
+// GetUserByLogin resolves the identifier typed on the login form, which may be
+// either a uid or an email address. The value is escaped and matched against
+// both attributes; on the rare chance the directory returns more than one
+// entry (a duplicate mail) the match is rejected as ambiguous rather than
+// binding as an arbitrary account.
+func (c *Client) GetUserByLogin(login string) (*User, error) {
+	escaped := ldap.EscapeFilter(login)
+	filter := fmt.Sprintf("(|(uid=%s)(mail=%s))", escaped, escaped)
+	entries, err := c.Search(c.UserBaseDN(), filter, defaultUserAttributes)
+	if err != nil {
+		return nil, err
+	}
+
+	switch len(entries) {
+	case 0:
+		return nil, fmt.Errorf("user not found: %s", login)
+	case 1:
+		user := entryToUser(entries[0])
+		return &user, nil
+	default:
+		return nil, fmt.Errorf("ambiguous login %q matches multiple users", login)
+	}
+}
+
 func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 	if req.CN == "" {
 		req.CN = fmt.Sprintf("%s %s", req.GivenName, req.SN)

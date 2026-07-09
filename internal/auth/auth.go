@@ -63,7 +63,8 @@ type LoginResponse struct {
 }
 
 func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginResponse, error) {
-	user, err := s.ldapClient.GetUserByUID(req.Username)
+	// The login form accepts either a uid or an email address.
+	user, err := s.ldapClient.GetUserByLogin(req.Username)
 	if err != nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
