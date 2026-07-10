@@ -1,3 +1,4 @@
+import { InlineSpinner } from '@/components/inline-spinner'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -166,9 +167,7 @@ function AuditLogsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <InlineSpinner />
       ) : (
         <>
           <div className="border rounded-lg">
@@ -189,7 +188,7 @@ function AuditLogsPage() {
                       {formatDate(log.createdAt)}
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium">{log.actorUid}</span>
+                      <span className="font-medium" title={log.actorDn || undefined}>{log.actorUid}</span>
                     </TableCell>
                     <TableCell>
                       <span

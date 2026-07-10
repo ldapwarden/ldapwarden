@@ -162,7 +162,7 @@ function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username or email"
-                className="placeholder:text-gray-400"
+                className="placeholder:text-gray-500"
                 autoComplete="username"
                 required
                 autoFocus
@@ -176,7 +176,7 @@ function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="placeholder:text-gray-400"
+                className="placeholder:text-gray-500"
                 autoComplete="current-password"
                 required
               />

@@ -1,3 +1,4 @@
+import { InlineSpinner } from '@/components/inline-spinner'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api, type SudoRole } from '@/lib/api'
@@ -164,9 +165,7 @@ function SudoRolesPage() {
       )}
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <InlineSpinner />
       ) : (
         <div className="border rounded-lg">
           <Table>
@@ -210,19 +209,19 @@ function SudoRolesPage() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground" title={role.sudoUser?.join(', ') || undefined}>
                       {role.sudoUser?.length ? role.sudoUser.slice(0, 3).join(', ') : '-'}
                       {role.sudoUser && role.sudoUser.length > 3 && ` +${role.sudoUser.length - 3}`}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground" title={role.sudoHost?.join(', ') || undefined}>
                       {role.sudoHost?.length ? role.sudoHost.slice(0, 2).join(', ') : '-'}
                       {role.sudoHost && role.sudoHost.length > 2 && ` +${role.sudoHost.length - 2}`}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground font-mono">
+                    <span className="text-sm text-muted-foreground font-mono" title={role.sudoCommand?.join(', ') || undefined}>
                       {role.sudoCommand?.length ? role.sudoCommand.slice(0, 2).join(', ') : '-'}
                       {role.sudoCommand && role.sudoCommand.length > 2 && ` +${role.sudoCommand.length - 2}`}
                     </span>

@@ -49,7 +49,7 @@ export function Avatar({
       {src && !hasError ? (
         <img
           src={`data:image/jpeg;base64,${src}`}
-          alt={alt || "Avatar"}
+          alt={alt || fallback || "Avatar"}
           className="aspect-square h-full w-full object-cover"
           onError={() => setHasError(true)}
         />

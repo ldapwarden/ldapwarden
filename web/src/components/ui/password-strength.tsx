@@ -38,8 +38,8 @@ export function PasswordStrength({ password }: { password: string }) {
           strength.score <= 2
             ? 'text-destructive'
             : strength.score <= 4
-              ? 'text-yellow-600'
-              : 'text-green-600'
+              ? 'text-yellow-700 dark:text-yellow-500'
+              : 'text-green-700 dark:text-green-500'
         }`}
       >
         Password strength: {strength.label}

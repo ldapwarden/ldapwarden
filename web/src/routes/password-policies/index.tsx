@@ -1,3 +1,4 @@
+import { InlineSpinner } from '@/components/inline-spinner'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api, type PasswordPolicy } from '@/lib/api'
@@ -175,9 +176,7 @@ function PasswordPoliciesPage() {
       )}
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <InlineSpinner />
       ) : (
         <div className="border rounded-lg">
           <Table>

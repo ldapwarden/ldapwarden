@@ -1,3 +1,4 @@
+import { InlineSpinner } from '@/components/inline-spinner'
 import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -5,6 +6,7 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString } from '@/lib/utils'
 import { useUnsavedChangesPrompt } from '@/lib/form-sync'
+import { useDebounced } from '@/lib/use-debounced'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -110,9 +112,7 @@ function UserDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <InlineSpinner />
     )
   }
 
@@ -270,14 +270,18 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
     queryFn: ({ signal }) => api.users.list(undefined, signal),
   })
 
+  // Debounce the manager search so a large directory isn't re-filtered and
+  // re-sorted on every keystroke.
+  const debouncedManagerSearch = useDebounced(managerSearch)
+
   // Filter users for manager dropdown (exclude current user)
   const availableManagers = useMemo(() => {
     const filtered = allUsers?.data.filter(u => u.dn !== dn) ?? []
 
     // Filter by search
-    const searched = managerSearch
+    const searched = debouncedManagerSearch
       ? filtered.filter(u => {
-          const searchLower = managerSearch.toLowerCase()
+          const searchLower = debouncedManagerSearch.toLowerCase()
           return (
             u.uid.toLowerCase().includes(searchLower) ||
             (u.displayName || u.cn).toLowerCase().includes(searchLower)
@@ -291,7 +295,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
       const bName = (b.displayName || b.cn).toLowerCase()
       return aName.localeCompare(bName)
     })
-  }, [allUsers?.data, dn, managerSearch])
+  }, [allUsers?.data, dn, debouncedManagerSearch])
 
   // Groups the user is NOT a member of
   const availableGroups = useMemo(() => {
