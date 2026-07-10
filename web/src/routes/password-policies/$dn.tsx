@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-ro
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { useSyncedForm, useUnsavedChangesPrompt } from '@/lib/form-sync'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -87,6 +88,30 @@ function PasswordPolicyDetailPage() {
       toast.error(error.message)
     },
   })
+
+  // Populate the form from server data once it loads (and re-sync on refetch
+  // while pristine), and warn before navigating away with unsaved edits.
+  const serverForm = policy && {
+    description: policy.description || '',
+    pwdAttribute: policy.pwdAttribute || 'userPassword',
+    pwdMinAge: policy.pwdMinAge || 0,
+    pwdMaxAge: policy.pwdMaxAge || 0,
+    pwdInHistory: policy.pwdInHistory || 0,
+    pwdCheckQuality: policy.pwdCheckQuality || 0,
+    pwdMinLength: policy.pwdMinLength || 0,
+    pwdExpireWarning: policy.pwdExpireWarning || 0,
+    pwdGraceAuthNLimit: policy.pwdGraceAuthNLimit || 0,
+    pwdLockout: policy.pwdLockout || false,
+    pwdLockoutDuration: policy.pwdLockoutDuration || 0,
+    pwdMaxFailure: policy.pwdMaxFailure || 0,
+    pwdFailureCountInterval: policy.pwdFailureCountInterval || 0,
+    pwdMustChange: policy.pwdMustChange || false,
+    pwdAllowUserChange: policy.pwdAllowUserChange ?? true,
+    pwdSafeModify: policy.pwdSafeModify || false,
+    pwdCheckModule: policy.pwdCheckModule || '',
+  }
+  const isDirty = useSyncedForm(serverForm || undefined, formData, setFormData)
+  useUnsavedChangesPrompt(isDirty)
 
   if (isLoading) {
     return (

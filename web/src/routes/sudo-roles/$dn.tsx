@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN } from '@/lib/utils'
+import { useSyncedForm, useUnsavedChangesPrompt } from '@/lib/form-sync'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -67,6 +68,24 @@ function SudoRoleDetailPage() {
       toast.error(error.message)
     },
   })
+
+  // Populate the form from server data once it loads (and re-sync on refetch
+  // while pristine), and warn before navigating away with unsaved edits.
+  const serverForm = role && {
+    description: role.description || '',
+    sudoUser: role.sudoUser || [],
+    sudoHost: role.sudoHost || [],
+    sudoCommand: role.sudoCommand || [],
+    sudoRunAs: role.sudoRunAs || [],
+    sudoRunAsUser: role.sudoRunAsUser || [],
+    sudoRunAsGroup: role.sudoRunAsGroup || [],
+    sudoOption: role.sudoOption || [],
+    sudoOrder: role.sudoOrder || 0,
+    sudoNotBefore: role.sudoNotBefore || '',
+    sudoNotAfter: role.sudoNotAfter || '',
+  }
+  const isDirty = useSyncedForm(serverForm || undefined, formData, setFormData)
+  useUnsavedChangesPrompt(isDirty)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
