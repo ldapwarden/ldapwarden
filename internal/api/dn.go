@@ -18,6 +18,14 @@ import (
 // tooling that relies on bare uid/cn (shells, sudo, audit log resource DNs).
 var rdnValuePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
+// sudoCNPattern is rdnValuePattern plus '%'. Sudo role names commonly mirror
+// the sudoers group syntax ("%wheel", "%infra"), so the leading percent is
+// legitimate here. '%' is an ordinary character in an LDAP RDN value — it is
+// none of the DN metacharacters (, + = " \ < > ;) the conservative default
+// guards against — and CreateSudoRole still runs it through ldap.EscapeDN, so
+// widening the set for this one field does not open a DN-injection path.
+var sudoCNPattern = regexp.MustCompile(`^[a-zA-Z0-9._%-]+$`)
+
 // validateRDNValue is called at the API boundary whenever a client-supplied
 // UID or CN will become the value of an RDN. Returns a non-nil error when the
 // value is empty or contains characters outside rdnValuePattern.
@@ -27,6 +35,18 @@ func validateRDNValue(field, value string) error {
 	}
 	if !rdnValuePattern.MatchString(value) {
 		return fmt.Errorf("%s must contain only letters, digits, '.', '_' or '-'", field)
+	}
+	return nil
+}
+
+// validateSudoCN validates the cn of a sudo role, which — unlike a user uid or
+// group cn — may carry a '%' to name the role after a sudoers group.
+func validateSudoCN(value string) error {
+	if value == "" {
+		return fmt.Errorf("cn must not be empty")
+	}
+	if !sudoCNPattern.MatchString(value) {
+		return fmt.Errorf("cn must contain only letters, digits, '.', '_', '-' or '%%'")
 	}
 	return nil
 }

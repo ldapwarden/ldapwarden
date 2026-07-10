@@ -70,7 +70,7 @@ func (s *Server) handleCreateSudoRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateRDNValue("cn", req.CN); err != nil {
+	if err := validateSudoCN(req.CN); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
