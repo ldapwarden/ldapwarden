@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString } from '@/lib/utils'
+import { useUnsavedChangesPrompt } from '@/lib/form-sync'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -250,6 +251,8 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [addGroupOpen, setAddGroupOpen] = useState(false)
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
+  // Group pending removal confirmation (drives one controlled dialog).
+  const [confirmRemoveGroup, setConfirmRemoveGroup] = useState<{ dn: string; cn: string } | null>(null)
   const [groupSearch, setGroupSearch] = useState('')
   const [managerDropdownOpen, setManagerDropdownOpen] = useState(false)
   const [managerSearch, setManagerSearch] = useState('')
@@ -355,16 +358,57 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   })
   const [photoChanged, setPhotoChanged] = useState(false)
 
+  // Warn before navigating away with unsaved identity edits. The photo is
+  // tracked separately via photoChanged so we don't stringify a multi-MB base64
+  // on every render for the dirty check.
+  const textFieldsDirty =
+    formData.givenName !== (user.givenName || '') ||
+    formData.sn !== (user.sn || '') ||
+    formData.cn !== (user.cn || '') ||
+    formData.displayName !== (user.displayName || '') ||
+    formData.mail !== (user.mail || '') ||
+    formData.telephoneNumber !== (user.telephoneNumber || '') ||
+    formData.title !== (user.title || '') ||
+    formData.departmentNumber !== (user.departmentNumber || '') ||
+    formData.o !== (user.o || '') ||
+    formData.employeeNumber !== (user.employeeNumber || '') ||
+    formData.employeeType !== (user.employeeType || '') ||
+    formData.initials !== (user.initials || '') ||
+    formData.manager !== (user.manager || '') ||
+    formData.description !== (user.description || '')
+  useUnsavedChangesPrompt(textFieldsDirty || photoChanged)
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    // Reset the input so re-selecting the same file after an error still fires
+    // onChange.
+    e.target.value = ''
     if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file.')
+      return
+    }
+    // The API caps the request body at 10 MiB; base64 inflates by ~33%, so keep
+    // the raw file comfortably under that.
+    const maxBytes = 5 * 1024 * 1024
+    if (file.size > maxBytes) {
+      toast.error('Image is too large (max 5 MB).')
+      return
+    }
 
     const reader = new FileReader()
     reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1]
+      const result = reader.result as string | null
+      const base64 = result?.split(',')[1]
+      if (!base64) {
+        toast.error('Could not read the selected image.')
+        return
+      }
       setFormData({ ...formData, jpegPhoto: base64 })
       setPhotoChanged(true)
     }
+    reader.onerror = () => toast.error('Could not read the selected image.')
     reader.readAsDataURL(file)
   }
 
@@ -836,7 +880,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                       variant="ghost"
                       size="icon"
                       aria-label="Remove from group"
-                      onClick={() => removeFromGroupMutation.mutate(group.dn)}
+                      onClick={() => setConfirmRemoveGroup({ dn: group.dn, cn: group.cn })}
                       disabled={removeFromGroupMutation.isPending}
                     >
                       <UserMinus className="h-4 w-4 text-destructive" />
@@ -851,6 +895,20 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
             </p>
           )}
         </CardContent>
+        <ConfirmDialog
+          open={confirmRemoveGroup !== null}
+          onOpenChange={(open) => { if (!open) setConfirmRemoveGroup(null) }}
+          title="Remove from group"
+          description={`Remove this user from group "${confirmRemoveGroup?.cn}"? They will lose the access this group grants.`}
+          confirmLabel="Remove"
+          pendingLabel="Removing..."
+          error={removeFromGroupMutation.error?.message}
+          isPending={removeFromGroupMutation.isPending}
+          onConfirm={() => {
+            if (confirmRemoveGroup) removeFromGroupMutation.mutate(confirmRemoveGroup.dn)
+            setConfirmRemoveGroup(null)
+          }}
+        />
       </Card>
     </div>
   )

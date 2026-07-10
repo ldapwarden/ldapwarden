@@ -388,6 +388,10 @@ function MembersTab({
   addMemberMutation: ReturnType<typeof useMutation<unknown, Error, string>>
   removeMemberMutation: ReturnType<typeof useMutation<unknown, Error, string>>
 }) {
+  // Confirm before removing a member: the uid being confirmed drives a single
+  // controlled dialog rather than one per row.
+  const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -508,7 +512,7 @@ function MembersTab({
                       variant="ghost"
                       size="icon"
                       aria-label="Remove member"
-                      onClick={() => removeMemberMutation.mutate(uid)}
+                      onClick={() => setConfirmRemoveUid(uid)}
                       disabled={removeMemberMutation.isPending}
                     >
                       <UserMinus className="h-4 w-4 text-destructive" />
@@ -524,6 +528,20 @@ function MembersTab({
           </p>
         )}
       </CardContent>
+      <ConfirmDialog
+        open={confirmRemoveUid !== null}
+        onOpenChange={(open) => { if (!open) setConfirmRemoveUid(null) }}
+        title="Remove member"
+        description={`Remove "${confirmRemoveUid}" from group "${group.cn}"? They will lose the access this group grants.`}
+        confirmLabel="Remove"
+        pendingLabel="Removing..."
+        error={removeMemberMutation.error?.message}
+        isPending={removeMemberMutation.isPending}
+        onConfirm={() => {
+          if (confirmRemoveUid) removeMemberMutation.mutate(confirmRemoveUid)
+          setConfirmRemoveUid(null)
+        }}
+      />
     </Card>
   )
 }

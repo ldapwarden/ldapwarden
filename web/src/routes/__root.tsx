@@ -38,6 +38,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound } from 'lucide-react'
+import { RouteError } from '@/components/route-error'
+import { LoadingScreen } from '@/components/loading-screen'
 import { useState, useMemo, useEffect } from 'react'
 
 interface RouterContext {
@@ -47,7 +49,27 @@ interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
+  errorComponent: RouteError,
 })
+
+const APP_NAME = 'LDAP Warden'
+
+// pageTitle maps the current path to a browser-tab title. Keyed off the first
+// path segment so both list and detail routes of a section share a title.
+function pageTitle(pathname: string): string {
+  const section: Record<string, string> = {
+    users: 'Users',
+    groups: 'Groups',
+    'sudo-roles': 'Sudo Roles',
+    'password-policies': 'Password Policies',
+    'audit-logs': 'Audit Logs',
+    login: 'Sign in',
+    'reset-password': 'Reset password',
+  }
+  const seg = pathname.split('/').filter(Boolean)[0]
+  const label = seg ? section[seg] : undefined
+  return label ? `${label} · ${APP_NAME}` : APP_NAME
+}
 
 function RootComponent() {
   const { isAuthenticated, session, logout, isLoading } = useAuth()
@@ -113,6 +135,13 @@ function RootComponent() {
     }
   }, [isLoading, isAuthenticated, isPublicRoute, pathname, router])
 
+  // Keep the browser tab title in sync with the current section. Centralised
+  // here (keyed off the path) so individual route files don't each have to
+  // manage document.title.
+  useEffect(() => {
+    document.title = pageTitle(pathname)
+  }, [pathname])
+
   const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword
   const passwordsDontMatch = newPassword && confirmPassword && newPassword !== confirmPassword
 
@@ -124,11 +153,7 @@ function RootComponent() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   if (!isAuthenticated) {
@@ -136,11 +161,7 @@ function RootComponent() {
     // route the effect above is navigating to /login — show the spinner rather
     // than briefly rendering the now-unauthenticated page's error state.
     if (!isPublicRoute) {
-      return (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      )
+      return <LoadingScreen />
     }
     return <Outlet />
   }
@@ -217,7 +238,7 @@ function RootComponent() {
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2">
+                <Button variant="ghost" aria-label="Account menu" className="flex items-center gap-2 px-2">
                   <Avatar
                     src={avatar?.jpegPhoto}
                     fallback={session?.displayName}
@@ -282,7 +303,7 @@ function RootComponent() {
                   )}
 
                   {changePasswordMutation.isSuccess && (
-                    <div className="p-3 text-sm text-green-700 bg-green-100 rounded-md">
+                    <div className="p-3 text-sm text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-950 rounded-md">
                       Password changed successfully
                     </div>
                   )}
