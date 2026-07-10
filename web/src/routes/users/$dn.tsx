@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString } from '@/lib/utils'
 import { useUnsavedChangesPrompt } from '@/lib/form-sync'
+import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -455,7 +456,8 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {!canWrite && <ReadOnlyNotice />}
         <Card>
           <CardHeader>
             <CardTitle>Personal Information</CardTitle>

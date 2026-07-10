@@ -19,6 +19,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { ArrowLeft, Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
@@ -116,9 +117,9 @@ function GroupDetailPage() {
     mutationFn: (memberUid: string) => api.groups.addMember(dn, memberUid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['group', dn] })
+      // Keep the dialog open and the search intact, clearing only the current
+      // selection, so several members can be added in a row without reopening.
       setNewMember('')
-      setMemberSearch('')
-      setAddMemberOpen(false)
       toast.success('Member added to group')
     },
     onError: (error: Error) => {
@@ -312,7 +313,8 @@ function InformationTab({
   const [description, setDescription] = useState(group.description || '')
 
   return (
-    <form onSubmit={(e) => onSubmit(e, description)}>
+    <form onSubmit={(e) => onSubmit(e, description)} className="space-y-4">
+      {!canWrite && <ReadOnlyNotice />}
       <Card>
         <CardHeader>
           <CardTitle>Group Information</CardTitle>
@@ -469,7 +471,7 @@ function MembersTab({
                   setNewMember('')
                   setMemberSearch('')
                 }}>
-                  Cancel
+                  Close
                 </Button>
                 <Button
                   onClick={() => addMemberMutation.mutate(newMember)}

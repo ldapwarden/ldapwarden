@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN } from '@/lib/utils'
 import { useSyncedForm, useUnsavedChangesPrompt } from '@/lib/form-sync'
+import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -141,6 +142,7 @@ function SudoRoleDetailPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {!canWrite && <ReadOnlyNotice />}
         {updateMutation.error && (
           <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
             {updateMutation.error.message}
@@ -148,7 +150,7 @@ function SudoRoleDetailPage() {
         )}
 
         {updateMutation.isSuccess && (
-          <div className="p-3 text-sm text-green-700 bg-green-100 rounded-md">
+          <div className="p-3 text-sm text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-950 rounded-md">
             Sudo role updated successfully
           </div>
         )}

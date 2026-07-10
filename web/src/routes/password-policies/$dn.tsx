@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useSyncedForm, useUnsavedChangesPrompt } from '@/lib/form-sync'
+import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -143,27 +144,9 @@ function PasswordPolicyDetailPage() {
             <p className="text-sm text-muted-foreground font-mono">{policy.dn}</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          {canWrite && (
-            <>
-              <Button
-                variant="destructive"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Delete
-              </Button>
-              <Button
-                onClick={() => updateMutation.mutate()}
-                disabled={updateMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-1" />
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </>
-          )}
-        </div>
       </div>
+
+      {!canWrite && <ReadOnlyNotice />}
 
       <div className="grid gap-6">
         <Card>
@@ -453,6 +436,19 @@ function PasswordPolicyDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {canWrite && (
+        <div className="flex justify-between">
+          <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
+          <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+            <Save className="h-4 w-4 mr-1" />
+            {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
+      )}
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
