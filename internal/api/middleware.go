@@ -2,12 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
+	ldaplib "github.com/go-ldap/ldap/v3"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
@@ -99,11 +101,51 @@ func writeError(w http.ResponseWriter, status int, message string) {
 func writeServerError(w http.ResponseWriter, r *http.Request, action string, err error) {
 	reqID := middleware.GetReqID(r.Context())
 	log.Printf("server error: action=%q requestId=%s err=%v", action, reqID, err)
+
+	// Directory-side errors that the operator can actually act on get a clear,
+	// curated message and a 4xx instead of an opaque 500 — but only a fixed
+	// message keyed off the LDAP result code, never the raw error text (which
+	// can carry DNs and server internals the redaction policy keeps out of
+	// responses).
+	if msg, status, ok := ldapErrorResponse(err); ok {
+		writeError(w, status, msg)
+		return
+	}
+
 	msg := "internal server error"
 	if reqID != "" {
 		msg += " (requestId=" + reqID + ")"
 	}
 	writeError(w, http.StatusInternalServerError, msg)
+}
+
+// ldapErrorResponse maps a directory error to a client-facing message and HTTP
+// status. It returns ok=false for anything that isn't a recognised LDAP result
+// code, so the caller falls back to a generic 500.
+func ldapErrorResponse(err error) (string, int, bool) {
+	var ldapErr *ldaplib.Error
+	if !errors.As(err, &ldapErr) {
+		return "", 0, false
+	}
+	switch ldapErr.ResultCode {
+	case ldaplib.LDAPResultObjectClassViolation,
+		ldaplib.LDAPResultUndefinedAttributeType,
+		ldaplib.LDAPResultInvalidAttributeSyntax:
+		// Typically the required schema (e.g. the sudo schema) is not loaded on
+		// the directory, so an object class or attribute is unknown.
+		return "The directory rejected this change: a required object class or attribute is missing or invalid. " +
+			"The corresponding LDAP schema may not be loaded on the server — ask your directory administrator.", http.StatusUnprocessableEntity, true
+	case ldaplib.LDAPResultNoSuchObject:
+		return "The target container does not exist in the directory. Check that the configured OU (users, groups, sudoers, policies) exists.", http.StatusUnprocessableEntity, true
+	case ldaplib.LDAPResultEntryAlreadyExists:
+		return "An entry with this name already exists in the directory.", http.StatusConflict, true
+	case ldaplib.LDAPResultInsufficientAccessRights:
+		return "The directory denied this operation. The service account may lack permission to make this change.", http.StatusForbidden, true
+	case ldaplib.LDAPResultConstraintViolation:
+		return "The directory rejected this value as violating a constraint (for example a uniqueness or value rule).", http.StatusUnprocessableEntity, true
+	default:
+		return "", 0, false
+	}
 }
 
 // invalidateSessions revokes every live session for dn after a
