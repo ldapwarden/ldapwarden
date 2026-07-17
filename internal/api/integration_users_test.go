@@ -187,7 +187,8 @@ func TestIntegration_Users_CreateDuplicate(t *testing.T) {
 
 	user := createTestUser(t, env, token)
 
-	// Re-create with the same uid → LDAP rejects, handler returns 500.
+	// Re-create with the same uid → LDAP rejects with "entry already exists",
+	// which the handler surfaces as 409 Conflict.
 	resp, _ := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
 		"uid":       user.UID,
 		"givenName": "Dup",
@@ -195,8 +196,8 @@ func TestIntegration_Users_CreateDuplicate(t *testing.T) {
 		"uidNumber": user.UIDNumber + 1,
 		"gidNumber": user.GIDNumber + 1,
 	}, token)
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("duplicate uid: status=%d, want 500", resp.StatusCode)
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("duplicate uid: status=%d, want 409", resp.StatusCode)
 	}
 }
 

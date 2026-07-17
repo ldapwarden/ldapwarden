@@ -135,8 +135,10 @@ func ldapErrorResponse(err error) (string, int, bool) {
 		// the directory, so an object class or attribute is unknown.
 		return "The directory rejected this change: a required object class or attribute is missing or invalid. " +
 			"The corresponding LDAP schema may not be loaded on the server — ask your directory administrator.", http.StatusUnprocessableEntity, true
-	case ldaplib.LDAPResultNoSuchObject:
-		return "The target container does not exist in the directory. Check that the configured OU (users, groups, sudoers, policies) exists.", http.StatusUnprocessableEntity, true
+	// NoSuchObject is deliberately left unmapped: it is ambiguous (missing
+	// parent OU on create vs. an already-deleted target on update/delete) and a
+	// single message would mislead for one of those cases, so it falls through
+	// to the generic 500.
 	case ldaplib.LDAPResultEntryAlreadyExists:
 		return "An entry with this name already exists in the directory.", http.StatusConflict, true
 	case ldaplib.LDAPResultInsufficientAccessRights:
