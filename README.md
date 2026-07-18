@@ -197,6 +197,27 @@ LDAP Warden allows you to customize which features are visible based on your LDA
 - `sudo` — Sudo roles management (requires sudoers schema)
 - `policies` — Password policies (requires ppolicy overlay)
 
+> **Directory schema prerequisites.** The `sudo` and `policies` modules need
+> the corresponding schema loaded **on your LDAP server** — the bundled compose
+> stack loads them automatically, but an existing production directory may not
+> have them. Without it, creating the first sudo role or password policy fails
+> because the `sudoRole` / `pwdPolicy` object class is undefined (LDAP result
+> code 21 "invalid per syntax", surfaced in the UI as "a required object class
+> or attribute is missing"). Load the schema files this repo ships under
+> `ldap/`:
+>
+> ```bash
+> # Sudo roles
+> ldapadd -Y EXTERNAL -H ldapi:/// -f ldap/schema/sudo.ldif
+> # Password policies — enable the ppolicy overlay (skip if already configured).
+> # Most OpenLDAP builds already ship the pwdPolicy schema; if yours doesn't,
+> # load ldap/schema/ppolicy.ldif first.
+> ldapadd -Y EXTERNAL -H ldapi:/// -f ldap/config/ppolicy-overlay.ldif
+> ```
+>
+> These LDIFs target OpenLDAP's `cn=config`. For a different directory server
+> (389-DS, FreeIPA, AD) use that server's equivalent sudo/ppolicy schema.
+
 **`LDAPWARDEN_USERS_OBJECTS`** controls which user attribute tabs appear:
 - `inetOrgPerson` — Identity tab (name, email, phone, etc.)
 - `posixAccount` — POSIX tab (UID, GID, shell, home directory)
