@@ -16,6 +16,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
+import { Checkbox } from '@/components/ui/checkbox'
+import { UsersBulkActions } from '@/components/users-bulk-actions'
 import { Plus, Search, CheckCircle2, Circle, Users, CalendarClock } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
@@ -82,6 +84,7 @@ function UsersPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const debouncedSearch = useDebounced(search)
 
   const { data, isLoading, error } = useQuery({
@@ -128,7 +131,7 @@ function UsersPage() {
     }
   }
 
-  const { sortedUsers, totalFiltered, totalPages, inactiveCount } = useMemo(() => {
+  const { sortedUsers, allUsers, totalFiltered, totalPages, inactiveCount } = useMemo(() => {
     // Search is applied server-side; only the active-status filter remains
     // client-side. Account is inactive if locked OR expired.
     const filtered = data?.data.filter((user) => {
@@ -183,11 +186,35 @@ function UsersPage() {
 
     return {
       sortedUsers: paginatedUsers,
+      allUsers: sorted,
       totalFiltered: sorted.length,
       totalPages,
       inactiveCount,
     }
   }, [data?.data, showInactive, sortField, sortDirection, currentPage, pageSize, userGroupsCount])
+
+  // Selection helpers. Selection is keyed by DN and spans the whole filtered
+  // set (not just the visible page), so "select all" and bulk actions operate
+  // on every matching user.
+  const selectedUsers = useMemo(
+    () => allUsers.filter((u) => selected.has(u.dn)),
+    [allUsers, selected],
+  )
+  const allSelected = allUsers.length > 0 && allUsers.every((u) => selected.has(u.dn))
+  const someSelected = selected.size > 0 && !allSelected
+
+  const toggleOne = (dn: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(dn)) next.delete(dn)
+      else next.add(dn)
+      return next
+    })
+  }
+  const toggleAll = () => {
+    setSelected((prev) => (allUsers.every((u) => prev.has(u.dn)) ? new Set() : new Set(allUsers.map((u) => u.dn))))
+  }
+  const clearSelection = () => setSelected(new Set())
 
   // Reset to first page when search changes
   const handleSearchChange = (value: string) => {
@@ -258,6 +285,14 @@ function UsersPage() {
         </div>
       )}
 
+      {canWrite && (
+        <UsersBulkActions
+          selected={selectedUsers}
+          groups={(groupsRawData ?? []).map((g) => ({ dn: g.dn, cn: g.cn }))}
+          onClear={clearSelection}
+        />
+      )}
+
       {isLoading ? (
         <InlineSpinner />
       ) : (
@@ -265,6 +300,16 @@ function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                {canWrite && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      aria-label="Select all users"
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
+                )}
                 <TableHead>
                   <button
                     className="flex items-center hover:text-foreground"
@@ -315,7 +360,16 @@ function UsersPage() {
             </TableHeader>
             <TableBody>
               {sortedUsers.map((user) => (
-                <TableRow key={user.dn}>
+                <TableRow key={user.dn} data-state={selected.has(user.dn) ? 'selected' : undefined}>
+                  {canWrite && (
+                    <TableCell className="w-10">
+                      <Checkbox
+                        aria-label={`Select ${user.uid}`}
+                        checked={selected.has(user.dn)}
+                        onCheckedChange={() => toggleOne(user.dn)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Link
                       to="/users/$dn"
@@ -395,7 +449,7 @@ function UsersPage() {
               ))}
               {sortedUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={canWrite ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
