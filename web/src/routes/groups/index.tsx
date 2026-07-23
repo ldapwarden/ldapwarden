@@ -1,10 +1,15 @@
 import { InlineSpinner } from '@/components/inline-spinner'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, keepPreviousData, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { runBulk, bulkSummary } from '@/lib/bulk'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { BulkActionBar } from '@/components/bulk-action-bar'
 import {
   Table,
   TableBody,
@@ -14,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, Users } from 'lucide-react'
+import { Plus, Search, Users, Trash2 } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
@@ -36,11 +41,15 @@ export const Route = createFileRoute('/groups/')({
 
 function GroupsPage() {
   const { hasPermission } = useAuth()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState<SortField>('cn')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const debouncedSearch = useDebounced(search)
 
   const { data, isLoading, error } = useQuery({
@@ -60,7 +69,7 @@ function GroupsPage() {
     }
   }
 
-  const { sortedGroups, totalFiltered, totalPages } = useMemo(() => {
+  const { sortedGroups, allGroups, totalFiltered, totalPages } = useMemo(() => {
     // Search is applied server-side; sort and paginate the returned set here.
     const sorted = [...(data?.data ?? [])].sort((a, b) => {
       let aVal: string | number = ''
@@ -96,10 +105,44 @@ function GroupsPage() {
 
     return {
       sortedGroups: paginatedGroups,
+      allGroups: sorted,
       totalFiltered: sorted.length,
       totalPages,
     }
   }, [data?.data, sortField, sortDirection, currentPage, pageSize])
+
+  // Selection spans the whole filtered set (not just the visible page).
+  const selectedGroups = useMemo(() => allGroups.filter((g) => selected.has(g.dn)), [allGroups, selected])
+  const allSelected = allGroups.length > 0 && allGroups.every((g) => selected.has(g.dn))
+  const someSelected = selected.size > 0 && !allSelected
+
+  const toggleOne = (dn: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(dn)) next.delete(dn)
+      else next.add(dn)
+      return next
+    })
+  }
+  const toggleAll = () => {
+    setSelected((prev) => (allGroups.every((g) => prev.has(g.dn)) ? new Set() : new Set(allGroups.map((g) => g.dn))))
+  }
+  const clearSelection = () => setSelected(new Set())
+
+  const bulkDelete = async () => {
+    setDeleting(true)
+    try {
+      const result = await runBulk(selectedGroups, (g) => api.groups.delete(g.dn))
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      const summary = bulkSummary('Deleted', 'group', result)
+      if (result.failed.length === 0) toast.success(summary)
+      else toast.error(`${summary} First error: ${result.failed[0].error}`)
+      clearSelection()
+      setDeleteOpen(false)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   // Reset to first page when search changes
   const handleSearchChange = (value: string) => {
@@ -155,6 +198,26 @@ function GroupsPage() {
         </div>
       )}
 
+      {canWrite && (
+        <BulkActionBar count={selectedGroups.length} onClear={clearSelection}>
+          <Button variant="destructive" size="sm" disabled={deleting} onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
+        </BulkActionBar>
+      )}
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={(open) => { if (!open) setDeleteOpen(false) }}
+        title="Delete groups"
+        description={`Delete ${selectedGroups.length} selected group${selectedGroups.length === 1 ? '' : 's'}? This permanently removes them from the directory and cannot be undone.`}
+        confirmLabel={`Delete ${selectedGroups.length}`}
+        pendingLabel="Deleting..."
+        isPending={deleting}
+        onConfirm={bulkDelete}
+      />
+
       {isLoading ? (
         <InlineSpinner />
       ) : (
@@ -162,6 +225,16 @@ function GroupsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                {canWrite && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      aria-label="Select all groups"
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
+                )}
                 <TableHead>
                   <button
                     className="flex items-center hover:text-foreground"
@@ -202,7 +275,16 @@ function GroupsPage() {
             </TableHeader>
             <TableBody>
               {sortedGroups.map((group) => (
-                <TableRow key={group.dn}>
+                <TableRow key={group.dn} data-state={selected.has(group.dn) ? 'selected' : undefined}>
+                  {canWrite && (
+                    <TableCell className="w-10">
+                      <Checkbox
+                        aria-label={`Select ${group.cn}`}
+                        checked={selected.has(group.dn)}
+                        onCheckedChange={() => toggleOne(group.dn)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Link
                       to="/groups/$dn"
@@ -224,7 +306,7 @@ function GroupsPage() {
               ))}
               {sortedGroups.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={canWrite ? 5 : 4} className="text-center py-8 text-muted-foreground">
                     No groups found
                   </TableCell>
                 </TableRow>
