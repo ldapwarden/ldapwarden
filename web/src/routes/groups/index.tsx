@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, Users, Trash2 } from 'lucide-react'
+import { Plus, Search, Users, Trash2, Upload } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
@@ -168,12 +168,20 @@ function GroupsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Groups</h1>
         {canWrite && (
-          <Link to="/groups/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              New Group
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/groups/import">
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-1" />
+                Import CSV
+              </Button>
+            </Link>
+            <Link to="/groups/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-1" />
+                New Group
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 

@@ -216,6 +216,22 @@ export const UsersResponseSchema = z.object({
   truncated: z.boolean().optional(),
 })
 
+// Result of a bulk CSV import (POST /users/import, /groups/import).
+export const ImportResultSchema = z.object({
+  created: z.number(),
+  failed: z.number(),
+  results: z.array(
+    z.object({
+      index: z.number(),
+      key: z.string(),
+      status: z.enum(['created', 'error']),
+      error: z.string().optional(),
+    }),
+  ),
+})
+export type ImportResult = z.infer<typeof ImportResultSchema>
+export type ImportRow = Record<string, unknown>
+
 export const GroupSchema = z.object({
   dn: z.string(),
   cn: z.string(),
@@ -520,6 +536,9 @@ export const api = {
     delete: (dn: string) =>
       fetchApi(`/users/${encodeURIComponent(dn)}`, { method: 'DELETE' }),
 
+    import: (rows: ImportRow[]) =>
+      fetchApi('/users/import', { method: 'POST', body: JSON.stringify({ rows }) }, ImportResultSchema),
+
     getGroups: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/groups`, {}, GroupsResponseSchema, signal),
 
@@ -626,6 +645,9 @@ export const api = {
 
     delete: (dn: string) =>
       fetchApi(`/groups/${encodeURIComponent(dn)}`, { method: 'DELETE' }),
+
+    import: (rows: ImportRow[]) =>
+      fetchApi('/groups/import', { method: 'POST', body: JSON.stringify({ rows }) }, ImportResultSchema),
 
     addMember: (dn: string, memberUid: string) =>
       fetchApi(`/groups/${encodeURIComponent(dn)}/members`, {

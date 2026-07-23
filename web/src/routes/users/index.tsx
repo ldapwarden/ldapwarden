@@ -18,7 +18,7 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { Checkbox } from '@/components/ui/checkbox'
 import { UsersBulkActions } from '@/components/users-bulk-actions'
-import { Plus, Search, CheckCircle2, Circle, Users, CalendarClock } from 'lucide-react'
+import { Plus, Search, CheckCircle2, Circle, Users, CalendarClock, Upload } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN, parseLdapTimestamp } from '@/lib/utils'
@@ -240,12 +240,20 @@ function UsersPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Users</h1>
         {canWrite && (
-          <Link to="/users/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              New User
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/users/import">
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-1" />
+                Import CSV
+              </Button>
+            </Link>
+            <Link to="/users/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-1" />
+                New User
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 

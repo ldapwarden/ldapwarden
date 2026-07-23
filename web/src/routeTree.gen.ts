@@ -18,6 +18,7 @@ import { Route as SudoRolesIndexRouteImport } from './routes/sudo-roles/index'
 import { Route as PasswordPoliciesIndexRouteImport } from './routes/password-policies/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
 import { Route as UsersNewRouteImport } from './routes/users/new'
+import { Route as UsersImportRouteImport } from './routes/users/import'
 import { Route as UsersDnRouteImport } from './routes/users/$dn'
 import { Route as SudoRolesNewRouteImport } from './routes/sudo-roles/new'
 import { Route as SudoRolesDnRouteImport } from './routes/sudo-roles/$dn'
@@ -25,6 +26,7 @@ import { Route as ResetPasswordTokenRouteImport } from './routes/reset-password.
 import { Route as PasswordPoliciesNewRouteImport } from './routes/password-policies/new'
 import { Route as PasswordPoliciesDnRouteImport } from './routes/password-policies/$dn'
 import { Route as GroupsNewRouteImport } from './routes/groups/new'
+import { Route as GroupsImportRouteImport } from './routes/groups/import'
 import { Route as GroupsDnRouteImport } from './routes/groups/$dn'
 
 const LoginRoute = LoginRouteImport.update({
@@ -72,6 +74,11 @@ const UsersNewRoute = UsersNewRouteImport.update({
   path: '/users/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsersImportRoute = UsersImportRouteImport.update({
+  id: '/users/import',
+  path: '/users/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsersDnRoute = UsersDnRouteImport.update({
   id: '/users/$dn',
   path: '/users/$dn',
@@ -107,6 +114,11 @@ const GroupsNewRoute = GroupsNewRouteImport.update({
   path: '/groups/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GroupsImportRoute = GroupsImportRouteImport.update({
+  id: '/groups/import',
+  path: '/groups/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GroupsDnRoute = GroupsDnRouteImport.update({
   id: '/groups/$dn',
   path: '/groups/$dn',
@@ -119,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/audit-logs': typeof AuditLogsRoute
   '/login': typeof LoginRoute
   '/groups/$dn': typeof GroupsDnRoute
+  '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
@@ -126,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/sudo-roles/$dn': typeof SudoRolesDnRoute
   '/sudo-roles/new': typeof SudoRolesNewRoute
   '/users/$dn': typeof UsersDnRoute
+  '/users/import': typeof UsersImportRoute
   '/users/new': typeof UsersNewRoute
   '/groups/': typeof GroupsIndexRoute
   '/password-policies/': typeof PasswordPoliciesIndexRoute
@@ -138,6 +152,7 @@ export interface FileRoutesByTo {
   '/audit-logs': typeof AuditLogsRoute
   '/login': typeof LoginRoute
   '/groups/$dn': typeof GroupsDnRoute
+  '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
@@ -145,6 +160,7 @@ export interface FileRoutesByTo {
   '/sudo-roles/$dn': typeof SudoRolesDnRoute
   '/sudo-roles/new': typeof SudoRolesNewRoute
   '/users/$dn': typeof UsersDnRoute
+  '/users/import': typeof UsersImportRoute
   '/users/new': typeof UsersNewRoute
   '/groups': typeof GroupsIndexRoute
   '/password-policies': typeof PasswordPoliciesIndexRoute
@@ -158,6 +174,7 @@ export interface FileRoutesById {
   '/audit-logs': typeof AuditLogsRoute
   '/login': typeof LoginRoute
   '/groups/$dn': typeof GroupsDnRoute
+  '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
@@ -165,6 +182,7 @@ export interface FileRoutesById {
   '/sudo-roles/$dn': typeof SudoRolesDnRoute
   '/sudo-roles/new': typeof SudoRolesNewRoute
   '/users/$dn': typeof UsersDnRoute
+  '/users/import': typeof UsersImportRoute
   '/users/new': typeof UsersNewRoute
   '/groups/': typeof GroupsIndexRoute
   '/password-policies/': typeof PasswordPoliciesIndexRoute
@@ -179,6 +197,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/login'
     | '/groups/$dn'
+    | '/groups/import'
     | '/groups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
@@ -186,6 +205,7 @@ export interface FileRouteTypes {
     | '/sudo-roles/$dn'
     | '/sudo-roles/new'
     | '/users/$dn'
+    | '/users/import'
     | '/users/new'
     | '/groups/'
     | '/password-policies/'
@@ -198,6 +218,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/login'
     | '/groups/$dn'
+    | '/groups/import'
     | '/groups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
@@ -205,6 +226,7 @@ export interface FileRouteTypes {
     | '/sudo-roles/$dn'
     | '/sudo-roles/new'
     | '/users/$dn'
+    | '/users/import'
     | '/users/new'
     | '/groups'
     | '/password-policies'
@@ -217,6 +239,7 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/login'
     | '/groups/$dn'
+    | '/groups/import'
     | '/groups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
@@ -224,6 +247,7 @@ export interface FileRouteTypes {
     | '/sudo-roles/$dn'
     | '/sudo-roles/new'
     | '/users/$dn'
+    | '/users/import'
     | '/users/new'
     | '/groups/'
     | '/password-policies/'
@@ -237,6 +261,7 @@ export interface RootRouteChildren {
   AuditLogsRoute: typeof AuditLogsRoute
   LoginRoute: typeof LoginRoute
   GroupsDnRoute: typeof GroupsDnRoute
+  GroupsImportRoute: typeof GroupsImportRoute
   GroupsNewRoute: typeof GroupsNewRoute
   PasswordPoliciesDnRoute: typeof PasswordPoliciesDnRoute
   PasswordPoliciesNewRoute: typeof PasswordPoliciesNewRoute
@@ -244,6 +269,7 @@ export interface RootRouteChildren {
   SudoRolesDnRoute: typeof SudoRolesDnRoute
   SudoRolesNewRoute: typeof SudoRolesNewRoute
   UsersDnRoute: typeof UsersDnRoute
+  UsersImportRoute: typeof UsersImportRoute
   UsersNewRoute: typeof UsersNewRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
   PasswordPoliciesIndexRoute: typeof PasswordPoliciesIndexRoute
@@ -316,6 +342,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsersNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/users/import': {
+      id: '/users/import'
+      path: '/users/import'
+      fullPath: '/users/import'
+      preLoaderRoute: typeof UsersImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/users/$dn': {
       id: '/users/$dn'
       path: '/users/$dn'
@@ -365,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroupsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/groups/import': {
+      id: '/groups/import'
+      path: '/groups/import'
+      fullPath: '/groups/import'
+      preLoaderRoute: typeof GroupsImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/groups/$dn': {
       id: '/groups/$dn'
       path: '/groups/$dn'
@@ -381,6 +421,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditLogsRoute: AuditLogsRoute,
   LoginRoute: LoginRoute,
   GroupsDnRoute: GroupsDnRoute,
+  GroupsImportRoute: GroupsImportRoute,
   GroupsNewRoute: GroupsNewRoute,
   PasswordPoliciesDnRoute: PasswordPoliciesDnRoute,
   PasswordPoliciesNewRoute: PasswordPoliciesNewRoute,
@@ -388,6 +429,7 @@ const rootRouteChildren: RootRouteChildren = {
   SudoRolesDnRoute: SudoRolesDnRoute,
   SudoRolesNewRoute: SudoRolesNewRoute,
   UsersDnRoute: UsersDnRoute,
+  UsersImportRoute: UsersImportRoute,
   UsersNewRoute: UsersNewRoute,
   GroupsIndexRoute: GroupsIndexRoute,
   PasswordPoliciesIndexRoute: PasswordPoliciesIndexRoute,
