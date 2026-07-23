@@ -201,6 +201,55 @@ func (m *Mailer) SendAuditNotification(
 	return nil
 }
 
+// bulkImportSummaryData is the template model for the one-shot email sent after
+// a CSV bulk import (instead of one notification per created entry).
+type bulkImportSummaryData struct {
+	Organization string
+	Subject      string
+	Actor        string
+	Kind         string // "users" or "groups"
+	Created      int
+	Failed       int
+	HasFailures  bool
+	Timestamp    string
+	IPAddress    string
+	UserAgent    string
+}
+
+// SendBulkImportSummary sends a single summary email for a bulk import. It is a
+// no-op when there are no recipients or mail is not configured.
+func (m *Mailer) SendBulkImportSummary(recipients []string, actor, kind string, created, failed int, timestamp time.Time, ipAddress, userAgent string) error {
+	if len(recipients) == 0 {
+		return nil
+	}
+	subject := fmt.Sprintf("Bulk import: %d %s created", created, kind)
+	if failed > 0 {
+		subject += fmt.Sprintf(", %d failed", failed)
+	}
+	data := bulkImportSummaryData{
+		Organization: m.organization,
+		Subject:      subject,
+		Actor:        actor,
+		Kind:         kind,
+		Created:      created,
+		Failed:       failed,
+		HasFailures:  failed > 0,
+		Timestamp:    timestamp.UTC().Format("2006-01-02 15:04:05 MST"),
+		IPAddress:    ipAddress,
+		UserAgent:    humanizeUserAgent(userAgent),
+	}
+	body, err := m.renderTemplate(bulkImportSummaryTemplate, data)
+	if err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+	for _, recipient := range recipients {
+		if err := m.sendEmail(recipient, subject, body); err != nil {
+			return fmt.Errorf("send to %s: %w", recipient, err)
+		}
+	}
+	return nil
+}
+
 func toChangeViews(changes []map[string]string) []auditChangeView {
 	out := make([]auditChangeView, 0, len(changes))
 	for _, c := range changes {
@@ -927,6 +976,49 @@ const passwordExpirationTemplate = `<!DOCTYPE html>
         <p>Please change your password before the expiration date to avoid any disruption to your access.</p>
         <div class="footer">
             <p>This is an automated message from {{.Organization}}. Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>`
+
+const bulkImportSummaryTemplate = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #222; max-width: 640px; margin: 0 auto; padding: 20px; }
+        .header { background: #1a1a2e; color: white; padding: 18px 22px; border-radius: 8px 8px 0 0; border-top: 5px solid #2563eb; }
+        .header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+        .header .sub { margin: 4px 0 0; font-size: 13px; color: #b9bdd4; }
+        .content { background: #f8f9fa; padding: 22px; border-radius: 0 0 8px 8px; }
+        .summary { font-size: 15px; margin: 0 0 18px; }
+        .count { font-weight: 600; }
+        .fail { color: #b91c1c; }
+        table.meta { width: 100%; border-collapse: collapse; margin: 8px 0 0; }
+        table.meta td { padding: 5px 8px; border-top: 1px solid #e5e7eb; vertical-align: top; font-size: 12px; color: #6b7280; }
+        table.meta td.k { width: 130px; font-weight: 600; }
+        table.meta td.v { word-break: break-all; }
+        .footer { margin-top: 18px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{.Subject}}</h1>
+        <p class="sub">Bulk import{{if .Organization}} &middot; {{.Organization}}{{end}}</p>
+    </div>
+    <div class="content">
+        <p class="summary">
+            <span class="count">{{.Created}}</span> {{.Kind}} were created.
+            {{if .HasFailures}}<span class="count fail">{{.Failed}}</span> row(s) failed and were skipped.{{end}}
+        </p>
+        <table class="meta">
+            <tr><td class="k">When</td><td class="v">{{.Timestamp}}</td></tr>
+            {{if .Actor}}<tr><td class="k">Performed by</td><td class="v">{{.Actor}}</td></tr>{{end}}
+            {{if .IPAddress}}<tr><td class="k">IP address</td><td class="v">{{.IPAddress}}</td></tr>{{end}}
+            {{if .UserAgent}}<tr><td class="k">User agent</td><td class="v">{{.UserAgent}}</td></tr>{{end}}
+        </table>
+        <div class="footer">
+            <p>This is an automated audit notification from {{.Organization}}. Individual entries are recorded in the audit log. Please do not reply to this email.</p>
         </div>
     </div>
 </body>

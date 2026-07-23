@@ -105,6 +105,7 @@ func (s *Server) setupRoutes() chi.Router {
 				// avatar; cap higher than the rest of the API.
 				r.Use(maxBodyBytes(photoMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/", s.handleListUsers)
+				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/import", s.handleImportUsers)
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/{dn}", s.handleGetUser)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/", s.handleCreateUser)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Put("/{dn}", s.handleUpdateUser)
@@ -149,6 +150,7 @@ func (s *Server) setupRoutes() chi.Router {
 			r.Route("/groups", func(r chi.Router) {
 				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/", s.handleListGroups)
+				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/import", s.handleImportGroups)
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}", s.handleGetGroup)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/", s.handleCreateGroup)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Put("/{dn}", s.handleUpdateGroup)

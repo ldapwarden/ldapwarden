@@ -70,6 +70,21 @@ func RequestInfoFromContext(ctx context.Context) RequestInfo {
 	return RequestInfo{}
 }
 
+type suppressNotifyCtxKey struct{}
+
+// ContextSuppressingNotify marks ctx so that audit rows logged under it are
+// still written but do NOT trigger a per-change notification email. Used by the
+// bulk-import path, which records one audit row per created entry but sends a
+// single summary email instead of one per row.
+func ContextSuppressingNotify(ctx context.Context) context.Context {
+	return context.WithValue(ctx, suppressNotifyCtxKey{}, true)
+}
+
+func notifySuppressed(ctx context.Context) bool {
+	v, _ := ctx.Value(suppressNotifyCtxKey{}).(bool)
+	return v
+}
+
 type Action string
 
 const (
@@ -216,7 +231,9 @@ func (l *Logger) LogWithActor(ctx context.Context, actorDN, actorUID, actorName 
 		return fmt.Errorf("insert audit log: %w", err)
 	}
 
-	l.maybeNotify(action, actorDN, actorUID, actorName, resourceType, resourceDN, details, info)
+	if !notifySuppressed(ctx) {
+		l.maybeNotify(action, actorDN, actorUID, actorName, resourceType, resourceDN, details, info)
+	}
 
 	return nil
 }
