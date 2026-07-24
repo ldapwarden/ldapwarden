@@ -9,34 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AuditLogsRouteImport } from './routes/audit-logs'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as UsersIndexRouteImport } from './routes/users/index'
-import { Route as SudoRolesIndexRouteImport } from './routes/sudo-roles/index'
-import { Route as PasswordPoliciesIndexRouteImport } from './routes/password-policies/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AuditLogsRouteImport } from './routes/audit-logs'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
-import { Route as UsersNewRouteImport } from './routes/users/new'
-import { Route as UsersImportRouteImport } from './routes/users/import'
-import { Route as UsersDnRouteImport } from './routes/users/$dn'
-import { Route as SudoRolesNewRouteImport } from './routes/sudo-roles/new'
-import { Route as SudoRolesDnRouteImport } from './routes/sudo-roles/$dn'
-import { Route as ResetPasswordTokenRouteImport } from './routes/reset-password.$token'
-import { Route as PasswordPoliciesNewRouteImport } from './routes/password-policies/new'
-import { Route as PasswordPoliciesDnRouteImport } from './routes/password-policies/$dn'
-import { Route as GroupsNewRouteImport } from './routes/groups/new'
-import { Route as GroupsImportRouteImport } from './routes/groups/import'
 import { Route as GroupsDnRouteImport } from './routes/groups/$dn'
+import { Route as GroupsImportRouteImport } from './routes/groups/import'
+import { Route as GroupsNewRouteImport } from './routes/groups/new'
+import { Route as PasswordPoliciesIndexRouteImport } from './routes/password-policies/index'
+import { Route as PasswordPoliciesDnRouteImport } from './routes/password-policies/$dn'
+import { Route as PasswordPoliciesNewRouteImport } from './routes/password-policies/new'
+import { Route as ResetPasswordTokenRouteImport } from './routes/reset-password.$token'
+import { Route as SudoRolesIndexRouteImport } from './routes/sudo-roles/index'
+import { Route as SudoRolesDnRouteImport } from './routes/sudo-roles/$dn'
+import { Route as SudoRolesNewRouteImport } from './routes/sudo-roles/new'
+import { Route as UsersIndexRouteImport } from './routes/users/index'
+import { Route as UsersDnRouteImport } from './routes/users/$dn'
+import { Route as UsersImportRouteImport } from './routes/users/import'
+import { Route as UsersNewRouteImport } from './routes/users/new'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuditLogsRoute = AuditLogsRouteImport.update({
-  id: '/audit-logs',
-  path: '/audit-logs',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -44,24 +39,14 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuditLogsRoute = AuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UsersIndexRoute = UsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SudoRolesIndexRoute = SudoRolesIndexRouteImport.update({
-  id: '/sudo-roles/',
-  path: '/sudo-roles/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PasswordPoliciesIndexRoute = PasswordPoliciesIndexRouteImport.update({
-  id: '/password-policies/',
-  path: '/password-policies/',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GroupsIndexRoute = GroupsIndexRouteImport.update({
@@ -69,49 +54,9 @@ const GroupsIndexRoute = GroupsIndexRouteImport.update({
   path: '/groups/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UsersNewRoute = UsersNewRouteImport.update({
-  id: '/users/new',
-  path: '/users/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UsersImportRoute = UsersImportRouteImport.update({
-  id: '/users/import',
-  path: '/users/import',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UsersDnRoute = UsersDnRouteImport.update({
-  id: '/users/$dn',
-  path: '/users/$dn',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SudoRolesNewRoute = SudoRolesNewRouteImport.update({
-  id: '/sudo-roles/new',
-  path: '/sudo-roles/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SudoRolesDnRoute = SudoRolesDnRouteImport.update({
-  id: '/sudo-roles/$dn',
-  path: '/sudo-roles/$dn',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordTokenRoute = ResetPasswordTokenRouteImport.update({
-  id: '/reset-password/$token',
-  path: '/reset-password/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PasswordPoliciesNewRoute = PasswordPoliciesNewRouteImport.update({
-  id: '/password-policies/new',
-  path: '/password-policies/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PasswordPoliciesDnRoute = PasswordPoliciesDnRouteImport.update({
-  id: '/password-policies/$dn',
-  path: '/password-policies/$dn',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GroupsNewRoute = GroupsNewRouteImport.update({
-  id: '/groups/new',
-  path: '/groups/new',
+const GroupsDnRoute = GroupsDnRouteImport.update({
+  id: '/groups/$dn',
+  path: '/groups/$dn',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GroupsImportRoute = GroupsImportRouteImport.update({
@@ -119,9 +64,64 @@ const GroupsImportRoute = GroupsImportRouteImport.update({
   path: '/groups/import',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GroupsDnRoute = GroupsDnRouteImport.update({
-  id: '/groups/$dn',
-  path: '/groups/$dn',
+const GroupsNewRoute = GroupsNewRouteImport.update({
+  id: '/groups/new',
+  path: '/groups/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PasswordPoliciesIndexRoute = PasswordPoliciesIndexRouteImport.update({
+  id: '/password-policies/',
+  path: '/password-policies/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PasswordPoliciesDnRoute = PasswordPoliciesDnRouteImport.update({
+  id: '/password-policies/$dn',
+  path: '/password-policies/$dn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PasswordPoliciesNewRoute = PasswordPoliciesNewRouteImport.update({
+  id: '/password-policies/new',
+  path: '/password-policies/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordTokenRoute = ResetPasswordTokenRouteImport.update({
+  id: '/reset-password/$token',
+  path: '/reset-password/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SudoRolesIndexRoute = SudoRolesIndexRouteImport.update({
+  id: '/sudo-roles/',
+  path: '/sudo-roles/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SudoRolesDnRoute = SudoRolesDnRouteImport.update({
+  id: '/sudo-roles/$dn',
+  path: '/sudo-roles/$dn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SudoRolesNewRoute = SudoRolesNewRouteImport.update({
+  id: '/sudo-roles/new',
+  path: '/sudo-roles/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersIndexRoute = UsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersDnRoute = UsersDnRouteImport.update({
+  id: '/users/$dn',
+  path: '/users/$dn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersImportRoute = UsersImportRouteImport.update({
+  id: '/users/import',
+  path: '/users/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersNewRoute = UsersNewRouteImport.update({
+  id: '/users/new',
+  path: '/users/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -279,18 +279,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/audit-logs': {
-      id: '/audit-logs'
-      path: '/audit-logs'
-      fullPath: '/audit-logs'
-      preLoaderRoute: typeof AuditLogsRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -300,32 +293,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/audit-logs': {
+      id: '/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AuditLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/users/': {
-      id: '/users/'
-      path: '/users'
-      fullPath: '/users/'
-      preLoaderRoute: typeof UsersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sudo-roles/': {
-      id: '/sudo-roles/'
-      path: '/sudo-roles'
-      fullPath: '/sudo-roles/'
-      preLoaderRoute: typeof SudoRolesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/password-policies/': {
-      id: '/password-policies/'
-      path: '/password-policies'
-      fullPath: '/password-policies/'
-      preLoaderRoute: typeof PasswordPoliciesIndexRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/groups/': {
@@ -335,67 +314,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroupsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/users/new': {
-      id: '/users/new'
-      path: '/users/new'
-      fullPath: '/users/new'
-      preLoaderRoute: typeof UsersNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/users/import': {
-      id: '/users/import'
-      path: '/users/import'
-      fullPath: '/users/import'
-      preLoaderRoute: typeof UsersImportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/users/$dn': {
-      id: '/users/$dn'
-      path: '/users/$dn'
-      fullPath: '/users/$dn'
-      preLoaderRoute: typeof UsersDnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sudo-roles/new': {
-      id: '/sudo-roles/new'
-      path: '/sudo-roles/new'
-      fullPath: '/sudo-roles/new'
-      preLoaderRoute: typeof SudoRolesNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sudo-roles/$dn': {
-      id: '/sudo-roles/$dn'
-      path: '/sudo-roles/$dn'
-      fullPath: '/sudo-roles/$dn'
-      preLoaderRoute: typeof SudoRolesDnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password/$token': {
-      id: '/reset-password/$token'
-      path: '/reset-password/$token'
-      fullPath: '/reset-password/$token'
-      preLoaderRoute: typeof ResetPasswordTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/password-policies/new': {
-      id: '/password-policies/new'
-      path: '/password-policies/new'
-      fullPath: '/password-policies/new'
-      preLoaderRoute: typeof PasswordPoliciesNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/password-policies/$dn': {
-      id: '/password-policies/$dn'
-      path: '/password-policies/$dn'
-      fullPath: '/password-policies/$dn'
-      preLoaderRoute: typeof PasswordPoliciesDnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/groups/new': {
-      id: '/groups/new'
-      path: '/groups/new'
-      fullPath: '/groups/new'
-      preLoaderRoute: typeof GroupsNewRouteImport
+    '/groups/$dn': {
+      id: '/groups/$dn'
+      path: '/groups/$dn'
+      fullPath: '/groups/$dn'
+      preLoaderRoute: typeof GroupsDnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/groups/import': {
@@ -405,11 +328,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroupsImportRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/groups/$dn': {
-      id: '/groups/$dn'
-      path: '/groups/$dn'
-      fullPath: '/groups/$dn'
-      preLoaderRoute: typeof GroupsDnRouteImport
+    '/groups/new': {
+      id: '/groups/new'
+      path: '/groups/new'
+      fullPath: '/groups/new'
+      preLoaderRoute: typeof GroupsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/password-policies/': {
+      id: '/password-policies/'
+      path: '/password-policies'
+      fullPath: '/password-policies/'
+      preLoaderRoute: typeof PasswordPoliciesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/password-policies/$dn': {
+      id: '/password-policies/$dn'
+      path: '/password-policies/$dn'
+      fullPath: '/password-policies/$dn'
+      preLoaderRoute: typeof PasswordPoliciesDnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/password-policies/new': {
+      id: '/password-policies/new'
+      path: '/password-policies/new'
+      fullPath: '/password-policies/new'
+      preLoaderRoute: typeof PasswordPoliciesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password/$token': {
+      id: '/reset-password/$token'
+      path: '/reset-password/$token'
+      fullPath: '/reset-password/$token'
+      preLoaderRoute: typeof ResetPasswordTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sudo-roles/': {
+      id: '/sudo-roles/'
+      path: '/sudo-roles'
+      fullPath: '/sudo-roles/'
+      preLoaderRoute: typeof SudoRolesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sudo-roles/$dn': {
+      id: '/sudo-roles/$dn'
+      path: '/sudo-roles/$dn'
+      fullPath: '/sudo-roles/$dn'
+      preLoaderRoute: typeof SudoRolesDnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sudo-roles/new': {
+      id: '/sudo-roles/new'
+      path: '/sudo-roles/new'
+      fullPath: '/sudo-roles/new'
+      preLoaderRoute: typeof SudoRolesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/': {
+      id: '/users/'
+      path: '/users'
+      fullPath: '/users/'
+      preLoaderRoute: typeof UsersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/$dn': {
+      id: '/users/$dn'
+      path: '/users/$dn'
+      fullPath: '/users/$dn'
+      preLoaderRoute: typeof UsersDnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/import': {
+      id: '/users/import'
+      path: '/users/import'
+      fullPath: '/users/import'
+      preLoaderRoute: typeof UsersImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/new': {
+      id: '/users/new'
+      path: '/users/new'
+      fullPath: '/users/new'
+      preLoaderRoute: typeof UsersNewRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
