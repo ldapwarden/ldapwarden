@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select } from '@/components/ui/select'
-import { ArrowLeft, Save, Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock } from 'lucide-react'
+import { ArrowLeft, Save, Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy } from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -1088,6 +1088,15 @@ function SSHKeysTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeo
     return { type, comment, fingerprint }
   }
 
+  const copyKey = async (key: string) => {
+    try {
+      await navigator.clipboard.writeText(key)
+      toast.success('SSH key copied to clipboard')
+    } catch {
+      toast.error('Could not copy to clipboard')
+    }
+  }
+
   const sshKeys = user?.sshPublicKey || []
 
   return (
@@ -1129,17 +1138,28 @@ function SSHKeysTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeo
                       {fingerprint}
                     </p>
                   </div>
-                  {canWrite && (
+                  <div className="flex items-center shrink-0">
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Remove SSH key"
-                      onClick={() => removeKeyMutation.mutate(key)}
-                      disabled={removeKeyMutation.isPending}
+                      aria-label="Copy SSH public key"
+                      title="Copy public key"
+                      onClick={() => copyKey(key)}
                     >
-                      <X className="h-4 w-4 text-destructive" />
+                      <Copy className="h-4 w-4" />
                     </Button>
-                  )}
+                    {canWrite && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove SSH key"
+                        onClick={() => removeKeyMutation.mutate(key)}
+                        disabled={removeKeyMutation.isPending}
+                      >
+                        <X className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
                 </li>
               )
             })}
