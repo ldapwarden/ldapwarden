@@ -232,6 +232,15 @@ export const ImportResultSchema = z.object({
 export type ImportResult = z.infer<typeof ImportResultSchema>
 export type ImportRow = Record<string, unknown>
 
+// Result of renaming a user (POST /users/{dn}/change-uid): the renamed user
+// plus any non-fatal reference-migration warnings.
+export const ChangeUidResultSchema = z.object({
+  user: UserSchema,
+  // Tolerate null/omitted (a nil slice serialises as null) → treat as empty.
+  warnings: z.array(z.string()).nullish().transform((v) => v ?? []),
+})
+export type ChangeUidResult = z.infer<typeof ChangeUidResultSchema>
+
 export const GroupSchema = z.object({
   dn: z.string(),
   cn: z.string(),
@@ -541,6 +550,12 @@ export const api = {
 
     getGroups: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/groups`, {}, GroupsResponseSchema, signal),
+
+    changeUid: (dn: string, newUid: string) =>
+      fetchApi(`/users/${encodeURIComponent(dn)}/change-uid`, {
+        method: 'POST',
+        body: JSON.stringify({ newUid }),
+      }, ChangeUidResultSchema),
 
     lock: (dn: string) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/lock`, { method: 'POST' }),

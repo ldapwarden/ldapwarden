@@ -132,6 +132,74 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user)
 }
 
+// handleChangeUserUID renames a user (uid is the RDN of the DN) and migrates
+// the references that pointed at the old uid/DN. It is a deliberately separate,
+// warned action rather than part of the normal update flow. Responds with the
+// renamed user and any non-fatal migration warnings.
+func (s *Server) handleChangeUserUID(w http.ResponseWriter, r *http.Request) {
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	var req struct {
+		NewUID string `json:"newUid"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := validateRDNValue("uid", req.NewUID); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	before, err := s.ldapClient.GetUser(dn)
+	if err != nil || before == nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if req.NewUID == before.UID {
+		writeError(w, http.StatusBadRequest, "the new username is the same as the current one")
+		return
+	}
+	if existing, _ := s.ldapClient.GetUserByUID(req.NewUID); existing != nil {
+		writeError(w, http.StatusConflict, "a user with this username already exists")
+		return
+	}
+
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: userDisplayName(before),
+		audit.DetailsKeyChanges: []audit.FieldChange{
+			{Field: "Username", Old: before.UID, New: req.NewUID},
+		},
+	}
+	if !s.auditMutating(w, r, audit.ActionUserRename, audit.ResourceUser, dn, details) {
+		return
+	}
+
+	newDN, warnings, err := s.ldapClient.RenameUser(dn, before.UID, req.NewUID)
+	if err != nil {
+		writeServerError(w, r, "rename user", err)
+		return
+	}
+
+	// The renamed user's active sessions are keyed by the old DN — force
+	// re-login.
+	s.invalidateSessions(r, dn, "uid changed")
+
+	user, err := s.ldapClient.GetUser(newDN)
+	if err != nil {
+		writeServerError(w, r, "read renamed user", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"user":     user,
+		"warnings": warnings,
+	})
+}
+
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {

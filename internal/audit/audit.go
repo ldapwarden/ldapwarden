@@ -96,6 +96,7 @@ const (
 	ActionUserDelete       Action = "user.delete"
 	ActionUserLock         Action = "user.lock"
 	ActionUserUnlock       Action = "user.unlock"
+	ActionUserRename       Action = "user.rename"
 	ActionGroupCreate      Action = "group.create"
 	ActionGroupUpdate      Action = "group.update"
 	ActionGroupDelete      Action = "group.delete"
@@ -171,6 +172,7 @@ var notifiableActions = map[Action]struct{}{
 	ActionUserDelete:       {},
 	ActionUserLock:         {},
 	ActionUserUnlock:       {},
+	ActionUserRename:       {},
 	ActionGroupCreate:      {},
 	ActionGroupUpdate:      {},
 	ActionGroupDelete:      {},

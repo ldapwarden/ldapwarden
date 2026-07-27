@@ -293,6 +293,19 @@ func (c *Client) Delete(dn string) error {
 	return conn.Del(delRequest)
 }
 
+// ModifyDN renames an entry to newRDN (e.g. "uid=alice") under the same parent
+// (newSuperior is left empty). With deleteOldRDN true the old RDN attribute
+// value is dropped, so the RDN attribute (uid/cn) is updated to match the new
+// name. Used to rename a user, whose uid is its RDN.
+func (c *Client) ModifyDN(dn, newRDN string, deleteOldRDN bool) error {
+	conn, err := c.connect()
+	if err != nil {
+		return err
+	}
+	req := ldap.NewModifyDNRequest(dn, newRDN, deleteOldRDN, "")
+	return conn.ModifyDN(req)
+}
+
 func (c *Client) BaseDN() string {
 	return c.config.BaseDN
 }

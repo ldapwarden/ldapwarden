@@ -216,6 +216,105 @@ func (c *Client) GetUserByLogin(login string) (*User, error) {
 	}
 }
 
+// RenameUser changes a user's uid, which is the RDN of its DN. This is
+// non-transactional: the entry is renamed first (the authoritative change),
+// then references that stored the old uid or DN are migrated best-effort. A
+// migration that fails is reported in warnings rather than failing the whole
+// rename, so an operator can reconcile the leftovers. Returns the new DN.
+func (c *Client) RenameUser(oldDN, oldUID, newUID string) (string, []string, error) {
+	// Refuse if the target uid is already taken.
+	if existing, err := c.GetUserByUID(newUID); err == nil && existing != nil {
+		return "", nil, fmt.Errorf("a user with the username %q already exists", newUID)
+	}
+
+	newDN := fmt.Sprintf("uid=%s,%s", ldap.EscapeDN(newUID), c.UserBaseDN())
+
+	// Authoritative rename. deleteOldRDN drops the old uid value so the uid
+	// attribute matches the new RDN.
+	if err := c.ModifyDN(oldDN, "uid="+ldap.EscapeDN(newUID), true); err != nil {
+		return "", nil, fmt.Errorf("rename entry: %w", err)
+	}
+
+	// Non-nil so it serialises as an empty JSON array, not null.
+	warnings := []string{}
+	warn := func(what string, err error) {
+		warnings = append(warnings, fmt.Sprintf("%s: %v", what, err))
+	}
+
+	// Group memberships: memberUid stores the plain uid (not the DN), so it is
+	// untouched by the rename and must be rewritten.
+	if groups, err := c.GetUserGroups(oldUID); err != nil {
+		warn("read group memberships", err)
+	} else {
+		for _, g := range groups {
+			members := replaceExact(g.MemberUIDs, oldUID, newUID)
+			if _, err := c.UpdateGroup(g.DN, UpdateGroupRequest{MemberUIDs: members}); err != nil {
+				warn(fmt.Sprintf("update group %q", g.CN), err)
+			}
+		}
+	}
+
+	// Sudo roles: swap only exact uid entries in sudoUser (leave %group / ALL).
+	if roles, err := c.GetUserSudoRoles(oldUID); err != nil {
+		warn("read sudo roles", err)
+	} else {
+		for _, role := range roles {
+			su := replaceExact(role.SudoUser, oldUID, newUID)
+			if _, err := c.UpdateSudoRole(role.DN, UpdateSudoRoleRequest{SudoUser: su}); err != nil {
+				warn(fmt.Sprintf("update sudo role %q", role.CN), err)
+			}
+		}
+	}
+
+	// Manager references on other users store the (now stale) DN.
+	if users, err := c.ListUsers(); err != nil {
+		warn("scan manager references", err)
+	} else {
+		for _, u := range users {
+			if u.Manager == oldDN {
+				to := newDN
+				if _, err := c.UpdateUser(u.DN, UpdateUserRequest{Manager: &to}); err != nil {
+					warn(fmt.Sprintf("update manager of %q", u.UID), err)
+				}
+			}
+		}
+	}
+
+	// Home directory, only if it follows the /home/<uid> convention.
+	if renamed, err := c.GetUser(newDN); err != nil {
+		warn("read renamed user", err)
+	} else if renamed.HomeDirectory == "/home/"+oldUID {
+		to := "/home/" + newUID
+		if _, err := c.UpdateUser(newDN, UpdateUserRequest{HomeDirectory: &to}); err != nil {
+			warn("update home directory", err)
+		}
+	}
+
+	// Primary group named after the uid (createPrimaryGroup), if present. Done
+	// last: the memberUid swap above already ran on it via GetUserGroups.
+	if pg, err := c.GetGroupByCN(oldUID); err == nil && pg != nil {
+		if err := c.ModifyDN(pg.DN, "cn="+ldap.EscapeDN(newUID), true); err != nil {
+			warn("rename primary group", err)
+		}
+	}
+
+	return newDN, warnings, nil
+}
+
+// replaceExact returns a copy of list with every element exactly equal to from
+// replaced by to; other elements (e.g. "%group", "ALL") are left as-is.
+func replaceExact(list []string, from, to string) []string {
+	out := make([]string, len(list))
+	for i, v := range list {
+		if v == from {
+			out[i] = to
+		} else {
+			out[i] = v
+		}
+	}
+	return out
+}
+
 func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 	if req.CN == "" {
 		req.CN = fmt.Sprintf("%s %s", req.GivenName, req.SN)

@@ -22,6 +22,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -520,7 +521,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
               <div className="space-y-2">
                 <Label htmlFor="uid">Username (UID)</Label>
                 <Input id="uid" value={user?.uid || ''} disabled />
-                <p className="text-xs text-muted-foreground">The username cannot be changed after creation.</p>
+                <p className="text-xs text-muted-foreground">To rename the account, use “Change username” in the Security tab.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cn">Common Name (CN)</Label>
@@ -1942,6 +1943,27 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [removePasswordDialogOpen, setRemovePasswordDialogOpen] = useState(false)
   const [editingExpiration, setEditingExpiration] = useState(false)
+  const [changeUidOpen, setChangeUidOpen] = useState(false)
+  const [newUid, setNewUid] = useState('')
+  const [confirmUid, setConfirmUid] = useState('')
+
+  const uidPattern = /^[a-zA-Z0-9._-]+$/
+  const newUidValid = uidPattern.test(newUid) && newUid !== user.uid
+
+  const changeUidMutation = useMutation({
+    mutationFn: (uid: string) => api.users.changeUid(dn, uid),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success(`Username changed to ${res.user.uid}`)
+      if (res.warnings.length > 0) {
+        toast.warning(`Some references were not migrated: ${res.warnings.join('; ')}`, { duration: 12000 })
+      }
+      setChangeUidOpen(false)
+      // The DN changed; move to the renamed user's page.
+      router.navigate({ to: '/users/$dn', params: { dn: encodeDN(res.user.dn) } })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
 
   // Determine if the account has a future expiration date
   const hasFutureExpiration = user?.pwdAccountLockedTime && isLdapTimestampInFuture(user.pwdAccountLockedTime)
@@ -2496,6 +2518,100 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                 No password policy data available. This may indicate the ppolicy overlay is not enabled or this user has no policy-related activity.
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {canWrite && (
+        <Card className="md:col-span-2 border-amber-500/50">
+          <CardHeader>
+            <CardTitle>Change username</CardTitle>
+            <CardDescription>Rename the account's uid — its directory identity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 rounded-lg border border-amber-500/30 bg-amber-500/5">
+              <div>
+                <p className="font-medium">Change this user's username</p>
+                <p className="text-sm text-muted-foreground">
+                  Renames the LDAP entry and migrates group, sudo, manager and home-directory
+                  references. The user must sign in again.
+                </p>
+              </div>
+              <Dialog
+                open={changeUidOpen}
+                onOpenChange={(o) => {
+                  setChangeUidOpen(o)
+                  if (!o) { setNewUid(''); setConfirmUid('') }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button variant="outline">Change username</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Change username</DialogTitle>
+                    <DialogDescription>
+                      Renaming <span className="font-mono">{user.uid}</span> cannot be undone automatically.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-500">
+                      <p className="font-medium">This will:</p>
+                      <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                        <li>rename the directory entry (its DN changes)</li>
+                        <li>migrate group memberships, sudo rules, manager links and a <code>/home/&lt;uid&gt;</code> home directory</li>
+                        <li>sign the user out of all active sessions</li>
+                      </ul>
+                      <p className="mt-2">References outside those (external systems, scripts, ACLs) keep pointing at the old username.</p>
+                    </div>
+                    {changeUidMutation.error && (
+                      <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+                        {changeUidMutation.error.message}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label htmlFor="newUid">New username</Label>
+                      <Input
+                        id="newUid"
+                        value={newUid}
+                        onChange={(e) => setNewUid(e.target.value)}
+                        placeholder="new-username"
+                        autoComplete="off"
+                      />
+                      {newUid && !uidPattern.test(newUid) && (
+                        <p className="text-xs text-destructive">Only letters, digits, '.', '_' or '-' are allowed.</p>
+                      )}
+                      {newUid && newUid === user.uid && (
+                        <p className="text-xs text-destructive">This is already the current username.</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmUid">
+                        Type the current username <span className="font-mono">{user.uid}</span> to confirm
+                      </Label>
+                      <Input
+                        id="confirmUid"
+                        value={confirmUid}
+                        onChange={(e) => setConfirmUid(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setChangeUidOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      disabled={!newUidValid || confirmUid !== user.uid || changeUidMutation.isPending}
+                      onClick={() => changeUidMutation.mutate(newUid)}
+                    >
+                      {changeUidMutation.isPending ? 'Renaming...' : 'Change username'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </CardContent>
         </Card>
       )}
