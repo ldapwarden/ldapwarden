@@ -22,6 +22,7 @@ import { PasswordStrength } from '@/components/ui/password-strength'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar } from '@/components/ui/avatar'
+import { Callout } from '@/components/ui/callout'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -297,15 +298,13 @@ function RootComponent() {
                 </DialogHeader>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   {changePasswordMutation.error && (
-                    <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+                    <Callout variant="error">
                       {changePasswordMutation.error.message}
-                    </div>
+                    </Callout>
                   )}
 
                   {changePasswordMutation.isSuccess && (
-                    <div className="p-3 text-sm text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-950 rounded-md">
-                      Password changed successfully
-                    </div>
+                    <Callout variant="success">Password changed successfully</Callout>
                   )}
 
                   <div className="space-y-2">
@@ -333,7 +332,7 @@ function RootComponent() {
                       <p className="text-xs text-destructive">Passwords do not match</p>
                     )}
                     {passwordsMatch && (
-                      <p className="text-xs text-green-600">Passwords match</p>
+                      <p className="text-xs text-success">Passwords match</p>
                     )}
                   </div>
 

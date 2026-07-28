@@ -215,7 +215,7 @@ export function CsvImport({
                       ))}
                       <TableCell>
                         {pr.errors.length === 0 ? (
-                          <span className="text-green-600 dark:text-green-500">OK</span>
+                          <span className="text-success">OK</span>
                         ) : (
                           <span className="text-destructive" title={pr.errors.join('; ')}>
                             {pr.errors[0]}
@@ -244,7 +244,7 @@ export function CsvImport({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {result.failed === 0 ? (
-                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500" />
+                <CheckCircle2 className="h-5 w-5 text-success" />
               ) : (
                 <XCircle className="h-5 w-5 text-destructive" />
               )}

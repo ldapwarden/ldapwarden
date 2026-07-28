@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Callout } from '@/components/ui/callout'
 import { ArrowLeft, Save, ShieldCheck, Plus, X, Users, Terminal, Clock } from 'lucide-react'
 import { useState } from 'react'
 
@@ -121,9 +122,9 @@ function SudoRoleDetailPage() {
 
   if (error) {
     return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
+      <Callout variant="error">
         Failed to load sudo role: {error.message}
-      </div>
+      </Callout>
     )
   }
 
@@ -143,15 +144,15 @@ function SudoRoleDetailPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {!canWrite && <ReadOnlyNotice />}
         {updateMutation.error && (
-          <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+          <Callout variant="error">
             {updateMutation.error.message}
-          </div>
+          </Callout>
         )}
 
         {updateMutation.isSuccess && (
-          <div className="p-3 text-sm text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-950 rounded-md">
+          <Callout variant="success">
             Sudo role updated successfully
-          </div>
+          </Callout>
         )}
 
         <div className="grid gap-4 md:grid-cols-2">

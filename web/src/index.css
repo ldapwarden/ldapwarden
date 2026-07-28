@@ -27,6 +27,16 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
+  /* Status colors. Each one is tuned per theme (see :root / .dark below) so
+     `text-success` / `bg-warning/10` stay readable in both, unlike the raw
+     `text-green-700` / `bg-yellow-100` utilities they replace. */
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -70,6 +80,29 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+
+    /* Status hues, dark enough to read as text on the light background. */
+    --success: 142 72% 29%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 81% 32%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 71% 38%;
+    --info-foreground: 0 0% 100%;
+
+    /* Categorical palette for tinted badges (employee type, audit action, …).
+       Each entry is a "<hue> <saturation>" pair; the `.tone` component class
+       below supplies the lightness for the active theme. */
+    --tone-blue: 217 91%;
+    --tone-emerald: 152 69%;
+    --tone-violet: 258 90%;
+    --tone-amber: 38 92%;
+    --tone-pink: 330 81%;
+    --tone-cyan: 189 94%;
+    --tone-lime: 84 71%;
+    --tone-rose: 350 89%;
+    --tone-indigo: 239 84%;
+    --tone-teal: 173 80%;
+    --tone-slate: 215 16%;
   }
 
   .dark {
@@ -90,6 +123,14 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+
+    /* Same hues, lightened so they read as text on the dark background. */
+    --success: 142 69% 58%;
+    --success-foreground: 142 80% 10%;
+    --warning: 38 92% 62%;
+    --warning-foreground: 32 90% 12%;
+    --info: 213 94% 68%;
+    --info-foreground: 217 90% 12%;
   }
 }
 
@@ -99,5 +140,25 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /*
+    Tinted badge for categorical values. The caller picks a hue by setting
+    `--tone` (e.g. `style={{ '--tone': 'var(--tone-blue)' }}`); lightness and
+    tint strength come from the theme, so one class covers light and dark.
+  */
+  .tone {
+    --tone-text-l: 30%;
+    --tone-tint: 12%;
+    background-color: hsl(var(--tone) 50% / var(--tone-tint));
+    color: hsl(var(--tone) var(--tone-text-l));
+    border-color: hsl(var(--tone) 50% / calc(var(--tone-tint) * 2));
+  }
+
+  .dark .tone {
+    --tone-text-l: 72%;
+    --tone-tint: 22%;
   }
 }

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { PasswordStrength } from '@/components/ui/password-strength'
+import { Callout } from '@/components/ui/callout'
 import { Shield, Key, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 
@@ -73,8 +74,8 @@ function ResetPasswordPage() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
-              <CheckCircle2 className="h-6 w-6 text-green-600" />
+            <div className="mx-auto w-12 h-12 rounded-full bg-success/15 flex items-center justify-center mb-4">
+              <CheckCircle2 className="h-6 w-6 text-success" />
             </div>
             <CardTitle>Password Changed</CardTitle>
             <CardDescription>
@@ -106,9 +107,9 @@ function ResetPasswordPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {resetMutation.error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+              <Callout variant="error">
                 {resetMutation.error.message}
-              </div>
+              </Callout>
             )}
 
             <div className="space-y-2">
@@ -137,7 +138,7 @@ function ResetPasswordPage() {
                 <p className="text-xs text-destructive">Passwords do not match</p>
               )}
               {passwordsMatch && (
-                <p className="text-xs text-green-600">Passwords match</p>
+                <p className="text-xs text-success">Passwords match</p>
               )}
             </div>
 

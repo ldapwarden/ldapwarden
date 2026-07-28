@@ -22,8 +22,10 @@ import { Plus, Search, CheckCircle2, Lock, Users, CalendarClock, Upload } from '
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN, parseLdapTimestamp } from '@/lib/utils'
+import { assignTones, toneStyle } from '@/lib/tones'
 import { useDebounced } from '@/lib/use-debounced'
 import { Avatar } from '@/components/ui/avatar'
+import { Callout } from '@/components/ui/callout'
 
 type SortField = 'uid' | 'displayName' | 'mail' | 'employeeType' | 'groupsCount'
 type SortDirection = 'asc' | 'desc'
@@ -42,30 +44,6 @@ function getAccountExpiration(user: { pwdAccountLockedTime?: string; shadowExpir
 }
 
 const DEFAULT_PAGE_SIZE = 25
-
-// Color palette for employee type badges
-const BADGE_COLORS = [
-  'bg-blue-100 text-blue-800 border-blue-200',
-  'bg-green-100 text-green-800 border-green-200',
-  'bg-purple-100 text-purple-800 border-purple-200',
-  'bg-orange-100 text-orange-800 border-orange-200',
-  'bg-pink-100 text-pink-800 border-pink-200',
-  'bg-cyan-100 text-cyan-800 border-cyan-200',
-  'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'bg-red-100 text-red-800 border-red-200',
-  'bg-indigo-100 text-indigo-800 border-indigo-200',
-  'bg-teal-100 text-teal-800 border-teal-200',
-]
-
-// Build a color map from unique employee types
-function buildColorMap(types: string[]): Map<string, string> {
-  const uniqueTypes = [...new Set(types)].sort()
-  const colorMap = new Map<string, string>()
-  uniqueTypes.forEach((type, index) => {
-    colorMap.set(type, BADGE_COLORS[index % BADGE_COLORS.length])
-  })
-  return colorMap
-}
 
 export const Route = createFileRoute('/users/')({
   beforeLoad: ({ context }) => {
@@ -112,12 +90,12 @@ function UsersPage() {
     return countMap
   }, [groupsRawData])
 
-  // Build color map for employee types
-  const employeeTypeColors = useMemo(() => {
+  // Assign a stable tint to each employee type present in the result set.
+  const employeeTypeTones = useMemo(() => {
     const types = data?.data
       .map(user => user.employeeType)
       .filter((type): type is string => !!type) ?? []
-    return buildColorMap(types)
+    return assignTones(types)
   }, [data?.data])
 
   const canWrite = hasPermission('users:write')
@@ -228,11 +206,7 @@ function UsersPage() {
   }
 
   if (error) {
-    return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
-        Failed to load users: {error.message}
-      </div>
-    )
+    return <Callout variant="error">Failed to load users: {error.message}</Callout>
   }
 
   return (
@@ -288,9 +262,9 @@ function UsersPage() {
       </div>
 
       {data?.truncated && (
-        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-700 dark:text-yellow-500">
+        <Callout variant="warning">
           Showing the first {data.total} matches. Refine your search to narrow the results.
-        </div>
+        </Callout>
       )}
 
       {canWrite && (
@@ -396,7 +370,12 @@ function UsersPage() {
                   <TableCell>{user.mail || '-'}</TableCell>
                   <TableCell>
                     {user.employeeType ? (
-                      <Badge className={employeeTypeColors.get(user.employeeType)}>{user.employeeType}</Badge>
+                      <Badge
+                        className="tone"
+                        style={toneStyle(employeeTypeTones.get(user.employeeType) ?? 'slate')}
+                      >
+                        {user.employeeType}
+                      </Badge>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
@@ -421,20 +400,20 @@ function UsersPage() {
                       if (user.accountLocked || isExpired) {
                         return (
                           <span title={user.accountLocked ? 'Account locked' : 'Expired'}>
-                            <Lock className="h-4 w-4 inline-block text-red-500" />
+                            <Lock className="h-4 w-4 inline-block text-destructive" />
                           </span>
                         )
                       } else if (hasFutureExpiration) {
                         // Calculate days until expiration for color coding
                         const daysUntil = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
-                        let colorClass = 'text-green-500' // > 30 days
+                        let colorClass = 'text-success' // > 30 days
                         const title = `Expires in ${daysUntil} days`
 
                         if (daysUntil <= 7) {
-                          colorClass = 'text-red-500'
+                          colorClass = 'text-destructive'
                         } else if (daysUntil <= 30) {
-                          colorClass = 'text-amber-400'
+                          colorClass = 'text-warning'
                         }
 
                         return (
@@ -445,7 +424,7 @@ function UsersPage() {
                       } else {
                         return (
                           <span title="Active">
-                            <CheckCircle2 className="h-4 w-4 inline-block text-green-500" />
+                            <CheckCircle2 className="h-4 w-4 inline-block text-success" />
                           </span>
                         )
                       }

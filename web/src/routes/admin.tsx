@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Callout } from '@/components/ui/callout'
 import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -31,7 +32,7 @@ function ConfigField({ label, config, description }: { label: string; config: Co
         <Label className="text-sm font-medium">{label}</Label>
         <span className={`text-xs px-2 py-0.5 rounded-full ${
           config.source === 'env'
-            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+            ? 'bg-success/15 text-success'
             : 'bg-muted text-muted-foreground'
         }`}>
           {config.source === 'env' ? 'Environment' : 'Default'}
@@ -101,9 +102,9 @@ function AdminPage() {
 
   if (error) {
     return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
+      <Callout variant="error">
         Failed to load configuration: {error.message}
-      </div>
+      </Callout>
     )
   }
 
@@ -429,9 +430,9 @@ function AdminPage() {
                   <div key={run.id} className="flex items-center justify-between text-sm border rounded p-2">
                     <div className="flex items-center gap-2">
                       {run.status === 'completed' ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-success" />
                       ) : run.status === 'failed' ? (
-                        <XCircle className="h-4 w-4 text-red-500" />
+                        <XCircle className="h-4 w-4 text-destructive" />
                       ) : (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       )}

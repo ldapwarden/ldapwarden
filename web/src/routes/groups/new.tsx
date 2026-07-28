@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Callout } from '@/components/ui/callout'
 import { ArrowLeft, Save, Wand2 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -79,9 +80,9 @@ function NewGroupPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {createMutation.error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+              <Callout variant="error">
                 {createMutation.error.message}
-              </div>
+              </Callout>
             )}
 
             <div className="space-y-2">

@@ -28,6 +28,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Callout } from '@/components/ui/callout'
+import { PasswordStrength } from '@/components/ui/password-strength'
 import { useState, useRef, useMemo } from 'react'
 
 export const Route = createFileRoute('/users/$dn')({
@@ -119,9 +121,9 @@ function UserDetailPage() {
 
   if (error) {
     return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
+      <Callout variant="error">
         Failed to load user: {error.message}
-      </div>
+      </Callout>
     )
   }
 
@@ -470,9 +472,9 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
           </CardHeader>
           <CardContent className="space-y-4">
             {updateMutation.error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+              <Callout variant="error">
                 {updateMutation.error.message}
-              </div>
+              </Callout>
             )}
 
             {canWrite && (
@@ -963,9 +965,9 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
         </CardHeader>
         <CardContent className="space-y-4">
           {updateMutation.error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <Callout variant="error">
               {updateMutation.error.message}
-            </div>
+            </Callout>
           )}
 
           <div className="grid grid-cols-2 gap-4">
@@ -1111,9 +1113,9 @@ function SSHKeysTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeo
       </CardHeader>
       <CardContent className="space-y-4">
         {(addKeyMutation.error || removeKeyMutation.error) && (
-          <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+          <Callout variant="error">
             {(addKeyMutation.error || removeKeyMutation.error)?.message}
-          </div>
+          </Callout>
         )}
 
         {sshKeys.length > 0 ? (
@@ -1306,21 +1308,21 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
         </CardHeader>
         <CardContent className="space-y-4">
           {updateMutation.error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <Callout variant="error">
               {updateMutation.error.message}
-            </div>
+            </Callout>
           )}
 
           {isAddingObjectClass && (
-            <div className="p-3 text-sm text-blue-700 bg-blue-100 rounded-md">
+            <Callout variant="info">
               Fill in the Samba attributes below and click "Save Changes" to add the sambaSamAccount objectClass to this user.
-            </div>
+            </Callout>
           )}
 
           {updateMutation.isSuccess && !isAddingObjectClass && (
-            <div className="p-3 text-sm text-green-700 bg-green-100 rounded-md">
+            <Callout variant="success">
               Samba attributes updated successfully
-            </div>
+            </Callout>
           )}
 
           <div className="space-y-2">
@@ -1577,21 +1579,21 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<R
         </CardHeader>
         <CardContent className="space-y-4">
           {updateMutation.error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <Callout variant="error">
               {updateMutation.error.message}
-            </div>
+            </Callout>
           )}
 
           {isAddingObjectClass && (
-            <div className="p-3 text-sm text-blue-700 bg-blue-100 rounded-md">
+            <Callout variant="info">
               Fill in the shadow attributes below and click "Save Changes" to add the shadowAccount objectClass to this user.
-            </div>
+            </Callout>
           )}
 
           {updateMutation.isSuccess && !isAddingObjectClass && (
-            <div className="p-3 text-sm text-green-700 bg-green-100 rounded-md">
+            <Callout variant="success">
               Shadow attributes updated successfully
-            </div>
+            </Callout>
           )}
 
           <div className="space-y-2">
@@ -2082,23 +2084,6 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
     }
   }
 
-  // Password complexity check
-  const passwordStrength = useMemo(() => {
-    if (!password) return { score: 0, label: '', color: '' }
-
-    let score = 0
-    if (password.length >= 8) score++
-    if (password.length >= 12) score++
-    if (/[a-z]/.test(password)) score++
-    if (/[A-Z]/.test(password)) score++
-    if (/[0-9]/.test(password)) score++
-    if (/[^a-zA-Z0-9]/.test(password)) score++
-
-    if (score <= 2) return { score, label: 'Weak', color: 'bg-destructive' }
-    if (score <= 4) return { score, label: 'Medium', color: 'bg-yellow-500' }
-    return { score, label: 'Strong', color: 'bg-green-500' }
-  }, [password])
-
   const passwordsMatch = password && confirmPassword && password === confirmPassword
   const passwordsDontMatch = password && confirmPassword && password !== confirmPassword
 
@@ -2112,15 +2097,15 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
         <CardContent>
           <form onSubmit={handlePasswordChange} className="space-y-4">
             {changePasswordMutation.error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+              <Callout variant="error">
                 {changePasswordMutation.error.message}
-              </div>
+              </Callout>
             )}
 
             {changePasswordMutation.isSuccess && (
-              <div className="p-3 text-sm text-green-700 bg-green-100 rounded-md">
+              <Callout variant="success">
                 Password changed successfully
-              </div>
+              </Callout>
             )}
 
             <div className="space-y-2">
@@ -2132,26 +2117,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={!canWrite}
               />
-              {password && (
-                <div className="space-y-1">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                      <div
-                        key={i}
-                        className={`h-1 flex-1 rounded ${
-                          i <= passwordStrength.score ? passwordStrength.color : 'bg-muted'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className={`text-xs ${
-                    passwordStrength.score <= 2 ? 'text-destructive' :
-                    passwordStrength.score <= 4 ? 'text-yellow-600' : 'text-green-600'
-                  }`}>
-                    Password strength: {passwordStrength.label}
-                  </p>
-                </div>
-              )}
+              <PasswordStrength password={password} />
             </div>
 
             <div className="space-y-2">
@@ -2167,7 +2133,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                 <p className="text-xs text-destructive">Passwords do not match</p>
               )}
               {passwordsMatch && (
-                <p className="text-xs text-green-600">Passwords match</p>
+                <p className="text-xs text-success">Passwords match</p>
               )}
             </div>
 
@@ -2197,9 +2163,9 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                         </DialogDescription>
                       </DialogHeader>
                       {removePasswordMutation.error && (
-                        <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+                        <Callout variant="error">
                           {removePasswordMutation.error.message}
-                        </div>
+                        </Callout>
                       )}
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setRemovePasswordDialogOpen(false)}>
@@ -2236,15 +2202,15 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
         </CardHeader>
         <CardContent className="space-y-4">
           {sendPasswordResetMutation.error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <Callout variant="error">
               {sendPasswordResetMutation.error.message}
-            </div>
+            </Callout>
           )}
 
           {sendPasswordResetMutation.isSuccess && (
-            <div className="p-3 text-sm text-green-700 bg-green-100 rounded-md">
+            <Callout variant="success">
               Password reset email sent successfully
-            </div>
+            </Callout>
           )}
 
           {!user?.mail ? (
@@ -2284,19 +2250,19 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
         </CardHeader>
         <CardContent className="space-y-4">
           {(lockMutation.error || unlockMutation.error || setExpirationMutation.error) && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <Callout variant="error">
               {(lockMutation.error || unlockMutation.error || setExpirationMutation.error)?.message}
-            </div>
+            </Callout>
           )}
 
           <div className="flex items-center gap-4 p-4 rounded-lg border">
-            <div className={`p-3 rounded-full ${user?.accountLocked ? 'bg-destructive/10' : hasFutureExpiration ? 'bg-yellow-100' : 'bg-green-100'}`}>
+            <div className={`p-3 rounded-full ${user?.accountLocked ? 'bg-destructive/10' : hasFutureExpiration ? 'bg-warning/15' : 'bg-success/15'}`}>
               {user?.accountLocked ? (
                 <Lock className="h-6 w-6 text-destructive" />
               ) : hasFutureExpiration ? (
-                <CalendarClock className="h-6 w-6 text-yellow-600" />
+                <CalendarClock className="h-6 w-6 text-warning" />
               ) : (
-                <Unlock className="h-6 w-6 text-green-600" />
+                <Unlock className="h-6 w-6 text-success" />
               )}
             </div>
             <div className="flex-1">
@@ -2316,7 +2282,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                 </p>
               )}
               {hasFutureExpiration && (
-                <p className="text-xs text-yellow-600 mt-1">
+                <p className="text-xs text-warning mt-1">
                   Expires on: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
                 </p>
               )}
@@ -2413,10 +2379,10 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
           </CardHeader>
           <CardContent className="space-y-4">
             {hasFutureExpiration && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-                <CalendarClock className="h-5 w-5 text-yellow-600 shrink-0" />
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                <CalendarClock className="h-5 w-5 text-warning shrink-0" />
                 <div>
-                  <p className="font-medium text-yellow-700">Scheduled Expiration</p>
+                  <p className="font-medium text-warning">Scheduled Expiration</p>
                   <p className="text-sm text-muted-foreground">
                     Account expires on: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
                   </p>
@@ -2437,10 +2403,10 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
             )}
 
             {user?.pwdReset && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
                 <div>
-                  <p className="font-medium text-yellow-700">Password Reset Required</p>
+                  <p className="font-medium text-warning">Password Reset Required</p>
                   <p className="text-sm text-muted-foreground">
                     User must change password on next login
                   </p>
@@ -2523,13 +2489,13 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
       )}
 
       {canWrite && (
-        <Card className="md:col-span-2 border-amber-500/50">
+        <Card className="md:col-span-2 border-warning/50">
           <CardHeader>
             <CardTitle>Change username</CardTitle>
             <CardDescription>Rename the account's uid — its directory identity</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between p-4 rounded-lg border border-amber-500/30 bg-amber-500/5">
+            <div className="flex items-center justify-between p-4 rounded-lg border border-warning/30 bg-warning/5">
               <div>
                 <p className="font-medium">Change this user's username</p>
                 <p className="text-sm text-muted-foreground">
@@ -2555,7 +2521,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-500">
+                    <Callout variant="warning">
                       <p className="font-medium">This will:</p>
                       <ul className="list-disc pl-5 mt-1 space-y-0.5">
                         <li>rename the directory entry (its DN changes)</li>
@@ -2563,11 +2529,11 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                         <li>sign the user out of all active sessions</li>
                       </ul>
                       <p className="mt-2">References outside those (external systems, scripts, ACLs) keep pointing at the old username.</p>
-                    </div>
+                    </Callout>
                     {changeUidMutation.error && (
-                      <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+                      <Callout variant="error">
                         {changeUidMutation.error.message}
-                      </div>
+                      </Callout>
                     )}
                     <div className="space-y-2">
                       <Label htmlFor="newUid">New username</Label>

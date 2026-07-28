@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
+import { Callout } from '@/components/ui/callout'
 import { useState, useMemo } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useDebounced } from '@/lib/use-debounced'
@@ -134,9 +135,9 @@ function PasswordPoliciesPage() {
 
   if (error) {
     return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
+      <Callout variant="error">
         Failed to load password policies: {error.message}
-      </div>
+      </Callout>
     )
   }
 
@@ -170,9 +171,9 @@ function PasswordPoliciesPage() {
       </div>
 
       {data?.truncated && (
-        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-700 dark:text-yellow-500">
+        <Callout variant="warning">
           Showing the first {data.total} matches. Refine your search to narrow the results.
-        </div>
+        </Callout>
       )}
 
       {isLoading ? (

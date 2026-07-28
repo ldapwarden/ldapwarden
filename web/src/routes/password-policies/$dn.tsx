@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Callout } from '@/components/ui/callout'
 import { ArrowLeft, Save, Trash2 } from 'lucide-react'
 import {
   Dialog,
@@ -123,9 +124,9 @@ function PasswordPolicyDetailPage() {
 
   if (error || !policy) {
     return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
+      <Callout variant="error">
         Failed to load password policy: {error?.message || 'Not found'}
-      </div>
+      </Callout>
     )
   }
 

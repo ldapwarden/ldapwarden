@@ -15,8 +15,8 @@ export function PasswordStrength({ password }: { password: string }) {
     if (/[^a-zA-Z0-9]/.test(password)) score++
 
     if (score <= 2) return { score, label: 'Weak', color: 'bg-destructive' }
-    if (score <= 4) return { score, label: 'Medium', color: 'bg-yellow-500' }
-    return { score, label: 'Strong', color: 'bg-green-500' }
+    if (score <= 4) return { score, label: 'Medium', color: 'bg-warning' }
+    return { score, label: 'Strong', color: 'bg-success' }
   }, [password])
 
   if (!password) return null
@@ -38,8 +38,8 @@ export function PasswordStrength({ password }: { password: string }) {
           strength.score <= 2
             ? 'text-destructive'
             : strength.score <= 4
-              ? 'text-yellow-700 dark:text-yellow-500'
-              : 'text-green-700 dark:text-green-500'
+              ? 'text-warning'
+              : 'text-success'
         }`}
       >
         Password strength: {strength.label}

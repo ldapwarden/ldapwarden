@@ -13,6 +13,8 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Callout } from '@/components/ui/callout'
+import { toneStyle, type Tone } from '@/lib/tones'
 import { useState } from 'react'
 
 const DEFAULT_PAGE_SIZE = 25
@@ -114,20 +116,21 @@ function AuditLogsPage() {
     return new Date(dateString).toLocaleString()
   }
 
-  const getActionBadgeClass = (action: string) => {
-    if (action.includes('create')) return 'bg-green-100 text-green-800'
-    if (action.includes('delete')) return 'bg-red-100 text-red-800'
-    if (action.includes('update')) return 'bg-blue-100 text-blue-800'
-    if (action.includes('login')) return 'bg-purple-100 text-purple-800'
-    if (action.includes('logout')) return 'bg-gray-100 text-gray-800'
-    return 'bg-gray-100 text-gray-800'
+  // Tint an action by what it does to the directory, mirroring the colours the
+  // audit notification emails already use.
+  const actionTone = (action: string): Tone => {
+    if (action.includes('create')) return 'emerald'
+    if (action.includes('delete')) return 'rose'
+    if (action.includes('update')) return 'blue'
+    if (action.includes('login')) return 'violet'
+    return 'slate'
   }
 
   if (error) {
     return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
+      <Callout variant="error">
         Failed to load audit logs: {error.message}
-      </div>
+      </Callout>
     )
   }
 
@@ -192,9 +195,8 @@ function AuditLogsPage() {
                     </TableCell>
                     <TableCell>
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${getActionBadgeClass(
-                          log.action
-                        )}`}
+                        className="tone inline-block rounded-full border px-2 py-1 text-xs font-medium"
+                        style={toneStyle(actionTone(log.action))}
                       >
                         {log.action}
                       </span>

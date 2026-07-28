@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Callout } from '@/components/ui/callout'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { ArrowLeft, Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
@@ -188,9 +189,9 @@ function GroupDetailPage() {
 
   if (error) {
     return (
-      <div className="p-4 text-destructive bg-destructive/10 rounded-md">
+      <Callout variant="error">
         Failed to load group: {error.message}
-      </div>
+      </Callout>
     )
   }
 
@@ -320,9 +321,9 @@ function InformationTab({
         </CardHeader>
         <CardContent className="space-y-4">
           {updateMutation.error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <Callout variant="error">
               {updateMutation.error.message}
-            </div>
+            </Callout>
           )}
 
           <div className="space-y-2">
@@ -644,21 +645,21 @@ function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<
         </CardHeader>
         <CardContent className="space-y-4">
           {updateMutation.error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <Callout variant="error">
               {updateMutation.error.message}
-            </div>
+            </Callout>
           )}
 
           {isAddingObjectClass && (
-            <div className="p-3 text-sm text-blue-700 bg-blue-100 rounded-md">
+            <Callout variant="info">
               Fill in the Samba attributes below and click "Save Changes" to add the sambaGroupMapping objectClass to this group.
-            </div>
+            </Callout>
           )}
 
           {updateMutation.isSuccess && !isAddingObjectClass && (
-            <div className="p-3 text-sm text-green-700 bg-green-100 rounded-md">
+            <Callout variant="success">
               Samba attributes updated successfully
-            </div>
+            </Callout>
           )}
 
           <div className="space-y-2">
