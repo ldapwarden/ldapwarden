@@ -345,6 +345,21 @@ export const AuditLogsResponseSchema = z.object({
   offset: z.number(),
 })
 
+export const AuditActorsResponseSchema = z.object({
+  data: z.array(z.string()),
+})
+
+// FieldChangeSchema is one entry of details.changes: the structured diff the
+// handlers persist for update actions. A masked change (a password) reports the
+// field but never a value.
+export const FieldChangeSchema = z.object({
+  field: z.string(),
+  old: z.string().optional(),
+  new: z.string().optional(),
+  masked: z.boolean().optional(),
+})
+export type FieldChange = z.infer<typeof FieldChangeSchema>
+
 export const NextIDsSchema = z.object({
   nextUid: z.number(),
   nextGid: z.number(),
@@ -575,6 +590,31 @@ function listQuery(params?: ListParams): string {
 // fetches and caches the visible rows' photos itself.
 export function userPhotoUrl(dn: string): string {
   return `${API_BASE}/users/${encodeURIComponent(dn)}/photo`
+}
+
+// Filters accepted by the audit log listing and its CSV export. The two take
+// the same set so an export always covers the view it was taken from.
+export interface AuditLogParams {
+  actorUid?: string
+  resourceType?: string
+  action?: string
+  // Substring match over the actor uid and the resource DN.
+  search?: string
+  // Inclusive day bounds, YYYY-MM-DD.
+  from?: string
+  to?: string
+}
+
+function auditQuery(params?: AuditLogParams & { limit?: number; offset?: number }): string {
+  if (!params) return ''
+  const q = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '' && value !== 0) {
+      q.set(key, String(value))
+    }
+  }
+  const query = q.toString()
+  return query ? `?${query}` : ''
 }
 
 // API functions
@@ -931,17 +971,16 @@ export const api = {
   },
 
   auditLogs: {
-    list: (params?: { limit?: number; offset?: number; actorDn?: string; resourceType?: string; action?: string }, signal?: AbortSignal) => {
-      const searchParams = new URLSearchParams()
-      if (params?.limit) searchParams.set('limit', params.limit.toString())
-      if (params?.offset) searchParams.set('offset', params.offset.toString())
-      if (params?.actorDn) searchParams.set('actorDn', params.actorDn)
-      if (params?.resourceType) searchParams.set('resourceType', params.resourceType)
-      if (params?.action) searchParams.set('action', params.action)
+    list: (params?: AuditLogParams & { limit?: number; offset?: number }, signal?: AbortSignal) =>
+      fetchApi(`/audit-logs${auditQuery(params)}`, {}, AuditLogsResponseSchema, signal),
 
-      const query = searchParams.toString()
-      return fetchApi(`/audit-logs${query ? `?${query}` : ''}`, {}, AuditLogsResponseSchema, signal)
-    },
+    // Actors present in the log, for the actor filter.
+    actors: (signal?: AbortSignal) =>
+      fetchApi('/audit-logs/actors', {}, AuditActorsResponseSchema, signal),
+
+    // URL of the CSV export for the current filters. Handed to the browser as a
+    // download rather than fetched, so a large export never sits in JS memory.
+    exportUrl: (params?: AuditLogParams) => `${API_BASE}/audit-logs/export${auditQuery(params)}`,
   },
 
   nextIds: {

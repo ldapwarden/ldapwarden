@@ -908,13 +908,17 @@ GET /api/audit-logs?limit=50&offset=0
 **Query parameters:**
 - `limit` - Number of results (default: 50, max: 100)
 - `offset` - Pagination offset
-- `actorDn` - Filter by actor DN
-- `resourceType` - Filter by resource type (user, group, sudorole)
+- `actorDn` - Filter by actor DN (exact)
+- `actorUid` - Filter by actor uid (exact)
+- `resourceType` - Filter by resource type (user, group, sudorole, pwdpolicy, schema)
 - `action` - Filter by action
+- `search` - Case-insensitive substring match over the actor uid **and** the
+  resource DN: "every entry mentioning jdoe", whether as actor or as target
+- `from`, `to` - Inclusive day bounds (`YYYY-MM-DD`). `to` covers the whole day
 
 **curl example:**
 ```bash
-curl "http://localhost:8000/api/audit-logs?limit=10" \
+curl "http://localhost:8000/api/audit-logs?limit=10&from=2026-01-01&search=jdoe" \
   -b cookies.txt
 ```
 
@@ -938,14 +942,59 @@ curl "http://localhost:8000/api/audit-logs?limit=10" \
 ```
 
 **Action types:**
-- `login`, `logout`
-- `user.create`, `user.update`, `user.delete`, `user.lock`, `user.unlock`
+- `login`, `login.failed`, `logout`
+- `user.create`, `user.update`, `user.delete`, `user.rename`, `user.lock`, `user.unlock`
 - `group.create`, `group.update`, `group.delete`
 - `group.member.add`, `group.member.remove`
 - `sudorole.create`, `sudorole.update`, `sudorole.delete`
 - `sudorole.user.add`, `sudorole.user.remove`
 - `sudorole.group.add`, `sudorole.group.remove`
+- `pwdpolicy.create`, `pwdpolicy.update`, `pwdpolicy.delete`
 - `schema.refresh`
+- `notification.account_expiration`, `notification.password_expiration`
+
+For update actions, `details.changes` holds the structured diff: one entry per
+attribute with `field`, `old` and `new`. A `masked: true` entry (passwords)
+records that the field changed without either value.
+
+### List Audit Actors
+
+```http
+GET /api/audit-logs/actors
+```
+
+**Required permission:** `audit:read`
+
+Returns the actors present in the log, most recently active first (capped at
+200), so a UI can offer them as a filter instead of asking for an exact uid.
+
+```json
+{ "data": ["admin", "jdoe"] }
+```
+
+### Export Audit Logs
+
+```http
+GET /api/audit-logs/export
+```
+
+**Required permission:** `audit:read`
+
+Returns `text/csv` (as an attachment) for the same filters as the listing —
+`actorDn`, `actorUid`, `resourceType`, `action`, `search`, `from`, `to`. Entries
+come oldest first, the order an audit trail is read in, and are capped at 10 000
+rows per request.
+
+Columns: `timestamp` (RFC 3339, UTC), `actor_uid`, `actor_dn`, `action`,
+`resource_type`, `resource_dn`, `changes` (the diff as `field: old → new` lines),
+`details` (whatever else the action recorded, as JSON), `ip_address`,
+`user_agent`.
+
+**curl example:**
+```bash
+curl "http://localhost:8000/api/audit-logs/export?from=2026-01-01&to=2026-03-31" \
+  -b cookies.txt -o audit-q1.csv
+```
 
 ---
 

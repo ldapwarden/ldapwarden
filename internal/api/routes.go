@@ -172,6 +172,8 @@ func (s *Server) setupRoutes() chi.Router {
 			r.Route("/audit-logs", func(r chi.Router) {
 				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermAuditRead)).Get("/", s.handleListAuditLogs)
+				r.With(s.requirePermission(rbac.PermAuditRead)).Get("/actors", s.handleListAuditActors)
+				r.With(s.requirePermission(rbac.PermAuditRead)).Get("/export", s.handleExportAuditLogs)
 			})
 
 			r.Route("/next-ids", func(r chi.Router) {

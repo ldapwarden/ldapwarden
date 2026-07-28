@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
 )
@@ -146,7 +147,65 @@ type ListParams struct {
 	ActorDN      string
 	ResourceType ResourceType
 	Action       Action
+	// ActorUID matches the actor by uid rather than DN — what the UI's actor
+	// filter offers, since that is what the table shows.
+	ActorUID string
+	// Search is a case-insensitive substring match over the actor uid and the
+	// resource DN: "which entries mention jdoe", regardless of whether they were
+	// the actor or the target.
+	Search string
+	// From/To bound created_at (inclusive). Zero values mean unbounded.
+	From time.Time
+	To   time.Time
 }
+
+// where builds the shared filter clause for List and Export so the two cannot
+// drift — an export that does not match the view it was taken from is worse
+// than no export.
+func (p ListParams) where() (clause string, args []interface{}) {
+	argNum := 1
+	add := func(sql string, value interface{}) {
+		clause += fmt.Sprintf(sql, argNum)
+		args = append(args, value)
+		argNum++
+	}
+
+	if p.ActorDN != "" {
+		add(" AND actor_dn = $%d", p.ActorDN)
+	}
+	if p.ActorUID != "" {
+		add(" AND actor_uid = $%d", p.ActorUID)
+	}
+	if p.ResourceType != "" {
+		add(" AND resource_type = $%d", string(p.ResourceType))
+	}
+	if p.Action != "" {
+		add(" AND action = $%d", string(p.Action))
+	}
+	if p.Search != "" {
+		// ILIKE with a leading wildcard cannot use a btree index; acceptable
+		// here because the operator is narrowing an already-filtered view, and
+		// the result is always bounded by LIMIT.
+		clause += fmt.Sprintf(" AND (actor_uid ILIKE $%d OR resource_dn ILIKE $%d)", argNum, argNum)
+		args = append(args, "%"+p.Search+"%")
+		argNum++
+	}
+	if !p.From.IsZero() {
+		add(" AND created_at >= $%d", p.From)
+	}
+	if !p.To.IsZero() {
+		add(" AND created_at <= $%d", p.To)
+	}
+	return clause, args
+}
+
+// selectColumns is shared by List and Export.
+//
+// host(ip_address) because ip_address is an INET column: pgx cannot scan INET
+// into *string, so a row with a non-null IP would fail the scan and 500 the
+// whole listing (it only ever worked when every visible row had a null IP).
+const selectColumns = `SELECT id, actor_dn, actor_uid, action, resource_type, resource_dn, details, host(ip_address) AS ip_address, user_agent, created_at
+	          FROM audit_logs WHERE 1=1`
 
 type Logger struct {
 	pool              *pgxpool.Pool
@@ -317,45 +376,16 @@ func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64
 		params.Offset = 0
 	}
 
-	countQuery := `SELECT COUNT(*) FROM audit_logs WHERE 1=1`
-	// ip_address is an INET column; pgx cannot scan INET into *string, so a row
-	// with a non-null IP would fail the scan and 500 the whole listing (it only
-	// ever worked when every visible row had a null IP). host() returns the
-	// address as plain text, which scans cleanly.
-	query := `SELECT id, actor_dn, actor_uid, action, resource_type, resource_dn, details, host(ip_address) AS ip_address, user_agent, created_at
-	          FROM audit_logs WHERE 1=1`
-
-	args := []interface{}{}
-	argNum := 1
-
-	if params.ActorDN != "" {
-		countQuery += fmt.Sprintf(" AND actor_dn = $%d", argNum)
-		query += fmt.Sprintf(" AND actor_dn = $%d", argNum)
-		args = append(args, params.ActorDN)
-		argNum++
-	}
-
-	if params.ResourceType != "" {
-		countQuery += fmt.Sprintf(" AND resource_type = $%d", argNum)
-		query += fmt.Sprintf(" AND resource_type = $%d", argNum)
-		args = append(args, string(params.ResourceType))
-		argNum++
-	}
-
-	if params.Action != "" {
-		countQuery += fmt.Sprintf(" AND action = $%d", argNum)
-		query += fmt.Sprintf(" AND action = $%d", argNum)
-		args = append(args, string(params.Action))
-		argNum++
-	}
+	filter, args := params.where()
 
 	var total int64
-	err := l.pool.QueryRow(ctx, countQuery, args...).Scan(&total)
+	err := l.pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE 1=1`+filter, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count audit logs: %w", err)
 	}
 
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argNum, argNum+1)
+	query := selectColumns + filter +
+		fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
 	args = append(args, params.Limit, params.Offset)
 
 	rows, err := l.pool.Query(ctx, query, args...)
@@ -364,6 +394,61 @@ func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64
 	}
 	defer rows.Close()
 
+	entries, err := scanEntries(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return entries, total, nil
+}
+
+// exportMaxRows bounds an export so one request cannot stream an unbounded
+// table into memory (on either side of the connection).
+const exportMaxRows = 10000
+
+// Export returns up to exportMaxRows entries matching the same filters as List,
+// oldest first — the order an audit trail is read in.
+func (l *Logger) Export(ctx context.Context, params ListParams) ([]LogEntry, error) {
+	filter, args := params.where()
+
+	query := selectColumns + filter +
+		fmt.Sprintf(" ORDER BY created_at ASC LIMIT $%d", len(args)+1)
+	args = append(args, exportMaxRows)
+
+	rows, err := l.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query audit logs for export: %w", err)
+	}
+	defer rows.Close()
+
+	return scanEntries(rows)
+}
+
+// Actors returns the distinct actors that appear in the log, most recent first,
+// so the UI can offer them as a filter instead of asking for an exact uid.
+func (l *Logger) Actors(ctx context.Context) ([]string, error) {
+	rows, err := l.pool.Query(ctx, `
+		SELECT actor_uid
+		FROM audit_logs
+		GROUP BY actor_uid
+		ORDER BY MAX(created_at) DESC
+		LIMIT 200`)
+	if err != nil {
+		return nil, fmt.Errorf("query audit actors: %w", err)
+	}
+	defer rows.Close()
+
+	actors := make([]string, 0)
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			return nil, fmt.Errorf("scan audit actor: %w", err)
+		}
+		actors = append(actors, uid)
+	}
+	return actors, rows.Err()
+}
+
+func scanEntries(rows pgx.Rows) ([]LogEntry, error) {
 	entries := make([]LogEntry, 0)
 	for rows.Next() {
 		var entry LogEntry
@@ -376,7 +461,7 @@ func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64
 			&detailsJSON, &ipAddress, &userAgent, &entry.CreatedAt,
 		)
 		if err != nil {
-			return nil, 0, fmt.Errorf("scan audit log: %w", err)
+			return nil, fmt.Errorf("scan audit log: %w", err)
 		}
 
 		if detailsJSON != nil {
@@ -391,6 +476,5 @@ func (l *Logger) List(ctx context.Context, params ListParams) ([]LogEntry, int64
 
 		entries = append(entries, entry)
 	}
-
-	return entries, total, nil
+	return entries, rows.Err()
 }
