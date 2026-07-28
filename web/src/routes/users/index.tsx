@@ -20,10 +20,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { UsersBulkActions } from '@/components/users-bulk-actions'
 import { Plus, Search, Users, Upload } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { assignTones, toneStyle } from '@/lib/tones'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
+import { useSearchHotkey } from '@/lib/use-hotkey'
 import {
   listSearchValidator,
   listSearchValues,
@@ -81,6 +82,10 @@ function UsersPage() {
     q,
     useCallback((value: string) => patchSearch({ q: value || undefined, page: undefined }), [patchSearch]),
   )
+
+  // `/` focuses the search box, the convention in keyboard-driven tools.
+  const searchRef = useRef<HTMLInputElement>(null)
+  useSearchHotkey(searchRef)
 
   // Search, status filter, sort and paging are all applied by the directory
   // side, so a page costs one page worth of rows regardless of how large the
@@ -201,6 +206,7 @@ function UsersPage() {
         <div className="relative min-w-48 flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
+            ref={searchRef}
             placeholder="Search users..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}

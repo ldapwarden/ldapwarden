@@ -20,9 +20,10 @@ import { TableSkeletonRows } from '@/components/ui/skeleton'
 import { toneStyle, type Tone } from '@/lib/tones'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/list-search'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
+import { useSearchHotkey } from '@/lib/use-hotkey'
 import { encodeDN } from '@/lib/utils'
 import { ChevronDown, ChevronRight, Download, ExternalLink, ScrollText, Search } from 'lucide-react'
-import { Fragment, useCallback, useState } from 'react'
+import { Fragment, useCallback, useState, useRef } from 'react'
 
 // Filter options. Values match the backend's resource-type and action strings
 // exactly (see internal/audit/audit.go); labels mirror them so the dropdown
@@ -197,6 +198,10 @@ function AuditLogsPage() {
     useCallback((value: string) => patchSearch({ q: value || undefined, page: undefined }), [patchSearch]),
   )
 
+  // `/` focuses the search box, the convention in keyboard-driven tools.
+  const searchRef = useRef<HTMLInputElement>(null)
+  useSearchHotkey(searchRef)
+
   // The filters shared by the listing and the export, so a downloaded CSV always
   // covers exactly the view it was taken from.
   const filters: AuditLogParams = {
@@ -289,6 +294,7 @@ function AuditLogsPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               id="audit-search"
+              ref={searchRef}
               className="w-56 pl-8"
               placeholder="uid or DN fragment…"
               value={searchInput}

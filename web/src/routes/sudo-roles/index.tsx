@@ -19,9 +19,10 @@ import { Plus, Pencil, Trash2, Search, ShieldCheck } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { TableEmptyState } from '@/components/ui/empty-state'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
+import { useSearchHotkey } from '@/lib/use-hotkey'
 import {
   listSearchValidator,
   listSearchValues,
@@ -63,6 +64,10 @@ function SudoRolesPage() {
     q,
     useCallback((value: string) => patchSearch({ q: value || undefined, page: undefined }), [patchSearch]),
   )
+
+  // `/` focuses the search box, the convention in keyboard-driven tools.
+  const searchRef = useRef<HTMLInputElement>(null)
+  useSearchHotkey(searchRef)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sudo-roles', q],

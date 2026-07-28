@@ -37,10 +37,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound, Menu } from 'lucide-react'
+import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound, Menu, Search } from 'lucide-react'
+import { CommandPalette } from '@/components/command-palette'
+import { useCommandHotkey } from '@/lib/use-hotkey'
 import { RouteError } from '@/components/route-error'
 import { LoadingScreen } from '@/components/loading-screen'
-import { useState, useMemo, useEffect } from 'react'
+import { useCallback, useState, useMemo, useEffect } from 'react'
 
 interface RouterContext {
   auth: ReturnType<typeof useAuth>
@@ -76,6 +78,7 @@ function RootComponent() {
   const { theme } = useTheme()
   const router = useRouter()
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
@@ -163,6 +166,8 @@ function RootComponent() {
   const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword
   const passwordsDontMatch = newPassword && confirmPassword && newPassword !== confirmPassword
 
+  useCommandHotkey(useCallback(() => setPaletteOpen((open) => !open), []))
+
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault()
     if (newPassword && newPassword === confirmPassword) {
@@ -235,6 +240,16 @@ function RootComponent() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden items-center gap-2 text-muted-foreground sm:flex"
+              onClick={() => setPaletteOpen(true)}
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden lg:inline">Search</span>
+              <kbd className="hidden rounded border px-1 text-xs font-sans lg:inline">⌘K</kbd>
+            </Button>
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -355,6 +370,7 @@ function RootComponent() {
       <main className="container mx-auto px-4 py-6">
         <Outlet />
       </main>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Suspense>
         <TanStackRouterDevtools />
       </Suspense>
