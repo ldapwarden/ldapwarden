@@ -2,6 +2,17 @@ package api
 
 import "net/http"
 
+// themeBootstrapHash is the SHA-256 of the inline <script> in web/index.html,
+// which applies the persisted theme before first paint.
+//
+// Without it in script-src, that script is blocked and every page load flashes
+// the wrong theme before React re-applies it. A hash rather than
+// 'unsafe-inline' so only this exact script runs — and
+// TestContentSecurityPolicy_AllowsThemeBootstrap recomputes it from
+// web/index.html, so editing the script fails the build instead of silently
+// bringing the flash back.
+const themeBootstrapHash = "'sha256-3qCl80unnUiGyOpY5JhzHDQH/XdL8oG3hAywu9P5Yoo='"
+
 // contentSecurityPolicy is rendered as one line per response. Note:
 //   - 'unsafe-inline' in style-src is required because login.tsx uses inline
 //     style={{}} attributes for animated gradients, and Vite production builds
@@ -13,7 +24,7 @@ import "net/http"
 //     X-Frame-Options is still emitted below for legacy clients.
 const contentSecurityPolicy = "default-src 'self'; " +
 	"img-src 'self' data:; " +
-	"script-src 'self'; " +
+	"script-src 'self' " + themeBootstrapHash + "; " +
 	"style-src 'self' 'unsafe-inline'; " +
 	"font-src 'self' data:; " +
 	"connect-src 'self'; " +
