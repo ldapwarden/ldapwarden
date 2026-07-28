@@ -2,7 +2,7 @@ import { createRootRouteWithContext, Outlet, Link, useRouter, useRouterState } f
 import { encodeDN } from '@/lib/utils'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 
 // Only load devtools in development
 const TanStackRouterDevtools = import.meta.env.DEV
@@ -22,7 +22,6 @@ import { PasswordStrength } from '@/components/ui/password-strength'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar } from '@/components/ui/avatar'
-import { Callout } from '@/components/ui/callout'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,6 +117,10 @@ function RootComponent() {
       setPasswordDialogOpen(false)
       setNewPassword('')
       setConfirmPassword('')
+      toast.success('Password changed')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
     },
   })
 
@@ -296,16 +299,6 @@ function RootComponent() {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
-                  {changePasswordMutation.error && (
-                    <Callout variant="error">
-                      {changePasswordMutation.error.message}
-                    </Callout>
-                  )}
-
-                  {changePasswordMutation.isSuccess && (
-                    <Callout variant="success">Password changed successfully</Callout>
-                  )}
-
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">New Password</Label>
                     <Input

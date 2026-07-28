@@ -335,12 +335,6 @@ function InformationTab({
           <CardTitle>Group Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {updateMutation.error && (
-            <Callout variant="error">
-              {updateMutation.error.message}
-            </Callout>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="cn">Name (CN)</Label>
             <Input id="cn" value={group?.cn || ''} disabled />
@@ -659,21 +653,9 @@ function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {updateMutation.error && (
-            <Callout variant="error">
-              {updateMutation.error.message}
-            </Callout>
-          )}
-
           {isAddingObjectClass && (
             <Callout variant="info">
               Fill in the Samba attributes below and click "Save Changes" to add the sambaGroupMapping objectClass to this group.
-            </Callout>
-          )}
-
-          {updateMutation.isSuccess && !isAddingObjectClass && (
-            <Callout variant="success">
-              Samba attributes updated successfully
             </Callout>
           )}
 
@@ -778,6 +760,10 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
       setAddRoleOpen(false)
       setSelectedRole('')
       setRoleSearch('')
+      toast.success('Group added to sudo role')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
     },
   })
 
@@ -786,6 +772,10 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['group', dn, 'sudo-roles'] })
       queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
+      toast.success('Group removed from sudo role')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
     },
   })
 

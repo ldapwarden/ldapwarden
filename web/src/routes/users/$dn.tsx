@@ -486,12 +486,6 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
             <CardDescription>inetOrgPerson attributes</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {updateMutation.error && (
-              <Callout variant="error">
-                {updateMutation.error.message}
-              </Callout>
-            )}
-
             {canWrite && (
               <div className="space-y-2">
                 <Label>Photo</Label>
@@ -979,12 +973,6 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
           <CardDescription>posixAccount attributes for Unix/Linux systems</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {updateMutation.error && (
-            <Callout variant="error">
-              {updateMutation.error.message}
-            </Callout>
-          )}
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="uidNumber">UID Number</Label>
@@ -1127,12 +1115,6 @@ function SSHKeysTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeo
         <CardDescription>ldapPublicKey attributes for SSH authentication</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {(addKeyMutation.error || removeKeyMutation.error) && (
-          <Callout variant="error">
-            {(addKeyMutation.error || removeKeyMutation.error)?.message}
-          </Callout>
-        )}
-
         {sshKeys.length > 0 ? (
           <ul className="space-y-2">
             {sshKeys.map((key, index) => {
@@ -1322,21 +1304,9 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {updateMutation.error && (
-            <Callout variant="error">
-              {updateMutation.error.message}
-            </Callout>
-          )}
-
           {isAddingObjectClass && (
             <Callout variant="info">
               Fill in the Samba attributes below and click "Save Changes" to add the sambaSamAccount objectClass to this user.
-            </Callout>
-          )}
-
-          {updateMutation.isSuccess && !isAddingObjectClass && (
-            <Callout variant="success">
-              Samba attributes updated successfully
             </Callout>
           )}
 
@@ -1593,21 +1563,9 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<R
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {updateMutation.error && (
-            <Callout variant="error">
-              {updateMutation.error.message}
-            </Callout>
-          )}
-
           {isAddingObjectClass && (
             <Callout variant="info">
               Fill in the shadow attributes below and click "Save Changes" to add the shadowAccount objectClass to this user.
-            </Callout>
-          )}
-
-          {updateMutation.isSuccess && !isAddingObjectClass && (
-            <Callout variant="success">
-              Shadow attributes updated successfully
             </Callout>
           )}
 
@@ -2111,18 +2069,6 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
         </CardHeader>
         <CardContent>
           <form onSubmit={handlePasswordChange} className="space-y-4">
-            {changePasswordMutation.error && (
-              <Callout variant="error">
-                {changePasswordMutation.error.message}
-              </Callout>
-            )}
-
-            {changePasswordMutation.isSuccess && (
-              <Callout variant="success">
-                Password changed successfully
-              </Callout>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
               <Input
@@ -2177,11 +2123,6 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                           They will no longer be able to log in.
                         </DialogDescription>
                       </DialogHeader>
-                      {removePasswordMutation.error && (
-                        <Callout variant="error">
-                          {removePasswordMutation.error.message}
-                        </Callout>
-                      )}
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setRemovePasswordDialogOpen(false)}>
                           Cancel
@@ -2216,18 +2157,6 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
           <CardDescription>Send a password reset link to the user's email</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {sendPasswordResetMutation.error && (
-            <Callout variant="error">
-              {sendPasswordResetMutation.error.message}
-            </Callout>
-          )}
-
-          {sendPasswordResetMutation.isSuccess && (
-            <Callout variant="success">
-              Password reset email sent successfully
-            </Callout>
-          )}
-
           {!user?.mail ? (
             <div className="p-3 text-sm text-muted-foreground bg-muted rounded-md">
               This user has no email address configured. Add an email address in the Identity tab to enable password reset emails.
@@ -2264,12 +2193,6 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
           <CardDescription>Lock or unlock user account</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {(lockMutation.error || unlockMutation.error || setExpirationMutation.error) && (
-            <Callout variant="error">
-              {(lockMutation.error || unlockMutation.error || setExpirationMutation.error)?.message}
-            </Callout>
-          )}
-
           <div className="flex items-center gap-4 p-4 rounded-lg border">
             <div className={`p-3 rounded-full ${user?.accountLocked ? 'bg-destructive/10' : hasFutureExpiration ? 'bg-warning/15' : 'bg-success/15'}`}>
               {user?.accountLocked ? (
@@ -2545,11 +2468,6 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                       </ul>
                       <p className="mt-2">References outside those (external systems, scripts, ACLs) keep pointing at the old username.</p>
                     </Callout>
-                    {changeUidMutation.error && (
-                      <Callout variant="error">
-                        {changeUidMutation.error.message}
-                      </Callout>
-                    )}
                     <div className="space-y-2">
                       <Label htmlFor="newUid">New username</Label>
                       <Input

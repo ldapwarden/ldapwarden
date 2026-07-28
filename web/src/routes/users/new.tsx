@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
-import { Callout } from '@/components/ui/callout'
 import { ArrowLeft, Save, Wand2, Users, X, CalendarClock } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
@@ -166,12 +165,6 @@ function NewUserPage() {
             <CardTitle>User Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {createMutation.error && (
-              <Callout variant="error">
-                {createMutation.error.message}
-              </Callout>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="uid">Username (UID) *</Label>
               <Input

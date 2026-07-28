@@ -112,12 +112,6 @@ function NewSudoRolePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {createMutation.error && (
-          <Callout variant="error">
-            {createMutation.error.message}
-          </Callout>
-        )}
-
         <div className="grid gap-4 md:grid-cols-2">
           {/* Basic Info */}
           <Card>

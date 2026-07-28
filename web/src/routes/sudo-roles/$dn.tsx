@@ -141,18 +141,6 @@ function SudoRoleDetailPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {!canWrite && <ReadOnlyNotice />}
-        {updateMutation.error && (
-          <Callout variant="error">
-            {updateMutation.error.message}
-          </Callout>
-        )}
-
-        {updateMutation.isSuccess && (
-          <Callout variant="success">
-            Sudo role updated successfully
-          </Callout>
-        )}
-
         <div className="grid gap-4 md:grid-cols-2">
           {/* Basic Info */}
           <Card>
