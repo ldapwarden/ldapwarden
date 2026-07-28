@@ -14,6 +14,10 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60,
       retry: (failureCount, error) => {
+        // Never retry a cancelled request: the abort came from React Query
+        // itself (navigation/unmount) and retrying it races with the
+        // library's own cancellation handling.
+        if (error instanceof DOMException && error.name === 'AbortError') return false
         if (error instanceof ApiError && error.status === 401) return false
         return failureCount < 1
       },

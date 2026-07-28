@@ -31,7 +31,11 @@ async function fetchApi<T>(
 
   // Compose external signal (from React Query) with a timeout to prevent hung requests
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  let timedOut = false
+  const timeoutId = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, FETCH_TIMEOUT_MS)
 
   if (signal) {
     if (signal.aborted) {
@@ -70,6 +74,16 @@ async function fetchApi<T>(
     return data as T
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
+      // Only OUR timeout is a real failure. A cancellation coming from the
+      // caller's signal (React Query aborting an in-flight query on
+      // navigation/unmount) must propagate as the original AbortError:
+      // translating it into a regular error breaks the library's cancellation
+      // contract — the phantom failure enters the retry path and can strand
+      // the query in a permanently "fetching" state (infinite spinner until a
+      // full page reload).
+      if (!timedOut) {
+        throw error
+      }
       throw new ApiError(0, 'Request timed out')
     }
     throw error
@@ -91,7 +105,11 @@ async function fetchApiPublic<T>(
   }
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  let timedOut = false
+  const timeoutId = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, FETCH_TIMEOUT_MS)
 
   if (signal) {
     if (signal.aborted) {
@@ -122,6 +140,10 @@ async function fetchApiPublic<T>(
     return data as T
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
+      // See fetchApi: propagate caller-initiated cancellations untouched.
+      if (!timedOut) {
+        throw error
+      }
       throw new ApiError(0, 'Request timed out')
     }
     throw error
