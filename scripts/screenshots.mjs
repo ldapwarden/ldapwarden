@@ -5,85 +5,84 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:5173';
 const USERNAME = process.env.USERNAME || 'admin';
 const PASSWORD = process.env.PASSWORD || 'admin123';
 const OUTPUT_DIR = process.env.OUTPUT_DIR || 'docs/screenshots';
+// Point at an already-installed browser when `npx playwright install` is not an
+// option (e.g. a cached revision that does not match this playwright build).
+const CHROME_PATH = process.env.CHROME_PATH;
 
 async function main() {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(CHROME_PATH ? { executablePath: CHROME_PATH } : {});
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
   });
   const page = await context.newPage();
 
+  const shoot = async (step, name) => {
+    console.log(`${step} ${name}`);
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForTimeout(1000); // let queries settle
+    await page.screenshot({ path: `${OUTPUT_DIR}/${name}.png` });
+  };
+
   console.log('Taking screenshots...\n');
 
-  // Login page
-  console.log('1. Login page');
   await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState('networkidle');
-  await page.screenshot({ path: `${OUTPUT_DIR}/01-login.png` });
+  await shoot('1.', '01-login');
 
-  // Perform login
   console.log('2. Logging in...');
   await page.fill('input[id="username"]', USERNAME);
   await page.fill('input[id="password"]', PASSWORD);
   await page.click('button[type="submit"]');
-  await page.waitForURL('**/users**', { timeout: 10000 });
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000); // Wait for data to load
+  // Login lands on the dashboard; wait for anything but /login.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 10000 });
+  await shoot('3.', '02-dashboard');
 
-  // Users list
-  console.log('3. Users list');
-  await page.screenshot({ path: `${OUTPUT_DIR}/02-users-list.png` });
+  await page.goto(`${BASE_URL}/users`);
+  await shoot('4.', '03-users-list');
 
-  // Click on first user link (inside table cell)
-  console.log('4. User details');
+  // Click the first user link (inside a table cell).
   const userLink = page.locator('table tbody tr td a').first();
   if (await userLink.count() > 0) {
     await userLink.click();
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000); // Wait for details to render
-    await page.screenshot({ path: `${OUTPUT_DIR}/03-user-details.png` });
+    await shoot('5.', '04-user-details');
   }
 
-  // Groups list
-  console.log('5. Groups list');
   await page.click('a[href="/groups"]');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000); // Wait for data to load
-  await page.screenshot({ path: `${OUTPUT_DIR}/04-groups-list.png` });
+  await shoot('6.', '05-groups-list');
 
-  // Click on first group link
-  console.log('6. Group details');
   const groupLink = page.locator('table tbody tr td a').first();
   if (await groupLink.count() > 0) {
     await groupLink.click();
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000); // Wait for details to render
-    await page.screenshot({ path: `${OUTPUT_DIR}/05-group-details.png` });
+    await shoot('7.', '06-group-details');
   }
 
-  // Sudo Roles
-  console.log('7. Sudo roles');
   await page.click('a[href="/sudo-roles"]');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: `${OUTPUT_DIR}/06-sudo-roles.png` });
+  await shoot('8.', '07-sudo-roles');
 
-  // Audit logs
-  console.log('8. Audit logs');
-  await page.click('a[href="/audit-logs"]');
-  await page.waitForLoadState('networkidle');
+  // Filter to updates and expand the first one, so the shot shows the
+  // before/after diff — the point of the page.
+  await page.goto(`${BASE_URL}/audit-logs?action=user.update`);
+  await page.waitForLoadState('networkidle').catch(() => {});
   await page.waitForTimeout(1000);
-  await page.screenshot({ path: `${OUTPUT_DIR}/07-audit-logs.png` });
+  const expand = page.locator('button[aria-label="Show details"]').first();
+  if (await expand.count() > 0) {
+    await expand.click();
+    await page.waitForTimeout(300);
+  }
+  await shoot('9.', '08-audit-logs');
 
-  // Admin page - click on user dropdown first
-  console.log('9. Admin page');
-  // Find the dropdown trigger button with the user's name
-  await page.locator('nav button').filter({ hasText: 'admin' }).click();
+  // Administration lives in the account menu.
+  await page.locator('nav button').filter({ hasText: USERNAME }).click();
   await page.waitForTimeout(300);
   await page.click('a[href="/admin"]');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: `${OUTPUT_DIR}/08-admin.png` });
+  await shoot('10.', '09-admin');
+
+  // The command palette, opened over the users list.
+  await page.goto(`${BASE_URL}/users`);
+  await page.waitForTimeout(800);
+  await page.keyboard.press('Control+k');
+  await page.waitForTimeout(300);
+  await page.keyboard.type('a', { delay: 60 });
+  await shoot('11.', '10-command-palette');
 
   await browser.close();
   console.log(`\nDone! Screenshots saved to ${OUTPUT_DIR}/`);

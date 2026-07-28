@@ -59,14 +59,19 @@ ldap/                # OpenLDAP seed data
 - PRs: Must pass lint + tests
 
 ## API Endpoints
+See [docs/API.md](docs/API.md) for the full reference, including the query
+parameters the list endpoints accept.
 - `POST /api/auth/login` - LDAP bind authentication
 - `POST /api/auth/logout` - Session invalidation
 - `GET /api/auth/me` - Current user info
-- `GET/POST/PUT/DELETE /api/users` - User CRUD
-- `GET/POST/PUT/DELETE /api/groups` - Group CRUD
+- `GET /api/overview` - Dashboard aggregates (counts, expiring accounts)
+- `GET/POST/PUT/DELETE /api/users` - User CRUD; list takes `search`, `status`, `sort`, `order`, `limit`, `offset`
+- `GET /api/users/:dn/photo` - User photo as `image/jpeg`
+- `GET/POST/PUT/DELETE /api/groups` - Group CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
 - `POST/DELETE /api/groups/:dn/members` - Group membership
 - `GET /api/schema` - LDAP schema
-- `GET /api/audit-logs` - Audit logs (admin only)
+- `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
+- `GET /api/audit-logs/export` - Audit logs as CSV, same filters
 
 ## Test Accounts (LDAP)
 - admin / admin123 (system admin)
@@ -75,9 +80,25 @@ ldap/                # OpenLDAP seed data
 
 ## Current Status
 MVP implemented with:
-- User/Group CRUD with form-based editing
+- Dashboard, User/Group CRUD with form-based editing
 - LDAP bind authentication
 - Redis session management
 - Basic RBAC (admin/readonly roles)
-- Audit logging
+- Audit logging with per-attribute diffs and CSV export
 - Docker Compose deployment
+
+## UI Conventions
+- List views page, sort and filter **server-side**; the browser renders one page
+  of a narrow projection. Never add a column that requires shipping a whole
+  collection to the client.
+- View state (search, sort, page, size, active tab, audit filters) lives in the
+  URL via `validateSearch`, so every view is a shareable link. Helpers:
+  `lib/list-search.ts`, `lib/use-url-search-input.ts`.
+- Mutation outcomes are reported by a **toast**. Inline `Callout`s are for
+  page-level load failures, field validation and persistent notices — not for
+  confirming a save.
+- Colours come from theme tokens (`text-success`, `bg-warning/10`, the `.tone`
+  class for categorical tints). Never use raw palette utilities such as
+  `bg-green-100`: they only work in light mode.
+- Loading states use the skeletons in `components/ui/skeleton.tsx`, rendered
+  inside the real table so nothing shifts when data arrives.

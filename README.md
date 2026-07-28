@@ -30,7 +30,7 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/02-users-list.png" alt="LDAP Warden — Users list" width="900">
+  <img src="docs/screenshots/02-dashboard.png" alt="LDAP Warden — Dashboard" width="900">
 </p>
 
 <details>
@@ -40,43 +40,57 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 </details>
 
 <details>
+<summary><strong>Users List</strong></summary>
+
+![Users List](docs/screenshots/03-users-list.png)
+</details>
+
+<details>
 <summary><strong>User Details</strong></summary>
 
-![User Details](docs/screenshots/03-user-details.png)
+![User Details](docs/screenshots/04-user-details.png)
 </details>
 
 <details>
 <summary><strong>Groups List</strong></summary>
 
-![Groups List](docs/screenshots/04-groups-list.png)
+![Groups List](docs/screenshots/05-groups-list.png)
 </details>
 
 <details>
 <summary><strong>Group Details</strong></summary>
 
-![Group Details](docs/screenshots/05-group-details.png)
+![Group Details](docs/screenshots/06-group-details.png)
 </details>
 
 <details>
 <summary><strong>Sudo Roles</strong></summary>
 
-![Sudo Roles](docs/screenshots/06-sudo-roles.png)
+![Sudo Roles](docs/screenshots/07-sudo-roles.png)
 </details>
 
 <details>
 <summary><strong>Audit Logs</strong></summary>
 
-![Audit Logs](docs/screenshots/07-audit-logs.png)
+![Audit Logs](docs/screenshots/08-audit-logs.png)
 </details>
 
 <details>
 <summary><strong>Administration</strong></summary>
 
-![Administration](docs/screenshots/08-admin.png)
+![Administration](docs/screenshots/09-admin.png)
+</details>
+
+<details>
+<summary><strong>Command Palette (⌘K)</strong></summary>
+
+![Command Palette](docs/screenshots/10-command-palette.png)
 </details>
 
 ## Features
 
+- **Dashboard** — The directory at a glance on login: user population, locked and expiring accounts, recent changes, and whether the scheduled expiration jobs are still running
+- **Command Palette** — `⌘K` / `Ctrl+K` searches users, groups, sudo roles and policies at once and doubles as a command list; `/` focuses the search box on any list
 - **User Management** — Create, edit, and delete LDAP users with support for `inetOrgPerson`, `posixAccount`, and `shadowAccount` object classes
 - **Group Management** — Manage POSIX groups and group memberships with an intuitive UI
 - **Sudo Roles** — Full sudoers LDAP schema support with user and group-based sudo privilege management
@@ -85,12 +99,12 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 - **Samba Integration** — Optional support for `sambaSamAccount` and `sambaGroupMapping` object classes
 - **LDAP Authentication** — Authenticate users directly against your LDAP directory; passwords are written via the RFC 3062 `PasswordModify` extended operation so the directory's hashing pipeline always runs
 - **Role-Based Access Control** — Admin and read-only roles based on LDAP group membership, with active sessions invalidated immediately on user/admin-group mutation
-- **Audit Logging** — Track every change in PostgreSQL with actor, IP and User-Agent, plus opt-in per-change email notifications
+- **Audit Logging** — Track every change in PostgreSQL with actor, IP and User-Agent, browsable with a per-attribute before/after diff, filterable by actor / resource / action / date range, exportable as CSV, plus opt-in per-change email notifications
 - **Email Notifications** — Per-change audit emails, password-reset flow, and proactive account/password expiration reminders to admins and users
 - **Security-First Defaults** — Per-IP rate limiting on auth endpoints, baseline CSP / X-Frame-Options / Referrer-Policy headers, `X-Forwarded-For` allowlist by trusted-proxy CIDR, and fail-fast on default secrets
 - **Modular UI** — Enable/disable features based on your LDAP schema (sudo, policies, Samba)
 - **Photo Support** — Upload and display user photos (JPEG)
-- **Modern UI** — Clean, responsive interface built with React and Tailwind CSS
+- **Modern UI** — Clean interface built with React and Tailwind CSS: light and dark themes, usable down to a phone screen, keyboard-navigable, and every filtered/sorted view is a shareable URL
 
 ## Quick Start
 
