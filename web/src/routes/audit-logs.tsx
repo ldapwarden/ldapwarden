@@ -14,6 +14,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
+import { TableEmptyState } from '@/components/ui/empty-state'
+import { ScrollText } from 'lucide-react'
 import { toneStyle, type Tone } from '@/lib/tones'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/list-search'
 
@@ -247,11 +249,22 @@ function AuditLogsPage() {
                 </TableRow>
               ))}
               {data?.data.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    {hasFilters ? 'No audit logs match these filters' : 'No audit logs found'}
-                  </TableCell>
-                </TableRow>
+                <TableEmptyState
+                  colSpan={5}
+                  icon={ScrollText}
+                  title={hasFilters ? 'No entries match these filters' : 'No audit entries yet'}
+                  description={
+                    hasFilters
+                      ? 'The log is not empty — try a wider resource type or action.'
+                      : 'Every change made through the UI is recorded here, along with the actor and their IP.'
+                  }
+                >
+                  {hasFilters && (
+                    <Button variant="outline" size="sm" onClick={clearFilters}>
+                      Clear filters
+                    </Button>
+                  )}
+                </TableEmptyState>
               )}
                 </>
               )}

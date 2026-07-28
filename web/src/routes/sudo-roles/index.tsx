@@ -18,6 +18,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, ShieldCheck } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
+import { TableEmptyState } from '@/components/ui/empty-state'
 import { useCallback, useMemo, useState } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
@@ -258,11 +259,38 @@ function SudoRolesPage() {
               </TableRow>
             ))}
             {sortedRoles.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No sudo roles found
-                </TableCell>
-              </TableRow>
+              q ? (
+                <TableEmptyState
+                  colSpan={6}
+                  icon={Search}
+                  title={`No sudo roles match \u201c${q}\u201d`}
+                  description="Search matches the role name and description."
+                >
+                  <Button variant="outline" size="sm" onClick={() => setSearchInput('')}>
+                    Clear search
+                  </Button>
+                </TableEmptyState>
+              ) : (
+                <TableEmptyState
+                  colSpan={6}
+                  icon={ShieldCheck}
+                  title="No sudo roles yet"
+                  description={
+                    canWrite
+                      ? 'A sudo role grants commands to users or groups on given hosts.'
+                      : 'The directory has no sudoRole entries under the configured OU.'
+                  }
+                >
+                  {canWrite && (
+                    <Link to="/sudo-roles/new">
+                      <Button size="sm">
+                        <Plus className="h-4 w-4 mr-1" />
+                        New Sudo Role
+                      </Button>
+                    </Link>
+                  )}
+                </TableEmptyState>
+              )
             )}
               </>
             )}

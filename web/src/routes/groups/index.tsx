@@ -22,6 +22,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { Plus, Search, Users, Trash2, Upload } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
+import { TableEmptyState } from '@/components/ui/empty-state'
 import { useCallback, useMemo, useState } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
@@ -308,11 +309,46 @@ function GroupsPage() {
               </TableRow>
             ))}
             {groups.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={canWrite ? 5 : 4} className="text-center py-8 text-muted-foreground">
-                  No groups found
-                </TableCell>
-              </TableRow>
+              q ? (
+                <TableEmptyState
+                  colSpan={canWrite ? 5 : 4}
+                  icon={Search}
+                  title={`No groups match \u201c${q}\u201d`}
+                  description="Search matches the group name and description."
+                >
+                  <Button variant="outline" size="sm" onClick={() => setSearchInput('')}>
+                    Clear search
+                  </Button>
+                </TableEmptyState>
+              ) : (
+                <TableEmptyState
+                  colSpan={canWrite ? 5 : 4}
+                  icon={Users}
+                  title="No groups yet"
+                  description={
+                    canWrite
+                      ? 'Create one, or import a CSV to populate the directory.'
+                      : 'The directory has no posixGroup entries under the configured OU.'
+                  }
+                >
+                  {canWrite && (
+                    <>
+                      <Link to="/groups/new">
+                        <Button size="sm">
+                          <Plus className="h-4 w-4 mr-1" />
+                          New Group
+                        </Button>
+                      </Link>
+                      <Link to="/groups/import">
+                        <Button variant="outline" size="sm">
+                          <Upload className="h-4 w-4 mr-1" />
+                          Import CSV
+                        </Button>
+                      </Link>
+                    </>
+                  )}
+                </TableEmptyState>
+              )
             )}
               </>
             )}

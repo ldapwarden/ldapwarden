@@ -33,6 +33,7 @@ import {
 } from '@/lib/list-search'
 import { Avatar } from '@/components/ui/avatar'
 import { AccountStatus } from '@/components/account-status'
+import { TableEmptyState } from '@/components/ui/empty-state'
 import { Callout } from '@/components/ui/callout'
 
 const SORT_FIELDS = ['uid', 'displayName', 'mail', 'employeeType', 'groupsCount'] as const
@@ -350,11 +351,57 @@ function UsersPage() {
               </TableRow>
             ))}
             {users.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={canWrite ? 7 : 6} className="text-center py-8 text-muted-foreground">
-                  No users found
-                </TableCell>
-              </TableRow>
+              q || showInactive === false ? (
+                <TableEmptyState
+                  colSpan={canWrite ? 7 : 6}
+                  icon={Search}
+                  title={q ? `No users match \u201c${q}\u201d` : 'No active users'}
+                  description={
+                    q
+                      ? 'Search matches uid, name and email.'
+                      : 'Every account is locked or expired. Turn on "Show inactive" to see them.'
+                  }
+                >
+                  {q && (
+                    <Button variant="outline" size="sm" onClick={() => setSearchInput('')}>
+                      Clear search
+                    </Button>
+                  )}
+                  {!q && (
+                    <Button variant="outline" size="sm" onClick={() => handleShowInactiveChange(true)}>
+                      Show inactive
+                    </Button>
+                  )}
+                </TableEmptyState>
+              ) : (
+                <TableEmptyState
+                  colSpan={canWrite ? 7 : 6}
+                  icon={Users}
+                  title="No users yet"
+                  description={
+                    canWrite
+                      ? 'Create one, or import a CSV to populate the directory.'
+                      : 'The directory has no user entries under the configured OU.'
+                  }
+                >
+                  {canWrite && (
+                    <>
+                      <Link to="/users/new">
+                        <Button size="sm">
+                          <Plus className="h-4 w-4 mr-1" />
+                          New User
+                        </Button>
+                      </Link>
+                      <Link to="/users/import">
+                        <Button variant="outline" size="sm">
+                          <Upload className="h-4 w-4 mr-1" />
+                          Import CSV
+                        </Button>
+                      </Link>
+                    </>
+                  )}
+                </TableEmptyState>
+              )
             )}
               </>
             )}
