@@ -49,7 +49,10 @@ export function TabsList({ children, className, ...props }: TabsListProps) {
   return (
     <div
       className={cn(
-        "inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground",
+        // max-w-full + horizontal scroll: with seven tabs the list is wider
+        // than a phone screen, and an inline-flex row that cannot scroll drags
+        // the whole document sideways instead.
+        "inline-flex h-10 max-w-full items-center justify-start overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground",
         className
       )}
       role="tablist"

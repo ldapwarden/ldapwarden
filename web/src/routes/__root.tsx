@@ -37,7 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound } from 'lucide-react'
+import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound, Menu } from 'lucide-react'
 import { RouteError } from '@/components/route-error'
 import { LoadingScreen } from '@/components/loading-screen'
 import { useState, useMemo, useEffect } from 'react'
@@ -107,7 +107,21 @@ function RootComponent() {
     return ['users', 'groups', 'sudo', 'policies']
   }, [config])
 
-  const isModuleEnabled = (module: string) => enabledModules.includes(module)
+  // The section links, filtered by enabled module and permission. Built once so
+  // the wide bar and the mobile dropdown cannot drift apart.
+  const navItems = useMemo(() => {
+    const items: Array<{ to: string; label: string; icon: typeof Users }> = []
+    if (enabledModules.includes('users')) items.push({ to: '/users', label: 'Users', icon: Users })
+    if (enabledModules.includes('groups')) items.push({ to: '/groups', label: 'Groups', icon: UsersRound })
+    if (enabledModules.includes('sudo')) items.push({ to: '/sudo-roles', label: 'Sudo Roles', icon: ShieldCheck })
+    if (enabledModules.includes('policies') && session?.permissions.includes('settings:read')) {
+      items.push({ to: '/password-policies', label: 'Policies', icon: KeyRound })
+    }
+    if (session?.permissions.includes('audit:read')) {
+      items.push({ to: '/audit-logs', label: 'Audit Logs', icon: ScrollText })
+    }
+    return items
+  }, [enabledModules, session?.permissions])
 
   const changePasswordMutation = useMutation({
     mutationFn: async () => {
@@ -179,62 +193,45 @@ function RootComponent() {
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4">
           <div className="flex h-14 items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link to="/" className="flex items-center gap-2 font-semibold">
+            <div className="flex min-w-0 items-center gap-2 md:gap-6">
+              {/* Below md the five section links do not fit next to the account
+                  menu, so they move into this dropdown. Without it the nav row
+                  pushed the document to ~900px on a phone: the account menu was
+                  unreachable and every page scrolled sideways. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden" aria-label="Main menu">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  {navItems.map(({ to, label, icon: Icon }) => (
+                    <DropdownMenuItem key={to} asChild>
+                      <Link to={to} className="flex cursor-pointer items-center">
+                        <Icon className="mr-2 h-4 w-4" />
+                        {label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Link to="/" className="flex shrink-0 items-center gap-2 font-semibold">
                 <Shield className="h-5 w-5" />
-                LDAP Warden
+                <span className="hidden sm:inline">LDAP Warden</span>
               </Link>
-              <div className="flex items-center gap-1">
-                {isModuleEnabled('users') && (
-                  <Link to="/users">
+
+              <div className="hidden items-center gap-1 md:flex">
+                {navItems.map(({ to, label, icon: Icon }) => (
+                  <Link key={to} to={to}>
                     {({ isActive }) => (
-                      <Button variant={isActive ? "secondary" : "ghost"} size="sm">
-                        <Users className="h-4 w-4 mr-1" />
-                        Users
+                      <Button variant={isActive ? 'secondary' : 'ghost'} size="sm">
+                        <Icon className="h-4 w-4 mr-1" />
+                        {label}
                       </Button>
                     )}
                   </Link>
-                )}
-                {isModuleEnabled('groups') && (
-                  <Link to="/groups">
-                    {({ isActive }) => (
-                      <Button variant={isActive ? "secondary" : "ghost"} size="sm">
-                        <UsersRound className="h-4 w-4 mr-1" />
-                        Groups
-                      </Button>
-                    )}
-                  </Link>
-                )}
-                {isModuleEnabled('sudo') && (
-                  <Link to="/sudo-roles">
-                    {({ isActive }) => (
-                      <Button variant={isActive ? "secondary" : "ghost"} size="sm">
-                        <ShieldCheck className="h-4 w-4 mr-1" />
-                        Sudo Roles
-                      </Button>
-                    )}
-                  </Link>
-                )}
-                {isModuleEnabled('policies') && session?.permissions.includes('settings:read') && (
-                  <Link to="/password-policies">
-                    {({ isActive }) => (
-                      <Button variant={isActive ? "secondary" : "ghost"} size="sm">
-                        <KeyRound className="h-4 w-4 mr-1" />
-                        Policies
-                      </Button>
-                    )}
-                  </Link>
-                )}
-                {session?.permissions.includes('audit:read') && (
-                  <Link to="/audit-logs">
-                    {({ isActive }) => (
-                      <Button variant={isActive ? "secondary" : "ghost"} size="sm">
-                        <ScrollText className="h-4 w-4 mr-1" />
-                        Audit Logs
-                      </Button>
-                    )}
-                  </Link>
-                )}
+                ))}
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -247,11 +244,11 @@ function RootComponent() {
                     fallback={session?.displayName}
                     size="sm"
                   />
-                  <div className="flex flex-col items-start text-left">
+                  <div className="hidden flex-col items-start text-left sm:flex">
                     <span className="text-sm font-medium">{session?.displayName}</span>
                     <span className="text-xs text-muted-foreground">{session?.userUid}</span>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

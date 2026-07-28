@@ -163,7 +163,7 @@ function UserDetailPage() {
               </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{user?.dn}</p>
+          <p className="break-all text-sm text-muted-foreground">{user?.dn}</p>
         </div>
       </div>
 

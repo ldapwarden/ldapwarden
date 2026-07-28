@@ -218,7 +218,7 @@ function GroupDetailPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">{group?.cn}</h1>
-          <p className="text-sm text-muted-foreground">{group?.dn}</p>
+          <p className="break-all text-sm text-muted-foreground">{group?.dn}</p>
         </div>
       </div>
 

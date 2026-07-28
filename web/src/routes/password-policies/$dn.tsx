@@ -130,7 +130,7 @@ function PasswordPolicyDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-4">
           <Link to="/password-policies">
             <Button variant="ghost" size="icon" aria-label="Back to password policies">

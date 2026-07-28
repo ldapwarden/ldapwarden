@@ -162,7 +162,7 @@ function AuditLogsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Audit Logs</h1>
         <span className="text-sm text-muted-foreground">
           {data?.total ?? 0}{hasFilters ? ' matching' : ' total'} entries

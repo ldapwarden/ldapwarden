@@ -28,7 +28,7 @@ function ConfigField({ label, config, description }: { label: string; config: Co
   const displayValue = Array.isArray(config.value) ? config.value.join(', ') : String(config.value)
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Label className="text-sm font-medium">{label}</Label>
         <span className={`text-xs px-2 py-0.5 rounded-full ${
           config.source === 'env'
@@ -43,9 +43,9 @@ function ConfigField({ label, config, description }: { label: string; config: Co
         disabled
         className="font-mono text-sm bg-muted"
       />
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 text-xs text-muted-foreground">
         {description && <span>{description}</span>}
-        {config.envVar && <code className="bg-muted px-1 py-0.5 rounded">{config.envVar}</code>}
+        {config.envVar && <code className="break-all bg-muted px-1 py-0.5 rounded">{config.envVar}</code>}
       </div>
     </div>
   )
@@ -194,7 +194,7 @@ function AdminPage() {
               config={config!.ldap.bindDn}
               description="DN used for binding to LDAP"
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <ConfigField
                 label="Users OU"
                 config={config!.ldap.userOu}
@@ -206,7 +206,7 @@ function AdminPage() {
                 description="Organizational Unit for groups"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <ConfigField
                 label="Sudoers OU"
                 config={config!.ldap.sudoersOu}
@@ -218,7 +218,7 @@ function AdminPage() {
                 description="Organizational Unit for password policies"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <ConfigField
                 label="Min UID"
                 config={config!.ldap.minUid}
@@ -230,7 +230,7 @@ function AdminPage() {
                 description="Minimum GID for new groups"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <ConfigField
                 label="TLS Mode"
                 config={config!.ldap.tlsMode}
@@ -313,7 +313,7 @@ function AdminPage() {
             <CardDescription>SMTP server configuration</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <ConfigField
                 label="Host"
                 config={config!.mail.host}
@@ -330,7 +330,7 @@ function AdminPage() {
                 description="none, starttls, or ssl"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <ConfigField
                 label="User"
                 config={config!.mail.user}
@@ -425,7 +425,7 @@ function AdminPage() {
               </h4>
               <div className="space-y-2">
                 {taskRuns?.data.slice(0, 5).map((run) => (
-                  <div key={run.id} className="flex items-center justify-between text-sm border rounded p-2">
+                  <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 text-sm border rounded p-2">
                     <div className="flex items-center gap-2">
                       {run.status === 'completed' ? (
                         <CheckCircle className="h-4 w-4 text-success" />
@@ -437,7 +437,7 @@ function AdminPage() {
                       <span>{run.taskName === 'users_expiration' ? 'Account' : 'Password'} Expiration</span>
                       <Badge variant="outline" className="text-xs">{run.triggeredBy}</Badge>
                     </div>
-                    <div className="flex items-center gap-4 text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-4 text-muted-foreground">
                       <span>{run.usersChecked} checked</span>
                       <span>{run.notificationsSent} sent</span>
                       <span>{new Date(run.startedAt).toLocaleString()}</span>

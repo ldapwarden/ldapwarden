@@ -27,7 +27,7 @@ export function Pagination({
   const endItem = Math.min(currentPage * pageSize, totalItems)
 
   return (
-    <div className="flex items-center justify-between px-2 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>Rows per page:</span>
         <select
