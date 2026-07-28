@@ -360,6 +360,33 @@ export const FieldChangeSchema = z.object({
 })
 export type FieldChange = z.infer<typeof FieldChangeSchema>
 
+// OverviewSchema is the dashboard payload: aggregates computed by the backend
+// rather than by counting a full listing in the browser.
+export const OverviewSchema = z.object({
+  users: z.object({
+    total: z.number(),
+    active: z.number(),
+    locked: z.number(),
+    expired: z.number(),
+    expiring: z
+      .array(
+        z.object({
+          dn: z.string(),
+          uid: z.string(),
+          displayName: z.string().optional(),
+          expiresAt: z.string(),
+        }),
+      )
+      .nullish()
+      .transform((v) => v ?? []),
+  }),
+  groups: z.number(),
+  sudoRoles: z.number(),
+  policies: z.number(),
+  truncated: z.boolean().optional(),
+})
+export type Overview = z.infer<typeof OverviewSchema>
+
 export const NextIDsSchema = z.object({
   nextUid: z.number(),
   nextGid: z.number(),
@@ -986,6 +1013,11 @@ export const api = {
   nextIds: {
     get: (signal?: AbortSignal) =>
       fetchApi('/next-ids', {}, NextIDsSchema, signal),
+  },
+
+  overview: {
+    get: (signal?: AbortSignal) =>
+      fetchApi('/overview', {}, OverviewSchema, signal),
   },
 
   admin: {

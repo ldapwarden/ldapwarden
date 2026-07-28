@@ -895,6 +895,56 @@ Forces a refresh of the cached LDAP schema.
 
 ---
 
+## Overview
+
+### Get Overview
+
+```http
+GET /api/overview
+```
+
+**Required permission:** `users:read`
+
+The directory at a glance, as shown on the dashboard. The counts are computed
+server-side: the alternative is shipping every entry to the client just to
+length-check it.
+
+- `users.total` / `active` / `locked` / `expired` — the buckets always add up to
+  the total. An account is locked when `pwdAccountLockedTime` is in the past, and
+  expired when its `shadowExpire` day has passed.
+- `users.expiring` — accounts expiring within 30 days, soonest first, capped at
+  5. The window matches the expiration scheduler's first reminder, so the
+  dashboard warns about the accounts admins are already emailed about.
+- `groups` / `sudoRoles` / `policies` — collection sizes. A module whose schema
+  is absent from the directory reports 0 rather than failing the request.
+- `truncated` — a count hit `LDAP_SEARCH_SIZE_LIMIT` and is a lower bound.
+
+**Response:**
+```json
+{
+  "users": {
+    "total": 42,
+    "active": 40,
+    "locked": 1,
+    "expired": 1,
+    "expiring": [
+      {
+        "dn": "uid=jdoe,ou=People,dc=example,dc=org",
+        "uid": "jdoe",
+        "displayName": "John Doe",
+        "expiresAt": "2026-02-01T23:59:59Z"
+      }
+    ]
+  },
+  "groups": 7,
+  "sudoRoles": 3,
+  "policies": 2,
+  "truncated": false
+}
+```
+
+---
+
 ## Audit Logs
 
 ### List Audit Logs
