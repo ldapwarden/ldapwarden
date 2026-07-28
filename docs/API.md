@@ -99,9 +99,35 @@ GET /api/users
 
 **Required permission:** `users:read`
 
+**Query parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `search` | Case-insensitive substring match on `uid`, `cn`, `mail`, `displayName` | (none) |
+| `status` | `active` or `inactive` — filters on whether the account can currently log in (locked or past its expiration date counts as inactive) | both |
+| `sort` | `uid`, `displayName`, `mail`, `employeeType`, `groupsCount` | `uid` |
+| `order` | `asc` or `desc` | `asc` |
+| `limit` | Page size, capped at 500. `0` or omitted returns every match | (no paging) |
+| `offset` | Entries to skip. An offset past the end returns an empty page, not an error | `0` |
+
+Sorting and paging are applied over the whole matching set, so page 1 of a
+descending sort holds the last entries overall. The set itself is still bounded
+by `LDAP_SEARCH_SIZE_LIMIT`, which is what `truncated` reports.
+
+**Response fields:** this endpoint returns a deliberately narrow projection —
+what a list row shows, plus what sorting and the status filter need. It does
+**not** include the photo, password state, object classes or the Samba / shadow
+attribute blocks; fetch a single user for those.
+
+- `total` — matches for the current `search` and `status`, across all pages.
+- `inactiveCount` — locked/expired matches for `search`, whatever `status` is.
+- `hasPhoto` — whether the user has a `jpegPhoto`; fetch it from
+  `GET /api/users/{dn}/photo`.
+- `groupsCount` — number of groups listing the user in `memberUid`.
+
 **curl example:**
 ```bash
-curl http://localhost:8000/api/users \
+curl "http://localhost:8000/api/users?search=doe&sort=uid&limit=25&offset=0" \
   -b cookies.txt
 ```
 
@@ -113,21 +139,34 @@ curl http://localhost:8000/api/users \
       "dn": "uid=admin,ou=People,dc=example,dc=org",
       "uid": "admin",
       "cn": "System Administrator",
-      "sn": "Administrator",
-      "givenName": "System",
       "displayName": "System Administrator",
       "mail": "admin@example.org",
-      "uidNumber": 1000,
-      "gidNumber": 1000,
-      "homeDirectory": "/home/admin",
-      "loginShell": "/bin/bash",
-      "accountLocked": false,
-      "objectClasses": ["inetOrgPerson", "posixAccount", "shadowAccount"]
+      "employeeType": "staff",
+      "hasPhoto": false,
+      "groupsCount": 1,
+      "accountLocked": false
     }
   ],
-  "total": 1
+  "total": 1,
+  "inactiveCount": 0,
+  "limit": 25,
+  "offset": 0,
+  "truncated": false
 }
 ```
+
+### Get User Photo
+
+```http
+GET /api/users/{dn}/photo
+```
+
+**Required permission:** `users:read`
+
+Returns the user's `jpegPhoto` as `image/jpeg`, or `404` when they have none.
+Served as an image rather than base64 inside JSON so lists can point an `<img>`
+at it and let the browser fetch and cache only the rows on screen. The response
+is marked `Cache-Control: private` — it is only readable with a valid session.
 
 ### Get User
 
@@ -465,9 +504,23 @@ GET /api/groups
 
 **Required permission:** `groups:read`
 
+**Query parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `search` | Case-insensitive substring match on `cn`, `description` | (none) |
+| `sort` | `cn`, `description`, `gidNumber`, `members` | `cn` |
+| `order` | `asc` or `desc` | `asc` |
+| `limit` | Page size, capped at 500. `0` or omitted returns every match | (no paging) |
+| `offset` | Entries to skip | `0` |
+
+**Response fields:** like the user listing, this is a narrow projection. It
+reports `membersCount` rather than the `memberUid` array — fetch a single group
+for its members.
+
 **curl example:**
 ```bash
-curl http://localhost:8000/api/groups \
+curl "http://localhost:8000/api/groups?sort=members&order=desc&limit=25" \
   -b cookies.txt
 ```
 
@@ -480,10 +533,13 @@ curl http://localhost:8000/api/groups \
       "cn": "admins",
       "gidNumber": 1000,
       "description": "System administrators",
-      "memberUid": ["admin", "jdoe"]
+      "membersCount": 2
     }
   ],
-  "total": 1
+  "total": 1,
+  "limit": 25,
+  "offset": 0,
+  "truncated": false
 }
 ```
 

@@ -29,17 +29,23 @@ func (s *Server) invalidateIfAdminGroupChange(r *http.Request, groupDN, memberUI
 	s.invalidateSessions(r, user.DN, "admin-group membership change")
 }
 
+// handleListGroups returns one page of a light group projection: row fields
+// plus a member count, rather than every group's full member list.
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
-	groups, truncated, err := s.ldapClient.SearchGroups(r.URL.Query().Get("search"))
+	opts := parseListOptions(r)
+
+	result, err := s.ldapClient.SearchGroupsPage(opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list groups")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":      groups,
-		"total":     len(groups),
-		"truncated": truncated,
+		"data":      result.Items,
+		"total":     result.Total,
+		"limit":     opts.Limit,
+		"offset":    opts.Offset,
+		"truncated": result.Truncated,
 	})
 }
 

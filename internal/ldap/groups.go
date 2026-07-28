@@ -52,22 +52,80 @@ func (c *Client) ListGroups() ([]Group, error) {
 	return groups, nil
 }
 
-// SearchGroups lists groups matching an optional substring search (cn,
-// description), bounded by the configured search size limit. It returns
-// truncated=true when more matches exist than were returned.
-func (c *Client) SearchGroups(search string) ([]Group, bool, error) {
-	filter := andFilter("(objectClass=posixGroup)", substringFilter(search, "cn", "description"))
-	entries, truncated, err := c.SearchLimited(c.GroupBaseDN(), filter, defaultGroupAttributes)
+// GroupListItem is what the group list endpoint returns: a row's worth of
+// fields plus the member count, instead of every group's full member list.
+type GroupListItem struct {
+	DN           string `json:"dn"`
+	CN           string `json:"cn"`
+	GIDNumber    int    `json:"gidNumber"`
+	Description  string `json:"description,omitempty"`
+	MembersCount int    `json:"membersCount"`
+}
+
+// listGroupAttributes still has to read memberUid — LDAP cannot count values
+// server-side — but only the count crosses the wire to the browser.
+var listGroupAttributes = []string{"dn", "cn", "gidNumber", "description", "memberUid"}
+
+// GroupPage is one page of a group listing.
+type GroupPage struct {
+	Items     []GroupListItem
+	Total     int
+	Truncated bool
+}
+
+// SearchGroupsPage lists groups matching an optional substring search, sorted
+// and sliced to one page.
+func (c *Client) SearchGroupsPage(opts ListOptions) (*GroupPage, error) {
+	filter := andFilter("(objectClass=posixGroup)", substringFilter(opts.Search, "cn", "description"))
+	entries, truncated, err := c.SearchLimited(c.GroupBaseDN(), filter, listGroupAttributes)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	groups := make([]Group, 0, len(entries))
+	items := make([]GroupListItem, 0, len(entries))
 	for _, entry := range entries {
-		groups = append(groups, entryToGroup(entry))
+		gid, _ := strconv.Atoi(entry.GetAttributeValue("gidNumber"))
+		items = append(items, GroupListItem{
+			DN:           entry.DN,
+			CN:           entry.GetAttributeValue("cn"),
+			GIDNumber:    gid,
+			Description:  entry.GetAttributeValue("description"),
+			MembersCount: len(entry.GetAttributeValues("memberUid")),
+		})
 	}
 
-	return groups, truncated, nil
+	switch opts.Sort {
+	case "description":
+		sortBy(items, opts.Desc, func(a, b GroupListItem) bool { return foldLess(a.Description, b.Description) })
+	case "gidNumber":
+		sortBy(items, opts.Desc, func(a, b GroupListItem) bool { return a.GIDNumber < b.GIDNumber })
+	case "members":
+		sortBy(items, opts.Desc, func(a, b GroupListItem) bool { return a.MembersCount < b.MembersCount })
+	default:
+		sortBy(items, opts.Desc, func(a, b GroupListItem) bool { return foldLess(a.CN, b.CN) })
+	}
+
+	return &GroupPage{
+		Items:     page(items, opts),
+		Total:     len(items),
+		Truncated: truncated,
+	}, nil
+}
+
+// memberGroupCounts maps each uid to the number of groups it belongs to. Used
+// to fill the user list's Groups column from one group search.
+func (c *Client) memberGroupCounts() (map[string]int, error) {
+	entries, _, err := c.SearchLimited(c.GroupBaseDN(), "(objectClass=posixGroup)", []string{"memberUid"})
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int)
+	for _, entry := range entries {
+		for _, uid := range entry.GetAttributeValues("memberUid") {
+			counts[uid]++
+		}
+	}
+	return counts, nil
 }
 
 func (c *Client) GetGroup(dn string) (*Group, error) {

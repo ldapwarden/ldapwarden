@@ -3,7 +3,12 @@ import { cn } from "@/lib/utils"
 import { User } from "lucide-react"
 
 interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
+  // Base64-encoded JPEG, as returned by the single-user endpoints.
   src?: string | null
+  // URL of a photo endpoint. Preferred in lists: the browser fetches and
+  // caches only the rows on screen instead of every photo arriving inside the
+  // list payload. Ignored when `src` is set.
+  url?: string | null
   alt?: string
   fallback?: string
   size?: "sm" | "md" | "lg"
@@ -17,16 +22,18 @@ const sizeClasses = {
 
 export function Avatar({
   src,
+  url,
   alt,
   fallback,
   size = "md",
   className,
   ...props
 }: AvatarProps) {
+  const imageSrc = src ? `data:image/jpeg;base64,${src}` : url || undefined
   const [hasError, setHasError] = React.useState(false)
-  const [prevSrc, setPrevSrc] = React.useState(src)
-  if (src !== prevSrc) {
-    setPrevSrc(src)
+  const [prevSrc, setPrevSrc] = React.useState(imageSrc)
+  if (imageSrc !== prevSrc) {
+    setPrevSrc(imageSrc)
     setHasError(false)
   }
 
@@ -46,10 +53,11 @@ export function Avatar({
       )}
       {...props}
     >
-      {src && !hasError ? (
+      {imageSrc && !hasError ? (
         <img
-          src={`data:image/jpeg;base64,${src}`}
+          src={imageSrc}
           alt={alt || fallback || "Avatar"}
+          loading="lazy"
           className="aspect-square h-full w-full object-cover"
           onError={() => setHasError(true)}
         />

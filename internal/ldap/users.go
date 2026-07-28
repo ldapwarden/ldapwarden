@@ -150,22 +150,215 @@ func (c *Client) ListUsers() ([]User, error) {
 	return users, nil
 }
 
-// SearchUsers lists users matching an optional substring search (uid, cn,
-// mail, displayName), bounded by the configured search size limit. It returns
-// truncated=true when more matches exist than were returned.
-func (c *Client) SearchUsers(search string) ([]User, bool, error) {
-	filter := andFilter("(objectClass=inetOrgPerson)", substringFilter(search, "uid", "cn", "mail", "displayName"))
-	entries, truncated, err := c.SearchLimited(c.UserBaseDN(), filter, defaultUserAttributes)
+// UserListItem is what the user list endpoint returns. It is deliberately much
+// narrower than User: no photo, no password state, no per-objectClass attribute
+// blocks. Those made a listing of N users cost N base64 photos on the wire on
+// every keystroke of the search box; the row only ever renders these fields.
+type UserListItem struct {
+	DN           string `json:"dn"`
+	UID          string `json:"uid"`
+	CN           string `json:"cn"`
+	DisplayName  string `json:"displayName,omitempty"`
+	Mail         string `json:"mail,omitempty"`
+	EmployeeType string `json:"employeeType,omitempty"`
+	// HasPhoto lets the row decide between an <img> pointing at the photo
+	// endpoint and the initials fallback, without transferring the photo.
+	HasPhoto bool `json:"hasPhoto"`
+	// GroupsCount is filled from a single group search rather than by shipping
+	// every group's member list to the browser.
+	GroupsCount          int    `json:"groupsCount"`
+	AccountLocked        bool   `json:"accountLocked"`
+	PwdAccountLockedTime string `json:"pwdAccountLockedTime,omitempty"`
+	ShadowExpire         int    `json:"shadowExpire,omitempty"`
+}
+
+// listUserAttributes is the projection behind UserListItem: what a row shows,
+// plus what sorting and the active/inactive filter need.
+var listUserAttributes = []string{
+	"dn", "uid", "cn", "displayName", "mail", "employeeType",
+	"pwdAccountLockedTime", "shadowExpire",
+}
+
+// UserStatus filters a listing by whether the account can currently log in.
+type UserStatus string
+
+const (
+	UserStatusAll      UserStatus = ""
+	UserStatusActive   UserStatus = "active"
+	UserStatusInactive UserStatus = "inactive"
+)
+
+// UserListOptions adds the user-specific status filter to the generic options.
+type UserListOptions struct {
+	ListOptions
+	Status UserStatus
+}
+
+// UserPage is one page of a user listing.
+type UserPage struct {
+	Items []UserListItem
+	// Total counts every entry matching the search and status filter, not just
+	// the returned page — the pager and the "N users" count need it.
+	Total int
+	// InactiveCount counts locked/expired matches for the search term
+	// regardless of the status filter, so the "Show inactive (N)" toggle can be
+	// labelled without a second request.
+	InactiveCount int
+	Truncated     bool
+}
+
+// SearchUsersPage lists users matching an optional substring search, filtered
+// by account status, sorted, and sliced to one page.
+func (c *Client) SearchUsersPage(opts UserListOptions) (*UserPage, error) {
+	filter := andFilter("(objectClass=inetOrgPerson)", substringFilter(opts.Search, "uid", "cn", "mail", "displayName"))
+	entries, truncated, err := c.SearchLimited(c.UserBaseDN(), filter, listUserAttributes)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	users := make([]User, 0, len(entries))
+	// Both lookups are one small search each and are shared by every row.
+	groupCounts, err := c.memberGroupCounts()
+	if err != nil {
+		return nil, err
+	}
+	withPhoto, err := c.usersWithPhoto()
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]UserListItem, 0, len(entries))
+	inactive := 0
 	for _, entry := range entries {
-		users = append(users, entryToUser(entry))
+		item := entryToUserListItem(entry)
+		item.GroupsCount = groupCounts[item.UID]
+		item.HasPhoto = withPhoto[entry.DN]
+
+		isInactive := item.AccountLocked || item.expired()
+		if isInactive {
+			inactive++
+		}
+		switch opts.Status {
+		case UserStatusActive:
+			if isInactive {
+				continue
+			}
+		case UserStatusInactive:
+			if !isInactive {
+				continue
+			}
+		}
+		items = append(items, item)
 	}
 
-	return users, truncated, nil
+	sortUserList(items, opts)
+	total := len(items)
+
+	return &UserPage{
+		Items:         page(items, opts.ListOptions),
+		Total:         total,
+		InactiveCount: inactive,
+		Truncated:     truncated,
+	}, nil
+}
+
+// expired reports whether the account's expiration date has passed. It mirrors
+// the two ways an expiry can be recorded: the ppolicy operational attribute and
+// the shadow one.
+func (u UserListItem) expired() bool {
+	if u.PwdAccountLockedTime != "" {
+		if t, err := time.Parse("20060102150405Z", u.PwdAccountLockedTime); err == nil {
+			return !t.After(time.Now())
+		}
+		return true
+	}
+	// shadowExpire counts days since the epoch; 0 and the "never" sentinel do
+	// not express an expiry.
+	if u.ShadowExpire > 0 && u.ShadowExpire < shadowExpireNever {
+		return time.Unix(int64(u.ShadowExpire)*86400, 0).Before(time.Now())
+	}
+	return false
+}
+
+// shadowExpireNever is the conventional "no expiration" ceiling for
+// shadowExpire; the UI uses the same bound.
+const shadowExpireNever = 99999
+
+func sortUserList(items []UserListItem, opts UserListOptions) {
+	switch opts.Sort {
+	case "displayName":
+		sortBy(items, opts.Desc, func(a, b UserListItem) bool {
+			return foldLess(displayNameOf(a), displayNameOf(b))
+		})
+	case "mail":
+		sortBy(items, opts.Desc, func(a, b UserListItem) bool { return foldLess(a.Mail, b.Mail) })
+	case "employeeType":
+		sortBy(items, opts.Desc, func(a, b UserListItem) bool { return foldLess(a.EmployeeType, b.EmployeeType) })
+	case "groupsCount":
+		sortBy(items, opts.Desc, func(a, b UserListItem) bool { return a.GroupsCount < b.GroupsCount })
+	default:
+		sortBy(items, opts.Desc, func(a, b UserListItem) bool { return foldLess(a.UID, b.UID) })
+	}
+}
+
+func displayNameOf(u UserListItem) string {
+	if u.DisplayName != "" {
+		return u.DisplayName
+	}
+	return u.CN
+}
+
+func entryToUserListItem(entry *ldap.Entry) UserListItem {
+	shadowExpire, _ := strconv.Atoi(entry.GetAttributeValue("shadowExpire"))
+	lockedTime := entry.GetAttributeValue("pwdAccountLockedTime")
+
+	// Same rule as entryToUser: a past (or unparseable) pwdAccountLockedTime
+	// means locked, a future one is a scheduled expiration.
+	var accountLocked bool
+	if lockedTime != "" {
+		if t, err := time.Parse("20060102150405Z", lockedTime); err == nil {
+			accountLocked = !t.After(time.Now())
+		} else {
+			accountLocked = true
+		}
+	}
+
+	return UserListItem{
+		DN:                   entry.DN,
+		UID:                  entry.GetAttributeValue("uid"),
+		CN:                   entry.GetAttributeValue("cn"),
+		DisplayName:          entry.GetAttributeValue("displayName"),
+		Mail:                 entry.GetAttributeValue("mail"),
+		EmployeeType:         entry.GetAttributeValue("employeeType"),
+		AccountLocked:        accountLocked,
+		PwdAccountLockedTime: lockedTime,
+		ShadowExpire:         shadowExpire,
+	}
+}
+
+// usersWithPhoto returns the set of user DNs that have a jpegPhoto. The search
+// requests no attribute values, so this costs one round trip and no payload —
+// as opposed to fetching every photo just to know which rows have one.
+func (c *Client) usersWithPhoto() (map[string]bool, error) {
+	entries, _, err := c.SearchLimited(c.UserBaseDN(), "(&(objectClass=inetOrgPerson)(jpegPhoto=*))", []string{"dn"})
+	if err != nil {
+		return nil, err
+	}
+	withPhoto := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		withPhoto[entry.DN] = true
+	}
+	return withPhoto, nil
+}
+
+// GetUserPhoto returns the raw JPEG bytes of a user's photo, or nil when the
+// user has none. Served as an image rather than base64-in-JSON so the browser
+// caches it and only fetches the rows it actually displays.
+func (c *Client) GetUserPhoto(dn string) ([]byte, error) {
+	entry, err := c.GetEntry(dn, []string{"jpegPhoto"})
+	if err != nil {
+		return nil, err
+	}
+	return entry.GetRawAttributeValue("jpegPhoto"), nil
 }
 
 func (c *Client) GetUser(dn string) (*User, error) {

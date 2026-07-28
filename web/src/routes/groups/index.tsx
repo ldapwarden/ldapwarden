@@ -53,11 +53,29 @@ function GroupsPage() {
   const [deleting, setDeleting] = useState(false)
   const debouncedSearch = useDebounced(search)
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['groups', debouncedSearch],
-    queryFn: ({ signal }) => api.groups.list(debouncedSearch, signal),
+  // Search, sort and paging are applied by the directory side; the browser
+  // renders one page of a light projection.
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['groups', { search: debouncedSearch, sortField, sortDirection, currentPage, pageSize }],
+    queryFn: ({ signal }) =>
+      api.groups.list(
+        {
+          search: debouncedSearch,
+          sort: sortField,
+          order: sortDirection,
+          limit: pageSize,
+          offset: (currentPage - 1) * pageSize,
+        },
+        signal,
+      ),
     placeholderData: keepPreviousData,
   })
+
+  // Memoised so the derived selection below keeps a stable identity between
+  // renders.
+  const groups = useMemo(() => data?.data ?? [], [data?.data])
+  const total = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const canWrite = hasPermission('groups:write')
 
@@ -68,53 +86,14 @@ function GroupsPage() {
       setSortField(field)
       setSortDirection('asc')
     }
+    setCurrentPage(1)
   }
 
-  const { sortedGroups, allGroups, totalFiltered, totalPages } = useMemo(() => {
-    // Search is applied server-side; sort and paginate the returned set here.
-    const sorted = [...(data?.data ?? [])].sort((a, b) => {
-      let aVal: string | number = ''
-      let bVal: string | number = ''
-
-      switch (sortField) {
-        case 'cn':
-          aVal = a.cn.toLowerCase()
-          bVal = b.cn.toLowerCase()
-          break
-        case 'description':
-          aVal = (a.description || '').toLowerCase()
-          bVal = (b.description || '').toLowerCase()
-          break
-        case 'gidNumber':
-          aVal = a.gidNumber
-          bVal = b.gidNumber
-          break
-        case 'members':
-          aVal = a.memberUid?.length ?? 0
-          bVal = b.memberUid?.length ?? 0
-          break
-      }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-      return 0
-    })
-
-    const totalPages = Math.ceil(sorted.length / pageSize)
-    const startIndex = (currentPage - 1) * pageSize
-    const paginatedGroups = sorted.slice(startIndex, startIndex + pageSize)
-
-    return {
-      sortedGroups: paginatedGroups,
-      allGroups: sorted,
-      totalFiltered: sorted.length,
-      totalPages,
-    }
-  }, [data?.data, sortField, sortDirection, currentPage, pageSize])
-
-  // Selection spans the whole filtered set (not just the visible page).
-  const selectedGroups = useMemo(() => allGroups.filter((g) => selected.has(g.dn)), [allGroups, selected])
-  const allSelected = allGroups.length > 0 && allGroups.every((g) => selected.has(g.dn))
+  // Selection only spans the visible page: with paging done server-side the
+  // rest of the result set is not in memory, and a bulk delete must never
+  // reach rows the operator has not seen.
+  const selectedGroups = useMemo(() => groups.filter((g) => selected.has(g.dn)), [groups, selected])
+  const allSelected = groups.length > 0 && groups.every((g) => selected.has(g.dn))
   const someSelected = selected.size > 0 && !allSelected
 
   const toggleOne = (dn: string) => {
@@ -126,7 +105,7 @@ function GroupsPage() {
     })
   }
   const toggleAll = () => {
-    setSelected((prev) => (allGroups.every((g) => prev.has(g.dn)) ? new Set() : new Set(allGroups.map((g) => g.dn))))
+    setSelected((prev) => (groups.every((g) => prev.has(g.dn)) ? new Set() : new Set(groups.map((g) => g.dn))))
   }
   const clearSelection = () => setSelected(new Set())
 
@@ -145,15 +124,24 @@ function GroupsPage() {
     }
   }
 
-  // Reset to first page when search changes
+  // Any change to the query resets paging and selection: page 3 of the old
+  // result set is meaningless, and a selection carried across it would apply to
+  // rows that are no longer on screen.
   const handleSearchChange = (value: string) => {
     setSearch(value)
     setCurrentPage(1)
+    clearSelection()
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    clearSelection()
   }
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size)
     setCurrentPage(1)
+    clearSelection()
   }
 
   if (error) {
@@ -197,7 +185,7 @@ function GroupsPage() {
           />
         </div>
         <span className="text-sm text-muted-foreground">
-          {totalFiltered} groups
+          {total} group{total !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -230,7 +218,10 @@ function GroupsPage() {
       {isLoading ? (
         <InlineSpinner />
       ) : (
-        <div className="border rounded-lg">
+        // Dim the table while a new page is in flight: keepPreviousData leaves
+        // the old rows on screen, which would otherwise look like nothing
+        // happened after a sort or page change.
+        <div className={`border rounded-lg ${isFetching ? 'opacity-60 transition-opacity' : ''}`}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -283,7 +274,7 @@ function GroupsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedGroups.map((group) => (
+              {groups.map((group) => (
                 <TableRow key={group.dn} data-state={selected.has(group.dn) ? 'selected' : undefined}>
                   {canWrite && (
                     <TableCell className="w-10">
@@ -308,12 +299,12 @@ function GroupsPage() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4 text-muted-foreground" />
-                      {group.memberUid?.length ?? 0}
+                      {group.membersCount ?? 0}
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
-              {sortedGroups.length === 0 && (
+              {groups.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={canWrite ? 5 : 4} className="text-center py-8 text-muted-foreground">
                     No groups found
@@ -322,13 +313,13 @@ function GroupsPage() {
               )}
             </TableBody>
           </Table>
-          {totalFiltered > 0 && (
+          {total > 0 && (
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               pageSize={pageSize}
-              totalItems={totalFiltered}
-              onPageChange={setCurrentPage}
+              totalItems={total}
+              onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />
           )}

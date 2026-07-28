@@ -232,9 +232,32 @@ export const UserSchema = z.object({
   pwdPolicySubentry: z.string().optional(),
 })
 
+// UserListItemSchema is the narrow projection returned by GET /users. It
+// carries no photo and no password state: a row only needs these fields, and
+// keeping the payload small is what makes paging worthwhile.
+export const UserListItemSchema = z.object({
+  dn: z.string(),
+  uid: z.string(),
+  cn: z.string(),
+  displayName: z.string().optional(),
+  mail: z.string().optional(),
+  employeeType: z.string().optional(),
+  hasPhoto: z.boolean().optional(),
+  groupsCount: z.number().optional(),
+  accountLocked: z.boolean().optional(),
+  pwdAccountLockedTime: z.string().optional(),
+  shadowExpire: z.number().optional(),
+})
+
 export const UsersResponseSchema = z.object({
-  data: z.array(UserSchema),
+  data: z.array(UserListItemSchema),
+  // Matches for the current search and status filter, across all pages.
   total: z.number(),
+  // Locked/expired matches for the search term, whatever the status filter —
+  // labels the "Show inactive" toggle without a second request.
+  inactiveCount: z.number().optional(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
   truncated: z.boolean().optional(),
 })
 
@@ -276,9 +299,29 @@ export const GroupSchema = z.object({
   displayName: z.string().optional(),
 })
 
+// GroupsResponseSchema covers the endpoints that return whole groups
+// (a user's or a group's memberships), where the member list is the point.
 export const GroupsResponseSchema = z.object({
   data: z.array(GroupSchema),
   total: z.number(),
+  truncated: z.boolean().optional(),
+})
+
+// GroupListItemSchema is the projection returned by GET /groups: row fields
+// plus a member count, instead of every group's full member list.
+export const GroupListItemSchema = z.object({
+  dn: z.string(),
+  cn: z.string(),
+  gidNumber: z.number(),
+  description: z.string().optional(),
+  membersCount: z.number().optional(),
+})
+
+export const GroupListResponseSchema = z.object({
+  data: z.array(GroupListItemSchema),
+  total: z.number(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
   truncated: z.boolean().optional(),
 })
 
@@ -441,9 +484,12 @@ export const SchemaSchema = z.object({
 export type Session = z.infer<typeof SessionSchema>
 export type LoginResponse = z.infer<typeof LoginResponseSchema>
 export type User = z.infer<typeof UserSchema>
+export type UserListItem = z.infer<typeof UserListItemSchema>
 export type UsersResponse = z.infer<typeof UsersResponseSchema>
 export type Group = z.infer<typeof GroupSchema>
+export type GroupListItem = z.infer<typeof GroupListItemSchema>
 export type GroupsResponse = z.infer<typeof GroupsResponseSchema>
+export type GroupListResponse = z.infer<typeof GroupListResponseSchema>
 export type AuditLog = z.infer<typeof AuditLogSchema>
 export type AuditLogsResponse = z.infer<typeof AuditLogsResponseSchema>
 export type NextIDs = z.infer<typeof NextIDsSchema>
@@ -499,6 +545,38 @@ function searchQuery(search?: string): string {
   return trimmed ? `?search=${encodeURIComponent(trimmed)}` : ''
 }
 
+// Paging, sorting and filtering accepted by the user and group list endpoints.
+// Omitting `limit` returns every match (bounded by LDAP_SEARCH_SIZE_LIMIT),
+// which is what the pickers want; the list views always pass one.
+export interface ListParams {
+  search?: string
+  sort?: string
+  order?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
+  status?: 'active' | 'inactive'
+}
+
+function listQuery(params?: ListParams): string {
+  if (!params) return ''
+  const q = new URLSearchParams()
+  const search = params.search?.trim()
+  if (search) q.set('search', search)
+  if (params.sort) q.set('sort', params.sort)
+  if (params.order) q.set('order', params.order)
+  if (params.limit) q.set('limit', String(params.limit))
+  if (params.offset) q.set('offset', String(params.offset))
+  if (params.status) q.set('status', params.status)
+  const query = q.toString()
+  return query ? `?${query}` : ''
+}
+
+// URL of a user's photo. Used as an <img> source in lists so the browser
+// fetches and caches the visible rows' photos itself.
+export function userPhotoUrl(dn: string): string {
+  return `${API_BASE}/users/${encodeURIComponent(dn)}/photo`
+}
+
 // API functions
 export const api = {
   auth: {
@@ -525,8 +603,8 @@ export const api = {
   },
 
   users: {
-    list: (search?: string, signal?: AbortSignal) =>
-      fetchApi(`/users${searchQuery(search)}`, {}, UsersResponseSchema, signal),
+    list: (params?: ListParams, signal?: AbortSignal) =>
+      fetchApi(`/users${listQuery(params)}`, {}, UsersResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/users/${encodeURIComponent(dn)}`, {}, UserSchema, signal),
@@ -657,8 +735,8 @@ export const api = {
   },
 
   groups: {
-    list: (search?: string, signal?: AbortSignal) =>
-      fetchApi(`/groups${searchQuery(search)}`, {}, GroupsResponseSchema, signal),
+    list: (params?: ListParams, signal?: AbortSignal) =>
+      fetchApi(`/groups${listQuery(params)}`, {}, GroupListResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/groups/${encodeURIComponent(dn)}`, {}, GroupSchema, signal),

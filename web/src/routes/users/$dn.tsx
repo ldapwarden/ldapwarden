@@ -2,7 +2,7 @@ import { InlineSpinner } from '@/components/inline-spinner'
 import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+import { api, userPhotoUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString } from '@/lib/utils'
 import { useUnsavedChangesPrompt } from '@/lib/form-sync'
@@ -716,7 +716,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                               }`}
                             >
                               <Avatar
-                                src={mgr.jpegPhoto}
+                                url={mgr.hasPhoto ? userPhotoUrl(mgr.dn) : undefined}
                                 fallback={mgr.displayName || mgr.cn}
                                 size="sm"
                               />

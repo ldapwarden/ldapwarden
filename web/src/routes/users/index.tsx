@@ -1,7 +1,7 @@
 import { InlineSpinner } from '@/components/inline-spinner'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, userPhotoUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,38 +65,47 @@ function UsersPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const debouncedSearch = useDebounced(search)
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['users', debouncedSearch],
-    queryFn: ({ signal }) => api.users.list(debouncedSearch, signal),
+  // Search, status filter, sort and paging are all applied by the directory
+  // side, so a page costs one page worth of rows regardless of how large the
+  // directory is.
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['users', { search: debouncedSearch, showInactive, sortField, sortDirection, currentPage, pageSize }],
+    queryFn: ({ signal }) =>
+      api.users.list(
+        {
+          search: debouncedSearch,
+          status: showInactive ? undefined : 'active',
+          sort: sortField,
+          order: sortDirection,
+          limit: pageSize,
+          offset: (currentPage - 1) * pageSize,
+        },
+        signal,
+      ),
     placeholderData: keepPreviousData,
   })
 
+  // Group list for the "add to group" bulk action. Cheap now that the list
+  // projection carries a member count instead of every member uid.
   const { data: groupsData } = useQuery({
-    queryKey: ['groups'],
+    queryKey: ['groups', 'picker'],
     queryFn: ({ signal }) => api.groups.list(undefined, signal),
+    enabled: hasPermission('users:write'),
+    staleTime: 60_000,
   })
 
-  // Build a map of uid -> number of groups
-  const groupsRawData = groupsData?.data
-  const userGroupsCount = useMemo(() => {
-    const countMap: Record<string, number> = {}
-    if (groupsRawData) {
-      for (const group of groupsRawData) {
-        for (const memberUid of group.memberUid || []) {
-          countMap[memberUid] = (countMap[memberUid] || 0) + 1
-        }
-      }
-    }
-    return countMap
-  }, [groupsRawData])
+  // Memoised so the derived selection/tone maps below keep a stable identity
+  // between renders.
+  const users = useMemo(() => data?.data ?? [], [data?.data])
+  const total = data?.total ?? 0
+  const inactiveCount = data?.inactiveCount ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  // Assign a stable tint to each employee type present in the result set.
-  const employeeTypeTones = useMemo(() => {
-    const types = data?.data
-      .map(user => user.employeeType)
-      .filter((type): type is string => !!type) ?? []
-    return assignTones(types)
-  }, [data?.data])
+  // Assign a stable tint to each employee type present on this page.
+  const employeeTypeTones = useMemo(
+    () => assignTones(users.map((u) => u.employeeType).filter((t): t is string => !!t)),
+    [users],
+  )
 
   const canWrite = hasPermission('users:write')
 
@@ -107,78 +116,14 @@ function UsersPage() {
       setSortField(field)
       setSortDirection('asc')
     }
+    setCurrentPage(1)
   }
 
-  const { sortedUsers, allUsers, totalFiltered, totalPages, inactiveCount } = useMemo(() => {
-    // Search is applied server-side; only the active-status filter remains
-    // client-side. Account is inactive if locked OR expired.
-    const filtered = data?.data.filter((user) => {
-      const expDate = getAccountExpiration(user)
-      const isExpired = expDate && expDate < new Date()
-      const isInactive = user.accountLocked || isExpired
-      return showInactive || !isInactive
-    }) ?? []
-
-    // Count inactive users for display
-    const inactiveCount = data?.data.filter(u => {
-      const expDate = getAccountExpiration(u)
-      const isExpired = expDate && expDate < new Date()
-      return u.accountLocked || isExpired
-    }).length ?? 0
-
-    const sorted = [...filtered].sort((a, b) => {
-      let aVal: string | number = ''
-      let bVal: string | number = ''
-
-      switch (sortField) {
-        case 'uid':
-          aVal = a.uid.toLowerCase()
-          bVal = b.uid.toLowerCase()
-          break
-        case 'displayName':
-          aVal = (a.displayName || a.cn).toLowerCase()
-          bVal = (b.displayName || b.cn).toLowerCase()
-          break
-        case 'mail':
-          aVal = (a.mail || '').toLowerCase()
-          bVal = (b.mail || '').toLowerCase()
-          break
-        case 'employeeType':
-          aVal = (a.employeeType || '').toLowerCase()
-          bVal = (b.employeeType || '').toLowerCase()
-          break
-        case 'groupsCount':
-          aVal = userGroupsCount[a.uid] || 0
-          bVal = userGroupsCount[b.uid] || 0
-          break
-      }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-      return 0
-    })
-
-    const totalPages = Math.ceil(sorted.length / pageSize)
-    const startIndex = (currentPage - 1) * pageSize
-    const paginatedUsers = sorted.slice(startIndex, startIndex + pageSize)
-
-    return {
-      sortedUsers: paginatedUsers,
-      allUsers: sorted,
-      totalFiltered: sorted.length,
-      totalPages,
-      inactiveCount,
-    }
-  }, [data?.data, showInactive, sortField, sortDirection, currentPage, pageSize, userGroupsCount])
-
-  // Selection helpers. Selection is keyed by DN and spans the whole filtered
-  // set (not just the visible page), so "select all" and bulk actions operate
-  // on every matching user.
-  const selectedUsers = useMemo(
-    () => allUsers.filter((u) => selected.has(u.dn)),
-    [allUsers, selected],
-  )
-  const allSelected = allUsers.length > 0 && allUsers.every((u) => selected.has(u.dn))
+  // Selection is keyed by DN and only spans the visible page: with paging done
+  // server-side the rest of the result set is not in memory, and a bulk action
+  // must never operate on rows the operator has not seen.
+  const selectedUsers = useMemo(() => users.filter((u) => selected.has(u.dn)), [users, selected])
+  const allSelected = users.length > 0 && users.every((u) => selected.has(u.dn))
   const someSelected = selected.size > 0 && !allSelected
 
   const toggleOne = (dn: string) => {
@@ -190,19 +135,28 @@ function UsersPage() {
     })
   }
   const toggleAll = () => {
-    setSelected((prev) => (allUsers.every((u) => prev.has(u.dn)) ? new Set() : new Set(allUsers.map((u) => u.dn))))
+    setSelected((prev) => (users.every((u) => prev.has(u.dn)) ? new Set() : new Set(users.map((u) => u.dn))))
   }
   const clearSelection = () => setSelected(new Set())
 
-  // Reset to first page when search changes
+  // Any change to the query resets paging and selection: page 3 of the old
+  // result set is meaningless, and a selection carried across it would apply to
+  // rows that are no longer on screen.
   const handleSearchChange = (value: string) => {
     setSearch(value)
     setCurrentPage(1)
+    clearSelection()
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    clearSelection()
   }
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size)
     setCurrentPage(1)
+    clearSelection()
   }
 
   if (error) {
@@ -247,6 +201,7 @@ function UsersPage() {
             onCheckedChange={(checked) => {
               setShowInactive(checked)
               setCurrentPage(1)
+              clearSelection()
             }}
           />
           <span className="text-muted-foreground">
@@ -257,7 +212,7 @@ function UsersPage() {
           </span>
         </label>
         <span className="text-sm text-muted-foreground">
-          {totalFiltered} user{totalFiltered !== 1 ? 's' : ''}
+          {total} user{total !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -270,7 +225,7 @@ function UsersPage() {
       {canWrite && (
         <UsersBulkActions
           selected={selectedUsers}
-          groups={(groupsRawData ?? []).map((g) => ({ dn: g.dn, cn: g.cn }))}
+          groups={(groupsData?.data ?? []).map((g) => ({ dn: g.dn, cn: g.cn }))}
           onClear={clearSelection}
         />
       )}
@@ -278,7 +233,10 @@ function UsersPage() {
       {isLoading ? (
         <InlineSpinner />
       ) : (
-        <div className="border rounded-lg">
+        // Dim the table while a new page is in flight: keepPreviousData leaves
+        // the old rows on screen, which would otherwise look like nothing
+        // happened after a sort or page change.
+        <div className={`border rounded-lg ${isFetching ? 'opacity-60 transition-opacity' : ''}`}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -341,7 +299,7 @@ function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedUsers.map((user) => (
+              {users.map((user) => (
                 <TableRow key={user.dn} data-state={selected.has(user.dn) ? 'selected' : undefined}>
                   {canWrite && (
                     <TableCell className="w-10">
@@ -359,7 +317,7 @@ function UsersPage() {
                       className="flex items-center gap-2 hover:underline"
                     >
                       <Avatar
-                        src={user.jpegPhoto}
+                        url={user.hasPhoto ? userPhotoUrl(user.dn) : undefined}
                         fallback={user.displayName || user.cn}
                         size="sm"
                       />
@@ -383,7 +341,7 @@ function UsersPage() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{userGroupsCount[user.uid] || 0}</span>
+                      <span>{user.groupsCount ?? 0}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
@@ -432,7 +390,7 @@ function UsersPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {sortedUsers.length === 0 && (
+              {users.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={canWrite ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     No users found
@@ -441,13 +399,13 @@ function UsersPage() {
               )}
             </TableBody>
           </Table>
-          {totalFiltered > 0 && (
+          {total > 0 && (
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               pageSize={pageSize}
-              totalItems={totalFiltered}
-              onPageChange={setCurrentPage}
+              totalItems={total}
+              onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />
           )}

@@ -4,24 +4,70 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
+// handleListUsers returns one page of a light user projection. Sorting,
+// paging and the active/inactive filter are applied here so the browser
+// receives a page instead of the whole directory (see ldap.SearchUsersPage).
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
-	users, truncated, err := s.ldapClient.SearchUsers(r.URL.Query().Get("search"))
+	opts := ldap.UserListOptions{ListOptions: parseListOptions(r)}
+	switch ldap.UserStatus(r.URL.Query().Get("status")) {
+	case ldap.UserStatusActive:
+		opts.Status = ldap.UserStatusActive
+	case ldap.UserStatusInactive:
+		opts.Status = ldap.UserStatusInactive
+	}
+
+	result, err := s.ldapClient.SearchUsersPage(opts)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list users")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":      users,
-		"total":     len(users),
-		"truncated": truncated,
+		"data":          result.Items,
+		"total":         result.Total,
+		"inactiveCount": result.InactiveCount,
+		"limit":         opts.Limit,
+		"offset":        opts.Offset,
+		"truncated":     result.Truncated,
 	})
+}
+
+// handleGetUserPhoto serves a user's jpegPhoto as an image. Photos are excluded
+// from the list projection; rows that have one point an <img> here, which lets
+// the browser cache them and fetch only what is on screen.
+func (s *Server) handleGetUserPhoto(w http.ResponseWriter, r *http.Request) {
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	photo, err := s.ldapClient.GetUserPhoto(dn)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if len(photo) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	// Private: the photo is only readable by an authenticated session, so it
+	// must not be stored by shared caches. must-revalidate keeps a replaced
+	// photo from sticking around after the max-age window.
+	w.Header().Set("Cache-Control", "private, max-age=300, must-revalidate")
+	w.Header().Set("Content-Length", strconv.Itoa(len(photo)))
+	if _, err := w.Write(photo); err != nil {
+		return
+	}
 }
 
 func (s *Server) handleGetUser(w http.ResponseWriter, r *http.Request) {
