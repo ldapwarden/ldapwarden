@@ -53,7 +53,8 @@ func TestContentSecurityPolicy_AllowsThemeBootstrap(t *testing.T) {
 	}
 	indexPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "web", "index.html")
 
-	html, err := os.ReadFile(indexPath)
+	// Path is derived from this file's own location, not from any input.
+	html, err := os.ReadFile(indexPath) //nolint:gosec // fixed repo-relative path
 	if err != nil {
 		t.Fatalf("read web/index.html: %v", err)
 	}

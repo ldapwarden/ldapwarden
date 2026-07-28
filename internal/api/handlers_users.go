@@ -65,7 +65,11 @@ func (s *Server) handleGetUserPhoto(w http.ResponseWriter, r *http.Request) {
 	// photo from sticking around after the max-age window.
 	w.Header().Set("Cache-Control", "private, max-age=300, must-revalidate")
 	w.Header().Set("Content-Length", strconv.Itoa(len(photo)))
-	if _, err := w.Write(photo); err != nil {
+	// The bytes come from the directory, so gosec's taint analysis flags the
+	// write. They are served as image/jpeg, and secureHeadersMiddleware sets
+	// X-Content-Type-Options: nosniff on every response, so the browser will not
+	// reinterpret them as markup.
+	if _, err := w.Write(photo); err != nil { //nolint:gosec // typed image response, nosniff enforced
 		return
 	}
 }
