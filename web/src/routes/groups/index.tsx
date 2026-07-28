@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Search, Users, Trash2, Upload } from 'lucide-react'
-import { SortIcon } from '@/components/ui/sort-icon'
+import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { useCallback, useMemo, useState } from 'react'
 import { encodeDN } from '@/lib/utils'
@@ -241,42 +241,38 @@ function GroupsPage() {
                     />
                   </TableHead>
                 )}
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('cn')}
-                  >
-                    Name
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="cn" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('description')}
-                  >
-                    Description
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="description" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('gidNumber')}
-                  >
-                    GID
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="gidNumber" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('members')}
-                  >
-                    Members
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="members" />
-                  </button>
-                </TableHead>
+                <SortableHeader
+                  field="cn"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Name
+                </SortableHeader>
+                <SortableHeader
+                  field="description"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Description
+                </SortableHeader>
+                <SortableHeader
+                  field="gidNumber"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  GID
+                </SortableHeader>
+                <SortableHeader
+                  field="members"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Members
+                </SortableHeader>
               </TableRow>
             </TableHeader>
             <TableBody>

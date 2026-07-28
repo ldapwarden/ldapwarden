@@ -17,7 +17,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
-import { SortIcon } from '@/components/ui/sort-icon'
+import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { useCallback, useMemo, useState } from 'react'
 import { encodeDN } from '@/lib/utils'
@@ -193,33 +193,30 @@ function PasswordPoliciesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('cn')}
-                  >
-                    Name
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="cn" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('pwdMinLength')}
-                  >
-                    Min Length
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="pwdMinLength" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('pwdMaxAge')}
-                  >
-                    Max Age
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="pwdMaxAge" />
-                  </button>
-                </TableHead>
+                <SortableHeader
+                  field="cn"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Name
+                </SortableHeader>
+                <SortableHeader
+                  field="pwdMinLength"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Min Length
+                </SortableHeader>
+                <SortableHeader
+                  field="pwdMaxAge"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Max Age
+                </SortableHeader>
                 <TableHead>Lockout</TableHead>
                 <TableHead>History</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>

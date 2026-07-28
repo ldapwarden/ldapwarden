@@ -16,7 +16,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, ShieldCheck } from 'lucide-react'
-import { SortIcon } from '@/components/ui/sort-icon'
+import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { useCallback, useMemo, useState } from 'react'
 import { encodeDN } from '@/lib/utils'
@@ -181,27 +181,25 @@ function SudoRolesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('cn')}
-                  >
-                    Name
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="cn" />
-                  </button>
-                </TableHead>
+                <SortableHeader
+                  field="cn"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Name
+                </SortableHeader>
                 <TableHead>Users</TableHead>
                 <TableHead>Hosts</TableHead>
                 <TableHead>Commands</TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('sudoOrder')}
-                  >
-                    Order
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="sudoOrder" />
-                  </button>
-                </TableHead>
+                <SortableHeader
+                  field="sudoOrder"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Order
+                </SortableHeader>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>

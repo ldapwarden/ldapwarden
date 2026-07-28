@@ -18,10 +18,10 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { Checkbox } from '@/components/ui/checkbox'
 import { UsersBulkActions } from '@/components/users-bulk-actions'
-import { Plus, Search, CheckCircle2, Lock, Users, CalendarClock, Upload } from 'lucide-react'
-import { SortIcon } from '@/components/ui/sort-icon'
+import { Plus, Search, Users, Upload } from 'lucide-react'
+import { SortableHeader } from '@/components/ui/sortable-header'
 import { useCallback, useMemo, useState } from 'react'
-import { encodeDN, parseLdapTimestamp } from '@/lib/utils'
+import { encodeDN } from '@/lib/utils'
 import { assignTones, toneStyle } from '@/lib/tones'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import {
@@ -32,23 +32,11 @@ import {
   type ListSearch,
 } from '@/lib/list-search'
 import { Avatar } from '@/components/ui/avatar'
+import { AccountStatus } from '@/components/account-status'
 import { Callout } from '@/components/ui/callout'
 
 const SORT_FIELDS = ['uid', 'displayName', 'mail', 'employeeType', 'groupsCount'] as const
 type SortField = (typeof SORT_FIELDS)[number]
-
-// Helper to get account expiration date from either pwdAccountLockedTime or shadowExpire
-function getAccountExpiration(user: { pwdAccountLockedTime?: string; shadowExpire?: number }): Date | null {
-  // Check pwdAccountLockedTime first (LDAP generalized time format)
-  if (user.pwdAccountLockedTime) {
-    return parseLdapTimestamp(user.pwdAccountLockedTime)
-  }
-  // Check shadowExpire (days since Unix epoch, 0 or missing means no expiration)
-  if (user.shadowExpire && user.shadowExpire > 0 && user.shadowExpire < 99999) {
-    return new Date(user.shadowExpire * 24 * 60 * 60 * 1000)
-  }
-  return null
-}
 
 // UsersSearch is the view state this page keeps in the URL, so a filtered,
 // sorted, paged view is a link someone can bookmark or paste into a ticket.
@@ -266,51 +254,46 @@ function UsersPage() {
                     />
                   </TableHead>
                 )}
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('uid')}
-                  >
-                    Username
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="uid" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('displayName')}
-                  >
-                    Name
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="displayName" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('mail')}
-                  >
-                    Email
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="mail" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('employeeType')}
-                  >
-                    Type
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="employeeType" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    className="flex items-center hover:text-foreground"
-                    onClick={() => handleSort('groupsCount')}
-                  >
-                    Groups
-                    <SortIcon sortField={sortField} sortDirection={sortDirection} field="groupsCount" />
-                  </button>
-                </TableHead>
+                <SortableHeader
+                  field="uid"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Username
+                </SortableHeader>
+                <SortableHeader
+                  field="displayName"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Name
+                </SortableHeader>
+                <SortableHeader
+                  field="mail"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Email
+                </SortableHeader>
+                <SortableHeader
+                  field="employeeType"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Type
+                </SortableHeader>
+                <SortableHeader
+                  field="groupsCount"
+                  activeField={sortField}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                >
+                  Groups
+                </SortableHeader>
                 <TableHead className="w-16 text-center">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -361,48 +344,7 @@ function UsersPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    {(() => {
-                      const expDate = getAccountExpiration(user)
-                      const now = new Date()
-                      const isExpired = expDate && expDate < now
-                      const hasFutureExpiration = expDate && expDate >= now
-
-                      // A locked account and a lapsed expiration are the same
-                      // underlying state (a past pwdAccountLockedTime blocks
-                      // login), so both get the red padlock; the tooltip keeps
-                      // the nuance where we can tell them apart.
-                      if (user.accountLocked || isExpired) {
-                        return (
-                          <span title={user.accountLocked ? 'Account locked' : 'Expired'}>
-                            <Lock className="h-4 w-4 inline-block text-destructive" />
-                          </span>
-                        )
-                      } else if (hasFutureExpiration) {
-                        // Calculate days until expiration for color coding
-                        const daysUntil = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-
-                        let colorClass = 'text-success' // > 30 days
-                        const title = `Expires in ${daysUntil} days`
-
-                        if (daysUntil <= 7) {
-                          colorClass = 'text-destructive'
-                        } else if (daysUntil <= 30) {
-                          colorClass = 'text-warning'
-                        }
-
-                        return (
-                          <span title={title}>
-                            <CalendarClock className={`h-4 w-4 inline-block ${colorClass}`} />
-                          </span>
-                        )
-                      } else {
-                        return (
-                          <span title="Active">
-                            <CheckCircle2 className="h-4 w-4 inline-block text-success" />
-                          </span>
-                        )
-                      }
-                    })()}
+                    <AccountStatus user={user} />
                   </TableCell>
                 </TableRow>
               ))}
