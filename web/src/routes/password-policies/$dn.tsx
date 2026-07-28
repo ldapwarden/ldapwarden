@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { DetailSkeleton } from '@/components/ui/skeleton'
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -117,9 +117,7 @@ function PasswordPolicyDetailPage() {
   useUnsavedChangesPrompt(isDirty)
 
   if (isLoading) {
-    return (
-      <InlineSpinner />
-    )
+    return <DetailSkeleton cards={2} />
   }
 
   if (error || !policy) {

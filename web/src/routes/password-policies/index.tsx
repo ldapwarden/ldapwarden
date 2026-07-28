@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { TableSkeletonRows } from '@/components/ui/skeleton'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api, type PasswordPolicy } from '@/lib/api'
@@ -186,120 +186,122 @@ function PasswordPoliciesPage() {
         </Callout>
       )}
 
-      {isLoading ? (
-        <InlineSpinner />
-      ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <SortableHeader
-                  field="cn"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Name
-                </SortableHeader>
-                <SortableHeader
-                  field="pwdMinLength"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Min Length
-                </SortableHeader>
-                <SortableHeader
-                  field="pwdMaxAge"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Max Age
-                </SortableHeader>
-                <TableHead>Lockout</TableHead>
-                <TableHead>History</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedPolicies.map((policy) => (
-                <TableRow key={policy.dn}>
-                  <TableCell>
-                    <Link
-                      to="/password-policies/$dn"
-                      params={{ dn: encodeDN(policy.dn) }}
-                      className="flex items-center gap-2 hover:underline"
-                    >
-                      <KeyRound className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <span className="font-medium">{policy.cn}</span>
-                        {policy.description && (
-                          <p className="text-xs text-muted-foreground">{policy.description}</p>
-                        )}
-                      </div>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {policy.pwdMinLength ? `${policy.pwdMinLength} chars` : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {formatSeconds(policy.pwdMaxAge)}
-                  </TableCell>
-                  <TableCell>
-                    {policy.pwdLockout ? (
-                      <Badge variant="destructive">
-                        {policy.pwdMaxFailure || 0} attempts
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Disabled</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {policy.pwdInHistory ? `${policy.pwdInHistory} passwords` : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Link to="/password-policies/$dn" params={{ dn: encodeDN(policy.dn) }}>
-                        <Button variant="ghost" size="icon" aria-label="Edit password policy">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                      {canWrite && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Delete password policy"
-                          onClick={() => setDeletePolicy(policy)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortableHeader
+                field="cn"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Name
+              </SortableHeader>
+              <SortableHeader
+                field="pwdMinLength"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Min Length
+              </SortableHeader>
+              <SortableHeader
+                field="pwdMaxAge"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Max Age
+              </SortableHeader>
+              <TableHead>Lockout</TableHead>
+              <TableHead>History</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={6} />
+            ) : (
+              <>
+                {sortedPolicies.map((policy) => (
+              <TableRow key={policy.dn}>
+                <TableCell>
+                  <Link
+                    to="/password-policies/$dn"
+                    params={{ dn: encodeDN(policy.dn) }}
+                    className="flex items-center gap-2 hover:underline"
+                  >
+                    <KeyRound className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <span className="font-medium">{policy.cn}</span>
+                      {policy.description && (
+                        <p className="text-xs text-muted-foreground">{policy.description}</p>
                       )}
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {sortedPolicies.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No password policies found
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          {totalFiltered > 0 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={totalFiltered}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          )}
-        </div>
-      )}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  {policy.pwdMinLength ? `${policy.pwdMinLength} chars` : '-'}
+                </TableCell>
+                <TableCell>
+                  {formatSeconds(policy.pwdMaxAge)}
+                </TableCell>
+                <TableCell>
+                  {policy.pwdLockout ? (
+                    <Badge variant="destructive">
+                      {policy.pwdMaxFailure || 0} attempts
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Disabled</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {policy.pwdInHistory ? `${policy.pwdInHistory} passwords` : '-'}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Link to="/password-policies/$dn" params={{ dn: encodeDN(policy.dn) }}>
+                      <Button variant="ghost" size="icon" aria-label="Edit password policy">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                    {canWrite && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete password policy"
+                        onClick={() => setDeletePolicy(policy)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {sortedPolicies.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  No password policies found
+                </TableCell>
+              </TableRow>
+            )}
+              </>
+            )}
+          </TableBody>
+        </Table>
+        {totalFiltered > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalFiltered}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        )}
+      </div>
 
       <ConfirmDialog
         open={!!deletePolicy}

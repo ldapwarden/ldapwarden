@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { DetailSkeleton } from '@/components/ui/skeleton'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -199,9 +199,7 @@ function GroupDetailPage() {
   }, [usersData?.data, group?.memberUid, memberSearch])
 
   if (isLoading) {
-    return (
-      <InlineSpinner />
-    )
+    return <DetailSkeleton cards={2} />
   }
 
   if (error) {

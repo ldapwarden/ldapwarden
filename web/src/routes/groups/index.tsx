@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { TableSkeletonRows } from '@/components/ui/skeleton'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, keepPreviousData, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -221,112 +221,114 @@ function GroupsPage() {
         onConfirm={bulkDelete}
       />
 
-      {isLoading ? (
-        <InlineSpinner />
-      ) : (
-        // Dim the table while a new page is in flight: keepPreviousData leaves
-        // the old rows on screen, which would otherwise look like nothing
-        // happened after a sort or page change.
-        <div className={`border rounded-lg ${isFetching ? 'opacity-60 transition-opacity' : ''}`}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {canWrite && (
-                  <TableHead className="w-10">
-                    <Checkbox
-                      aria-label="Select all groups"
-                      checked={allSelected}
-                      indeterminate={someSelected}
-                      onCheckedChange={toggleAll}
-                    />
-                  </TableHead>
-                )}
-                <SortableHeader
-                  field="cn"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Name
-                </SortableHeader>
-                <SortableHeader
-                  field="description"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Description
-                </SortableHeader>
-                <SortableHeader
-                  field="gidNumber"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  GID
-                </SortableHeader>
-                <SortableHeader
-                  field="members"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Members
-                </SortableHeader>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.map((group) => (
-                <TableRow key={group.dn} data-state={selected.has(group.dn) ? 'selected' : undefined}>
-                  {canWrite && (
-                    <TableCell className="w-10">
-                      <Checkbox
-                        aria-label={`Select ${group.cn}`}
-                        checked={selected.has(group.dn)}
-                        onCheckedChange={() => toggleOne(group.dn)}
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <Link
-                      to="/groups/$dn"
-                      params={{ dn: encodeDN(group.dn) }}
-                      className="font-medium hover:underline"
-                    >
-                      {group.cn}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{group.description || '-'}</TableCell>
-                  <TableCell>{group.gidNumber}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      {group.membersCount ?? 0}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {groups.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={canWrite ? 5 : 4} className="text-center py-8 text-muted-foreground">
-                    No groups found
-                  </TableCell>
-                </TableRow>
+      {/* Dim the table while a refetch is in flight: keepPreviousData leaves the
+          old rows on screen, which would otherwise look like nothing happened
+          after a sort or page change. */}
+      <div className={`border rounded-lg ${isFetching ? 'opacity-60 transition-opacity' : ''}`}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {canWrite && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Select all groups"
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onCheckedChange={toggleAll}
+                  />
+                </TableHead>
               )}
-            </TableBody>
-          </Table>
-          {total > 0 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={total}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          )}
-        </div>
-      )}
+              <SortableHeader
+                field="cn"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Name
+              </SortableHeader>
+              <SortableHeader
+                field="description"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Description
+              </SortableHeader>
+              <SortableHeader
+                field="gidNumber"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                GID
+              </SortableHeader>
+              <SortableHeader
+                field="members"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Members
+              </SortableHeader>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canWrite ? 5 : 4} />
+            ) : (
+              <>
+                {groups.map((group) => (
+              <TableRow key={group.dn} data-state={selected.has(group.dn) ? 'selected' : undefined}>
+                {canWrite && (
+                  <TableCell className="w-10">
+                    <Checkbox
+                      aria-label={`Select ${group.cn}`}
+                      checked={selected.has(group.dn)}
+                      onCheckedChange={() => toggleOne(group.dn)}
+                    />
+                  </TableCell>
+                )}
+                <TableCell>
+                  <Link
+                    to="/groups/$dn"
+                    params={{ dn: encodeDN(group.dn) }}
+                    className="font-medium hover:underline"
+                  >
+                    {group.cn}
+                  </Link>
+                </TableCell>
+                <TableCell>{group.description || '-'}</TableCell>
+                <TableCell>{group.gidNumber}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    {group.membersCount ?? 0}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {groups.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={canWrite ? 5 : 4} className="text-center py-8 text-muted-foreground">
+                  No groups found
+                </TableCell>
+              </TableRow>
+            )}
+              </>
+            )}
+          </TableBody>
+        </Table>
+        {total > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={total}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        )}
+      </div>
     </div>
   )
 }

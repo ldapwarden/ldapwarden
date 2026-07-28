@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { TableSkeletonRows } from '@/components/ui/skeleton'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api, type SudoRole } from '@/lib/api'
@@ -174,109 +174,111 @@ function SudoRolesPage() {
         </Callout>
       )}
 
-      {isLoading ? (
-        <InlineSpinner />
-      ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <SortableHeader
-                  field="cn"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Name
-                </SortableHeader>
-                <TableHead>Users</TableHead>
-                <TableHead>Hosts</TableHead>
-                <TableHead>Commands</TableHead>
-                <SortableHeader
-                  field="sudoOrder"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Order
-                </SortableHeader>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedRoles.map((role) => (
-                <TableRow key={role.dn}>
-                  <TableCell>
-                    <Link
-                      to="/sudo-roles/$dn"
-                      params={{ dn: encodeDN(role.dn) }}
-                      className="flex items-center gap-2 hover:underline"
-                    >
-                      <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{role.cn}</span>
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortableHeader
+                field="cn"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Name
+              </SortableHeader>
+              <TableHead>Users</TableHead>
+              <TableHead>Hosts</TableHead>
+              <TableHead>Commands</TableHead>
+              <SortableHeader
+                field="sudoOrder"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Order
+              </SortableHeader>
+              <TableHead className="w-[100px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={6} />
+            ) : (
+              <>
+                {sortedRoles.map((role) => (
+              <TableRow key={role.dn}>
+                <TableCell>
+                  <Link
+                    to="/sudo-roles/$dn"
+                    params={{ dn: encodeDN(role.dn) }}
+                    className="flex items-center gap-2 hover:underline"
+                  >
+                    <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{role.cn}</span>
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted-foreground" title={role.sudoUser?.join(', ') || undefined}>
+                    {role.sudoUser?.length ? role.sudoUser.slice(0, 3).join(', ') : '-'}
+                    {role.sudoUser && role.sudoUser.length > 3 && ` +${role.sudoUser.length - 3}`}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted-foreground" title={role.sudoHost?.join(', ') || undefined}>
+                    {role.sudoHost?.length ? role.sudoHost.slice(0, 2).join(', ') : '-'}
+                    {role.sudoHost && role.sudoHost.length > 2 && ` +${role.sudoHost.length - 2}`}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted-foreground font-mono" title={role.sudoCommand?.join(', ') || undefined}>
+                    {role.sudoCommand?.length ? role.sudoCommand.slice(0, 2).join(', ') : '-'}
+                    {role.sudoCommand && role.sudoCommand.length > 2 && ` +${role.sudoCommand.length - 2}`}
+                  </span>
+                </TableCell>
+                <TableCell>{role.sudoOrder || '-'}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Link to="/sudo-roles/$dn" params={{ dn: encodeDN(role.dn) }}>
+                      <Button variant="ghost" size="icon" aria-label="Edit sudo role">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                     </Link>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground" title={role.sudoUser?.join(', ') || undefined}>
-                      {role.sudoUser?.length ? role.sudoUser.slice(0, 3).join(', ') : '-'}
-                      {role.sudoUser && role.sudoUser.length > 3 && ` +${role.sudoUser.length - 3}`}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground" title={role.sudoHost?.join(', ') || undefined}>
-                      {role.sudoHost?.length ? role.sudoHost.slice(0, 2).join(', ') : '-'}
-                      {role.sudoHost && role.sudoHost.length > 2 && ` +${role.sudoHost.length - 2}`}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground font-mono" title={role.sudoCommand?.join(', ') || undefined}>
-                      {role.sudoCommand?.length ? role.sudoCommand.slice(0, 2).join(', ') : '-'}
-                      {role.sudoCommand && role.sudoCommand.length > 2 && ` +${role.sudoCommand.length - 2}`}
-                    </span>
-                  </TableCell>
-                  <TableCell>{role.sudoOrder || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Link to="/sudo-roles/$dn" params={{ dn: encodeDN(role.dn) }}>
-                        <Button variant="ghost" size="icon" aria-label="Edit sudo role">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                      {canDelete && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Delete sudo role"
-                          onClick={() => setDeleteRole(role)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {sortedRoles.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No sudo roles found
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          {totalFiltered > 0 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={totalFiltered}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          )}
-        </div>
-      )}
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete sudo role"
+                        onClick={() => setDeleteRole(role)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {sortedRoles.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  No sudo roles found
+                </TableCell>
+              </TableRow>
+            )}
+              </>
+            )}
+          </TableBody>
+        </Table>
+        {totalFiltered > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalFiltered}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        )}
+      </div>
 
       <ConfirmDialog
         open={!!deleteRole}

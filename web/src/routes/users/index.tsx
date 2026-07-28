@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { TableSkeletonRows } from '@/components/ui/skeleton'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api, userPhotoUrl } from '@/lib/api'
@@ -234,141 +234,143 @@ function UsersPage() {
         />
       )}
 
-      {isLoading ? (
-        <InlineSpinner />
-      ) : (
-        // Dim the table while a new page is in flight: keepPreviousData leaves
-        // the old rows on screen, which would otherwise look like nothing
-        // happened after a sort or page change.
-        <div className={`border rounded-lg ${isFetching ? 'opacity-60 transition-opacity' : ''}`}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {canWrite && (
-                  <TableHead className="w-10">
-                    <Checkbox
-                      aria-label="Select all users"
-                      checked={allSelected}
-                      indeterminate={someSelected}
-                      onCheckedChange={toggleAll}
-                    />
-                  </TableHead>
-                )}
-                <SortableHeader
-                  field="uid"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Username
-                </SortableHeader>
-                <SortableHeader
-                  field="displayName"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Name
-                </SortableHeader>
-                <SortableHeader
-                  field="mail"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Email
-                </SortableHeader>
-                <SortableHeader
-                  field="employeeType"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Type
-                </SortableHeader>
-                <SortableHeader
-                  field="groupsCount"
-                  activeField={sortField}
-                  direction={sortDirection}
-                  onSort={handleSort}
-                >
-                  Groups
-                </SortableHeader>
-                <TableHead className="w-16 text-center">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.dn} data-state={selected.has(user.dn) ? 'selected' : undefined}>
-                  {canWrite && (
-                    <TableCell className="w-10">
-                      <Checkbox
-                        aria-label={`Select ${user.uid}`}
-                        checked={selected.has(user.dn)}
-                        onCheckedChange={() => toggleOne(user.dn)}
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <Link
-                      to="/users/$dn"
-                      params={{ dn: encodeDN(user.dn) }}
-                      className="flex items-center gap-2 hover:underline"
-                    >
-                      <Avatar
-                        url={user.hasPhoto ? userPhotoUrl(user.dn) : undefined}
-                        fallback={user.displayName || user.cn}
-                        size="sm"
-                      />
-                      <span className="font-medium">{user.uid}</span>
-                    </Link>
-                  </TableCell>
-                  <TableCell>{user.displayName || user.cn}</TableCell>
-                  <TableCell>{user.mail || '-'}</TableCell>
-                  <TableCell>
-                    {user.employeeType ? (
-                      <Badge
-                        className="tone"
-                        style={toneStyle(employeeTypeTones.get(user.employeeType) ?? 'slate')}
-                      >
-                        {user.employeeType}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{user.groupsCount ?? 0}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <AccountStatus user={user} />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {users.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={canWrite ? 7 : 6} className="text-center py-8 text-muted-foreground">
-                    No users found
-                  </TableCell>
-                </TableRow>
+      {/* Dim the table while a refetch is in flight: keepPreviousData leaves the
+          old rows on screen, which would otherwise look like nothing happened
+          after a sort or page change. */}
+      <div className={`border rounded-lg ${isFetching ? 'opacity-60 transition-opacity' : ''}`}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {canWrite && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Select all users"
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onCheckedChange={toggleAll}
+                  />
+                </TableHead>
               )}
-            </TableBody>
-          </Table>
-          {total > 0 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={total}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          )}
-        </div>
-      )}
+              <SortableHeader
+                field="uid"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Username
+              </SortableHeader>
+              <SortableHeader
+                field="displayName"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Name
+              </SortableHeader>
+              <SortableHeader
+                field="mail"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Email
+              </SortableHeader>
+              <SortableHeader
+                field="employeeType"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Type
+              </SortableHeader>
+              <SortableHeader
+                field="groupsCount"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              >
+                Groups
+              </SortableHeader>
+              <TableHead className="w-16 text-center">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canWrite ? 7 : 6} />
+            ) : (
+              <>
+                {users.map((user) => (
+              <TableRow key={user.dn} data-state={selected.has(user.dn) ? 'selected' : undefined}>
+                {canWrite && (
+                  <TableCell className="w-10">
+                    <Checkbox
+                      aria-label={`Select ${user.uid}`}
+                      checked={selected.has(user.dn)}
+                      onCheckedChange={() => toggleOne(user.dn)}
+                    />
+                  </TableCell>
+                )}
+                <TableCell>
+                  <Link
+                    to="/users/$dn"
+                    params={{ dn: encodeDN(user.dn) }}
+                    className="flex items-center gap-2 hover:underline"
+                  >
+                    <Avatar
+                      url={user.hasPhoto ? userPhotoUrl(user.dn) : undefined}
+                      fallback={user.displayName || user.cn}
+                      size="sm"
+                    />
+                    <span className="font-medium">{user.uid}</span>
+                  </Link>
+                </TableCell>
+                <TableCell>{user.displayName || user.cn}</TableCell>
+                <TableCell>{user.mail || '-'}</TableCell>
+                <TableCell>
+                  {user.employeeType ? (
+                    <Badge
+                      className="tone"
+                      style={toneStyle(employeeTypeTones.get(user.employeeType) ?? 'slate')}
+                    >
+                      {user.employeeType}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>{user.groupsCount ?? 0}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-center">
+                  <AccountStatus user={user} />
+                </TableCell>
+              </TableRow>
+            ))}
+            {users.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={canWrite ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                  No users found
+                </TableCell>
+              </TableRow>
+            )}
+              </>
+            )}
+          </TableBody>
+        </Table>
+        {total > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={total}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        )}
+      </div>
     </div>
   )
 }

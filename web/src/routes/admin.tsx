@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { DetailSkeleton } from '@/components/ui/skeleton'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api, ConfigValue } from '@/lib/api'
@@ -95,9 +95,7 @@ function AdminPage() {
   })
 
   if (isLoading) {
-    return (
-      <InlineSpinner />
-    )
+    return <DetailSkeleton cards={4} />
   }
 
   if (error) {

@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@/components/inline-spinner'
+import { TableSkeletonRows } from '@/components/ui/skeleton'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -193,80 +193,82 @@ function AuditLogsPage() {
         )}
       </div>
 
-      {isLoading ? (
-        <InlineSpinner />
-      ) : (
-        <>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Actor</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Resource</TableHead>
-                  <TableHead>Details</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.data.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDate(log.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium" title={log.actorDn || undefined}>{log.actorUid}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className="tone inline-block rounded-full border px-2 py-1 text-xs font-medium"
-                        style={toneStyle(actionTone(log.action))}
+      <>
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Timestamp</TableHead>
+                <TableHead>Actor</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Resource</TableHead>
+                <TableHead>Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={5} />
+              ) : (
+                <>
+                  {data?.data.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="whitespace-nowrap">
+                    {formatDate(log.createdAt)}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium" title={log.actorDn || undefined}>{log.actorUid}</span>
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className="tone inline-block rounded-full border px-2 py-1 text-xs font-medium"
+                      style={toneStyle(actionTone(log.action))}
+                    >
+                      {log.action}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="max-w-xs truncate" title={log.resourceDn || undefined}>
+                      <span className="text-muted-foreground">{log.resourceType}: </span>
+                      {log.resourceDn || '-'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {log.details && Object.keys(log.details).length > 0 ? (
+                      <code
+                        className="block max-w-xs truncate text-xs bg-muted px-1 py-0.5 rounded"
+                        title={JSON.stringify(log.details, null, 2)}
                       >
-                        {log.action}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-xs truncate" title={log.resourceDn || undefined}>
-                        <span className="text-muted-foreground">{log.resourceType}: </span>
-                        {log.resourceDn || '-'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {log.details && Object.keys(log.details).length > 0 ? (
-                        <code
-                          className="block max-w-xs truncate text-xs bg-muted px-1 py-0.5 rounded"
-                          title={JSON.stringify(log.details, null, 2)}
-                        >
-                          {JSON.stringify(log.details)}
-                        </code>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {data?.data.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      {hasFilters ? 'No audit logs match these filters' : 'No audit logs found'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-            {data && data.total > 0 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                totalItems={data.total}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
-              />
-            )}
-          </div>
-        </>
-      )}
+                        {JSON.stringify(log.details)}
+                      </code>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {data?.data.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    {hasFilters ? 'No audit logs match these filters' : 'No audit logs found'}
+                  </TableCell>
+                </TableRow>
+              )}
+                </>
+              )}
+            </TableBody>
+          </Table>
+          {data && data.total > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={data.total}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
+        </div>
+      </>
     </div>
   )
 }
