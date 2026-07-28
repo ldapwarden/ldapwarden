@@ -20,15 +20,22 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { UsersBulkActions } from '@/components/users-bulk-actions'
 import { Plus, Search, CheckCircle2, Lock, Users, CalendarClock, Upload } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
-import { useState, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { encodeDN, parseLdapTimestamp } from '@/lib/utils'
 import { assignTones, toneStyle } from '@/lib/tones'
-import { useDebounced } from '@/lib/use-debounced'
+import { useUrlSearchInput } from '@/lib/use-url-search-input'
+import {
+  listSearchValidator,
+  listSearchValues,
+  nextSort,
+  asBoolean,
+  type ListSearch,
+} from '@/lib/list-search'
 import { Avatar } from '@/components/ui/avatar'
 import { Callout } from '@/components/ui/callout'
 
-type SortField = 'uid' | 'displayName' | 'mail' | 'employeeType' | 'groupsCount'
-type SortDirection = 'asc' | 'desc'
+const SORT_FIELDS = ['uid', 'displayName', 'mail', 'employeeType', 'groupsCount'] as const
+type SortField = (typeof SORT_FIELDS)[number]
 
 // Helper to get account expiration date from either pwdAccountLockedTime or shadowExpire
 function getAccountExpiration(user: { pwdAccountLockedTime?: string; shadowExpire?: number }): Date | null {
@@ -43,7 +50,11 @@ function getAccountExpiration(user: { pwdAccountLockedTime?: string; shadowExpir
   return null
 }
 
-const DEFAULT_PAGE_SIZE = 25
+// UsersSearch is the view state this page keeps in the URL, so a filtered,
+// sorted, paged view is a link someone can bookmark or paste into a ticket.
+interface UsersSearch extends ListSearch<SortField> {
+  inactive?: boolean
+}
 
 export const Route = createFileRoute('/users/')({
   beforeLoad: ({ context }) => {
@@ -51,29 +62,46 @@ export const Route = createFileRoute('/users/')({
       throw redirect({ to: '/login' })
     }
   },
+  validateSearch: (raw: Record<string, unknown>): UsersSearch => ({
+    ...listSearchValidator(SORT_FIELDS)(raw),
+    inactive: asBoolean(raw.inactive),
+  }),
   component: UsersPage,
 })
 
 function UsersPage() {
   const { hasPermission } = useAuth()
-  const [search, setSearch] = useState('')
-  const [showInactive, setShowInactive] = useState(false)
-  const [sortField, setSortField] = useState<SortField>('uid')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const searchParams = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
+    listSearchValues<SortField>(searchParams, 'uid')
+  const showInactive = searchParams.inactive ?? false
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const debouncedSearch = useDebounced(search)
+
+
+  // patchSearch is the single writer of this page's view state. `replace` keeps
+  // filter tweaks out of the history stack — only page moves are worth a Back.
+  const patchSearch = useCallback(
+    (patch: Partial<UsersSearch>, replace = true) => {
+      navigate({ search: (prev) => ({ ...prev, ...patch }), replace })
+    },
+    [navigate],
+  )
+
+  const [searchInput, setSearchInput] = useUrlSearchInput(
+    q,
+    useCallback((value: string) => patchSearch({ q: value || undefined, page: undefined }), [patchSearch]),
+  )
 
   // Search, status filter, sort and paging are all applied by the directory
   // side, so a page costs one page worth of rows regardless of how large the
   // directory is.
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['users', { search: debouncedSearch, showInactive, sortField, sortDirection, currentPage, pageSize }],
+    queryKey: ['users', { search: q, showInactive, sortField, sortDirection, currentPage, pageSize }],
     queryFn: ({ signal }) =>
       api.users.list(
         {
-          search: debouncedSearch,
+          search: q,
           status: showInactive ? undefined : 'active',
           sort: sortField,
           order: sortDirection,
@@ -110,13 +138,8 @@ function UsersPage() {
   const canWrite = hasPermission('users:write')
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
-    setCurrentPage(1)
+    patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
+    clearSelection()
   }
 
   // Selection is keyed by DN and only spans the visible page: with paging done
@@ -142,20 +165,20 @@ function UsersPage() {
   // Any change to the query resets paging and selection: page 3 of the old
   // result set is meaningless, and a selection carried across it would apply to
   // rows that are no longer on screen.
-  const handleSearchChange = (value: string) => {
-    setSearch(value)
-    setCurrentPage(1)
-    clearSelection()
-  }
-
   const handlePageChange = (page: number) => {
-    setCurrentPage(page)
+    // Paging is the one move worth a history entry, so Back returns to the
+    // previous page instead of leaving the list entirely.
+    patchSearch({ page: page > 1 ? page : undefined }, false)
     clearSelection()
   }
 
   const handlePageSizeChange = (size: number) => {
-    setPageSize(size)
-    setCurrentPage(1)
+    patchSearch({ size, page: undefined })
+    clearSelection()
+  }
+
+  const handleShowInactiveChange = (checked: boolean) => {
+    patchSearch({ inactive: checked || undefined, page: undefined })
     clearSelection()
   }
 
@@ -190,20 +213,13 @@ function UsersPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search users..."
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-8"
           />
         </div>
         <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <Switch
-            checked={showInactive}
-            onCheckedChange={(checked) => {
-              setShowInactive(checked)
-              setCurrentPage(1)
-              clearSelection()
-            }}
-          />
+          <Switch checked={showInactive} onCheckedChange={handleShowInactiveChange} />
           <span className="text-muted-foreground">
             Show inactive
             {inactiveCount > 0 && (

@@ -19,15 +19,19 @@ import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { Callout } from '@/components/ui/callout'
-import { useState, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { encodeDN } from '@/lib/utils'
-import { useDebounced } from '@/lib/use-debounced'
+import { useUrlSearchInput } from '@/lib/use-url-search-input'
+import {
+  listSearchValidator,
+  listSearchValues,
+  nextSort,
+  type ListSearch,
+} from '@/lib/list-search'
 import { toast } from 'sonner'
 
-type SortField = 'cn' | 'pwdMaxAge' | 'pwdMinLength'
-type SortDirection = 'asc' | 'desc'
-
-const DEFAULT_PAGE_SIZE = 25
+const SORT_FIELDS = ['cn', 'pwdMaxAge', 'pwdMinLength'] as const
+type SortField = (typeof SORT_FIELDS)[number]
 
 export const Route = createFileRoute('/password-policies/')({
   beforeLoad: ({ context }) => {
@@ -35,23 +39,34 @@ export const Route = createFileRoute('/password-policies/')({
       throw redirect({ to: '/login' })
     }
   },
+  validateSearch: listSearchValidator(SORT_FIELDS),
   component: PasswordPoliciesPage,
 })
 
 function PasswordPoliciesPage() {
   const { hasPermission } = useAuth()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
+  const searchParams = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
+    listSearchValues<SortField>(searchParams, 'cn')
   const [deletePolicy, setDeletePolicy] = useState<PasswordPolicy | null>(null)
-  const [sortField, setSortField] = useState<SortField>('cn')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const debouncedSearch = useDebounced(search)
+
+  const patchSearch = useCallback(
+    (patch: Partial<ListSearch<SortField>>, replace = true) => {
+      navigate({ search: (prev) => ({ ...prev, ...patch }), replace })
+    },
+    [navigate],
+  )
+
+  const [searchInput, setSearchInput] = useUrlSearchInput(
+    q,
+    useCallback((value: string) => patchSearch({ q: value || undefined, page: undefined }), [patchSearch]),
+  )
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['password-policies', debouncedSearch],
-    queryFn: ({ signal }) => api.passwordPolicies.list(debouncedSearch, signal),
+    queryKey: ['password-policies', q],
+    queryFn: ({ signal }) => api.passwordPolicies.list(q, signal),
     placeholderData: keepPreviousData,
   })
 
@@ -70,12 +85,7 @@ function PasswordPoliciesPage() {
   const canWrite = hasPermission('settings:write')
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
+    patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
   }
 
   const formatSeconds = (seconds: number | undefined) => {
@@ -123,14 +133,14 @@ function PasswordPoliciesPage() {
     }
   }, [data?.data, sortField, sortDirection, currentPage, pageSize])
 
-  const handleSearchChange = (value: string) => {
-    setSearch(value)
-    setCurrentPage(1)
+  const handlePageChange = (page: number) => {
+    // Paging is the one move worth a history entry, so Back returns to the
+    // previous page instead of leaving the list entirely.
+    patchSearch({ page: page > 1 ? page : undefined }, false)
   }
 
   const handlePageSizeChange = (size: number) => {
-    setPageSize(size)
-    setCurrentPage(1)
+    patchSearch({ size, page: undefined })
   }
 
   if (error) {
@@ -160,8 +170,8 @@ function PasswordPoliciesPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search policies..."
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-8"
           />
         </div>
@@ -287,7 +297,7 @@ function PasswordPoliciesPage() {
               totalPages={totalPages}
               pageSize={pageSize}
               totalItems={totalFiltered}
-              onPageChange={setCurrentPage}
+              onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />
           )}

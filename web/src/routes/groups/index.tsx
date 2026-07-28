@@ -22,14 +22,18 @@ import { Pagination } from '@/components/ui/pagination'
 import { Plus, Search, Users, Trash2, Upload } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { Callout } from '@/components/ui/callout'
-import { useState, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { encodeDN } from '@/lib/utils'
-import { useDebounced } from '@/lib/use-debounced'
+import { useUrlSearchInput } from '@/lib/use-url-search-input'
+import {
+  listSearchValidator,
+  listSearchValues,
+  nextSort,
+  type ListSearch,
+} from '@/lib/list-search'
 
-type SortField = 'cn' | 'description' | 'gidNumber' | 'members'
-type SortDirection = 'asc' | 'desc'
-
-const DEFAULT_PAGE_SIZE = 25
+const SORT_FIELDS = ['cn', 'description', 'gidNumber', 'members'] as const
+type SortField = (typeof SORT_FIELDS)[number]
 
 export const Route = createFileRoute('/groups/')({
   beforeLoad: ({ context }) => {
@@ -37,30 +41,42 @@ export const Route = createFileRoute('/groups/')({
       throw redirect({ to: '/login' })
     }
   },
+  validateSearch: listSearchValidator(SORT_FIELDS),
   component: GroupsPage,
 })
 
 function GroupsPage() {
   const { hasPermission } = useAuth()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [sortField, setSortField] = useState<SortField>('cn')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const searchParams = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
+    listSearchValues<SortField>(searchParams, 'cn')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const debouncedSearch = useDebounced(search)
+
+
+  const patchSearch = useCallback(
+    (patch: Partial<ListSearch<SortField>>, replace = true) => {
+      navigate({ search: (prev) => ({ ...prev, ...patch }), replace })
+    },
+    [navigate],
+  )
+
+  const [searchInput, setSearchInput] = useUrlSearchInput(
+    q,
+    useCallback((value: string) => patchSearch({ q: value || undefined, page: undefined }), [patchSearch]),
+  )
 
   // Search, sort and paging are applied by the directory side; the browser
   // renders one page of a light projection.
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['groups', { search: debouncedSearch, sortField, sortDirection, currentPage, pageSize }],
+    queryKey: ['groups', { search: q, sortField, sortDirection, currentPage, pageSize }],
     queryFn: ({ signal }) =>
       api.groups.list(
         {
-          search: debouncedSearch,
+          search: q,
           sort: sortField,
           order: sortDirection,
           limit: pageSize,
@@ -80,13 +96,8 @@ function GroupsPage() {
   const canWrite = hasPermission('groups:write')
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
-    setCurrentPage(1)
+    patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
+    clearSelection()
   }
 
   // Selection only spans the visible page: with paging done server-side the
@@ -127,20 +138,15 @@ function GroupsPage() {
   // Any change to the query resets paging and selection: page 3 of the old
   // result set is meaningless, and a selection carried across it would apply to
   // rows that are no longer on screen.
-  const handleSearchChange = (value: string) => {
-    setSearch(value)
-    setCurrentPage(1)
-    clearSelection()
-  }
-
   const handlePageChange = (page: number) => {
-    setCurrentPage(page)
+    // Paging is the one move worth a history entry, so Back returns to the
+    // previous page instead of leaving the list entirely.
+    patchSearch({ page: page > 1 ? page : undefined }, false)
     clearSelection()
   }
 
   const handlePageSizeChange = (size: number) => {
-    setPageSize(size)
-    setCurrentPage(1)
+    patchSearch({ size, page: undefined })
     clearSelection()
   }
 
@@ -179,8 +185,8 @@ function GroupsPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search groups..."
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-8"
           />
         </div>

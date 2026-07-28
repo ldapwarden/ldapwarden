@@ -25,12 +25,23 @@ import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { ArrowLeft, Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
+// Tabs this page can show. Which ones are actually rendered depends on the
+// configured object classes and modules; an unknown or disabled tab in the URL
+// falls back to the first available one.
+const TABS = ['information', 'members', 'samba', 'sudo', 'security'] as const
+type Tab = (typeof TABS)[number]
+
 export const Route = createFileRoute('/groups/$dn')({
   beforeLoad: ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
   },
+  validateSearch: (raw: Record<string, unknown>): { tab?: Tab } => ({
+    tab: typeof raw.tab === 'string' && (TABS as readonly string[]).includes(raw.tab)
+      ? (raw.tab as Tab)
+      : undefined,
+  }),
   component: GroupDetailPage,
 })
 
@@ -100,8 +111,14 @@ function GroupDetailPage() {
     return 'security'
   }, [showPosixGroupTabs, showSambaTab, showSudoTab])
 
-  const [userSelectedTab, setUserSelectedTab] = useState<string | null>(null)
-  const activeTab = userSelectedTab ?? defaultTab
+  // The active tab lives in the URL. `replace` keeps tab switching out of the
+  // history stack, so Back leaves the page rather than walking tabs.
+  const navigate = Route.useNavigate()
+  const { tab } = Route.useSearch()
+  const activeTab = tab ?? defaultTab
+  const setActiveTab = (next: string) => {
+    navigate({ search: { tab: next as Tab }, replace: true })
+  }
 
   const updateMutation = useMutation({
     mutationFn: (description: string) => api.groups.update(dn, { description }),
@@ -207,7 +224,7 @@ function GroupDetailPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setUserSelectedTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           {showPosixGroupTabs && (
             <TabsTrigger value="information" className="flex items-center gap-1">

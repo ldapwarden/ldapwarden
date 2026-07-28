@@ -15,9 +15,7 @@ import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
 import { toneStyle, type Tone } from '@/lib/tones'
-import { useState } from 'react'
-
-const DEFAULT_PAGE_SIZE = 25
+import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/list-search'
 
 // Filter options. Values match the backend's resource-type and action strings
 // exactly (see internal/audit/audit.go); labels mirror them so the dropdown
@@ -55,6 +53,15 @@ const ACTION_OPTIONS = [
   { value: 'schema.refresh', label: 'schema.refresh' },
 ]
 
+// AuditSearch is the view state kept in the URL, so a filtered view of the log
+// — the thing you actually want to send to someone — is a link.
+interface AuditSearch {
+  resourceType?: string
+  action?: string
+  page?: number
+  size?: number
+}
+
 export const Route = createFileRoute('/audit-logs')({
   beforeLoad: ({ context }) => {
     if (!context.auth.isAuthenticated) {
@@ -64,16 +71,34 @@ export const Route = createFileRoute('/audit-logs')({
       throw redirect({ to: '/' })
     }
   },
+  validateSearch: (raw: Record<string, unknown>): AuditSearch => ({
+    resourceType: RESOURCE_TYPE_OPTIONS.some((o) => o.value !== '' && o.value === raw.resourceType)
+      ? (raw.resourceType as string)
+      : undefined,
+    action: ACTION_OPTIONS.some((o) => o.value !== '' && o.value === raw.action)
+      ? (raw.action as string)
+      : undefined,
+    page: Number.isInteger(Number(raw.page)) && Number(raw.page) > 1 ? Number(raw.page) : undefined,
+    size: (PAGE_SIZES as readonly number[]).includes(Number(raw.size)) && Number(raw.size) !== DEFAULT_PAGE_SIZE
+      ? Number(raw.size)
+      : undefined,
+  }),
   component: AuditLogsPage,
 })
 
 function AuditLogsPage() {
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [resourceType, setResourceType] = useState('')
-  const [action, setAction] = useState('')
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const resourceType = search.resourceType ?? ''
+  const action = search.action ?? ''
+  const currentPage = search.page ?? 1
+  const pageSize = search.size ?? DEFAULT_PAGE_SIZE
 
   const hasFilters = resourceType !== '' || action !== ''
+
+  const patchSearch = (patch: Partial<AuditSearch>, replace = true) => {
+    navigate({ search: (prev) => ({ ...prev, ...patch }), replace })
+  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['audit-logs', currentPage, pageSize, resourceType, action],
@@ -91,25 +116,24 @@ function AuditLogsPage() {
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0
 
+  const handlePageChange = (page: number) => {
+    patchSearch({ page: page > 1 ? page : undefined }, false)
+  }
+
   const handlePageSizeChange = (size: number) => {
-    setPageSize(size)
-    setCurrentPage(1)
+    patchSearch({ size, page: undefined })
   }
 
   // Changing a filter must reset to the first page, otherwise the current page
   // index could exceed the filtered result's page count and show nothing.
   const handleResourceTypeChange = (value: string) => {
-    setResourceType(value)
-    setCurrentPage(1)
+    patchSearch({ resourceType: value || undefined, page: undefined })
   }
   const handleActionChange = (value: string) => {
-    setAction(value)
-    setCurrentPage(1)
+    patchSearch({ action: value || undefined, page: undefined })
   }
   const clearFilters = () => {
-    setResourceType('')
-    setAction('')
-    setCurrentPage(1)
+    patchSearch({ resourceType: undefined, action: undefined, page: undefined })
   }
 
   const formatDate = (dateString: string) => {
@@ -236,7 +260,7 @@ function AuditLogsPage() {
                 totalPages={totalPages}
                 pageSize={pageSize}
                 totalItems={data.total}
-                onPageChange={setCurrentPage}
+                onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
               />
             )}

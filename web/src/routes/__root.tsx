@@ -153,10 +153,9 @@ function RootComponent() {
     }
   }
 
-  if (isLoading) {
-    return <LoadingScreen />
-  }
-
+  // isLoading is never true here: main.tsx holds the router back until the
+  // session probe answers, so guards and this component always see a settled
+  // auth state.
   if (!isAuthenticated) {
     // Public routes (login, password reset) render normally. On a protected
     // route the effect above is navigating to /login — show the spinner rather

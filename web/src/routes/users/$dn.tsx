@@ -32,12 +32,23 @@ import { Callout } from '@/components/ui/callout'
 import { PasswordStrength } from '@/components/ui/password-strength'
 import { useState, useRef, useMemo } from 'react'
 
+// Tabs this page can show. Which ones are actually rendered depends on the
+// configured object classes and modules; an unknown or disabled tab in the URL
+// falls back to the first available one.
+const TABS = ['identity', 'posix', 'shadow', 'samba', 'ssh-keys', 'sudo', 'security'] as const
+type Tab = (typeof TABS)[number]
+
 export const Route = createFileRoute('/users/$dn')({
   beforeLoad: ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
   },
+  validateSearch: (raw: Record<string, unknown>): { tab?: Tab } => ({
+    tab: typeof raw.tab === 'string' && (TABS as readonly string[]).includes(raw.tab)
+      ? (raw.tab as Tab)
+      : undefined,
+  }),
   component: UserDetailPage,
 })
 
@@ -110,8 +121,14 @@ function UserDetailPage() {
     return 'security'
   }, [showIdentityTab, showPosixTab, showShadowTab, showSambaTab, showSSHKeysTab, showSudoTab])
 
-  const [userSelectedTab, setUserSelectedTab] = useState<string | null>(null)
-  const activeTab = userSelectedTab ?? defaultTab
+  // The active tab lives in the URL. `replace` keeps tab switching out of the
+  // history stack, so Back leaves the page rather than walking tabs.
+  const navigate = Route.useNavigate()
+  const { tab } = Route.useSearch()
+  const activeTab = tab ?? defaultTab
+  const setActiveTab = (next: string) => {
+    navigate({ search: { tab: next as Tab }, replace: true })
+  }
 
   if (isLoading) {
     return (
@@ -152,7 +169,7 @@ function UserDetailPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setUserSelectedTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           {showIdentityTab && (
             <TabsTrigger value="identity">

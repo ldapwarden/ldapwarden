@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { Button } from './button'
+import { PAGE_SIZES } from '@/lib/list-search'
 
 interface PaginationProps {
   currentPage: number
@@ -18,7 +19,9 @@ export function Pagination({
   totalItems,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [25, 50, 100],
+  // Kept in step with the sizes the URL accepts, so a `?size=` value that
+  // validates is always selectable here too.
+  pageSizeOptions = [...PAGE_SIZES],
 }: PaginationProps) {
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, totalItems)
