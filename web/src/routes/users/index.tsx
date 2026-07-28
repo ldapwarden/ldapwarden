@@ -18,7 +18,7 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { Checkbox } from '@/components/ui/checkbox'
 import { UsersBulkActions } from '@/components/users-bulk-actions'
-import { Plus, Search, CheckCircle2, Circle, Users, CalendarClock, Upload } from 'lucide-react'
+import { Plus, Search, CheckCircle2, Lock, Users, CalendarClock, Upload } from 'lucide-react'
 import { SortIcon } from '@/components/ui/sort-icon'
 import { useState, useMemo } from 'react'
 import { encodeDN, parseLdapTimestamp } from '@/lib/utils'
@@ -414,16 +414,14 @@ function UsersPage() {
                       const isExpired = expDate && expDate < now
                       const hasFutureExpiration = expDate && expDate >= now
 
-                      if (isExpired) {
+                      // A locked account and a lapsed expiration are the same
+                      // underlying state (a past pwdAccountLockedTime blocks
+                      // login), so both get the red padlock; the tooltip keeps
+                      // the nuance where we can tell them apart.
+                      if (user.accountLocked || isExpired) {
                         return (
-                          <span title="Expired">
-                            <Circle className="h-4 w-4 inline-block text-muted-foreground" />
-                          </span>
-                        )
-                      } else if (user.accountLocked) {
-                        return (
-                          <span title="Account disabled">
-                            <Circle className="h-4 w-4 inline-block text-muted-foreground" />
+                          <span title={user.accountLocked ? 'Account locked' : 'Expired'}>
+                            <Lock className="h-4 w-4 inline-block text-red-500" />
                           </span>
                         )
                       } else if (hasFutureExpiration) {
