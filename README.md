@@ -159,6 +159,7 @@ LDAP Warden is configured via environment variables:
 | `LDAP_USER_OU` | Organizational Unit for users | `ou=People` |
 | `LDAP_GROUP_OU` | Organizational Unit for groups | `ou=Groups` |
 | `LDAP_SUDOERS_OU` | Organizational Unit for sudo roles | `ou=sudoers` |
+| `LDAP_PPOLICY_OU` | Organizational Unit for password policies | `ou=policies` |
 | `LDAP_MIN_UID` | Minimum UID for new users | `1000` |
 | `LDAP_MIN_GID` | Minimum GID for new groups | `1000` |
 | `LDAP_SEARCH_SIZE_LIMIT` | Max entries returned by UI list/search endpoints (0 = no limit) | `500` |
