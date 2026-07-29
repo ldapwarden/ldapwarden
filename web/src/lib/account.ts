@@ -1,25 +1,19 @@
 import { parseLdapTimestamp } from './utils'
 
-// The conventional "no expiration" ceiling for shadowExpire; the backend uses
-// the same bound.
-const SHADOW_EXPIRE_NEVER = 99999
-
 export interface AccountStatusFields {
   accountLocked?: boolean
   pwdAccountLockedTime?: string
-  shadowExpire?: number
+  pwdEndTime?: string
 }
 
 /**
- * Expiration date of an account, from whichever attribute records it: the
- * ppolicy operational attribute takes precedence over the shadow one.
+ * The instant the directory starts refusing this account, from `pwdEndTime`.
+ *
+ * Only that attribute can answer the question: `pwdAccountLockedTime` is a lock
+ * (and OpenLDAP lifts a timestamped one once pwdLockoutDuration elapses), and
+ * `shadowExpire` is read by PAM/SSSD on the hosts, never by slapd.
  */
 export function accountExpiration(user: AccountStatusFields): Date | null {
-  if (user.pwdAccountLockedTime) {
-    return parseLdapTimestamp(user.pwdAccountLockedTime)
-  }
-  if (user.shadowExpire && user.shadowExpire > 0 && user.shadowExpire < SHADOW_EXPIRE_NEVER) {
-    return new Date(user.shadowExpire * 24 * 60 * 60 * 1000)
-  }
-  return null
+  if (!user.pwdEndTime) return null
+  return parseLdapTimestamp(user.pwdEndTime)
 }

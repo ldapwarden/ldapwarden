@@ -39,6 +39,16 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 		StartedAt: time.Now(),
 	}
 
+	// Without pwdEndTime the directory has no account expiry to notify about, and
+	// the app does not offer to set one — say so once rather than reporting a
+	// successful run that examined nothing meaningful.
+	if !s.ldapClient.Capabilities().ScheduledExpiry {
+		log.Printf("account expiration check skipped: directory has no pwdEndTime (OpenLDAP >= 2.5 required)")
+		result.Errors = append(result.Errors, "directory does not support scheduled account expiry (pwdEndTime); nothing to check")
+		_ = s.store.CompleteTaskRun(ctx, runID, 0, 0, result.Errors)
+		return result, nil
+	}
+
 	// Get all users
 	users, err := s.ldapClient.ListUsers()
 	if err != nil {
@@ -63,28 +73,16 @@ func (s *Scheduler) runAccountExpirationTask(ctx context.Context, triggeredBy st
 	for _, user := range users {
 		result.UsersChecked++
 
-		// Determine account expiration time from either pwdAccountLockedTime or shadowExpire
-		var expTime time.Time
-		var hasExpiration bool
-
-		// Method 1: pwdAccountLockedTime (ppolicy - LDAP generalized time format)
-		if user.PwdAccountLockedTime != "" {
-			parsed, err := parseLDAPTime(user.PwdAccountLockedTime)
-			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("parse pwdAccountLockedTime for %s: %v", user.UID, err))
-			} else {
-				expTime = parsed
-				hasExpiration = true
-			}
+		// The account's expiry is pwdEndTime — the only value the directory
+		// enforces. pwdAccountLockedTime is a lock (nothing to warn about: the
+		// account is already disabled), and shadowExpire is read by PAM on the
+		// hosts, not by slapd, so it cannot say whether this account still works.
+		if user.PwdEndTime == "" {
+			continue
 		}
-
-		// Method 2: shadowExpire (days since Unix epoch, 0 or 99999 means no expiration)
-		if !hasExpiration && user.ShadowExpire > 0 && user.ShadowExpire < 99999 {
-			expTime = time.Unix(int64(user.ShadowExpire)*86400, 0)
-			hasExpiration = true
-		}
-
-		if !hasExpiration {
+		expTime, err := parseLDAPTime(user.PwdEndTime)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("parse pwdEndTime for %s: %v", user.UID, err))
 			continue
 		}
 

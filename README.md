@@ -202,6 +202,49 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_CORS_ORIGINS` | Comma-separated list of **additional** origins allowed to make credentialed requests. The origin serving the app is always allowed, so this is only needed for a separately-hosted frontend (e.g. `pnpm dev`). `*` is refused. | `http://localhost:5173,http://localhost:3000` |
 | `LDAPWARDEN_DEV_MODE` | Bypass production-secrets validation (also tolerates plain `http://` `PublicURL`). Only for the bundled compose stack and local tests. | `false` |
 
+#### Account expiry and locking
+
+The two are different states, stored in different attributes, and both are
+enforced by the directory rather than by LDAP Warden:
+
+| State | Attribute | Effect |
+|-------|-----------|--------|
+| Locked | `pwdAccountLockedTime` = `000001010000Z` | binds refused until an administrator unlocks |
+| Expires on a date | `pwdEndTime` | binds refused from that instant on, and never lifted automatically |
+
+**Scheduled expiry needs OpenLDAP 2.5 or later**, which is where the ppolicy
+overlay gained `pwdEndTime`. On an older directory the UI hides the expiration
+controls and the API refuses to set one (HTTP 422) rather than writing something
+the server would ignore; locking is unaffected. The check is a probe of the
+subschema, refreshed with the schema-refresh action.
+
+Two caveats worth knowing:
+
+- **ppolicy enforces nothing unless a policy is in effect** for the entry, via
+  `olcPPolicyDefault` on the overlay or a `pwdPolicySubentry` on the user. With no
+  policy, `pwdEndTime` and `pwdAccountLockedTime` are inert attributes.
+- **`shadowExpire` is not an account expiry as far as the directory is
+  concerned** — slapd ignores it; only PAM/SSSD on your hosts read it. It stays
+  editable on the Shadow tab as a raw attribute, but it does not drive the account
+  status, the dashboard or the expiration notifications.
+
+Earlier versions stored the expiry in `pwdAccountLockedTime`, which OpenLDAP reads
+as *when a lockout began*. A scheduled future date therefore disabled the account
+immediately on 2.4 (and was silently ignored on 2.6), and a past one stopped
+applying once `pwdLockoutDuration` elapsed. To move existing data across:
+
+```bash
+# report what would change (default)
+ldapwarden migrate-account-expiry
+
+# apply
+ldapwarden migrate-account-expiry -apply
+```
+
+Past lock timestamps and `shadowExpire` values are reported but left alone unless
+you pass `-include-past-locks` / `-include-shadow-expire`: those accounts work
+today, and migrating them would start refusing them.
+
 #### Module Configuration
 
 LDAP Warden allows you to customize which features are visible based on your LDAP setup:

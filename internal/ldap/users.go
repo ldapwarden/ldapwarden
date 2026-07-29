@@ -2,6 +2,7 @@ package ldap
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -60,6 +61,7 @@ type User struct {
 	ShadowFlag       int `json:"shadowFlag,omitempty"`
 	// Password Policy operational attributes (ppolicy overlay)
 	PwdAccountLockedTime string   `json:"pwdAccountLockedTime,omitempty"`
+	PwdEndTime           string   `json:"pwdEndTime,omitempty"`
 	PwdFailureTime       []string `json:"pwdFailureTime,omitempty"`
 	PwdChangedTime       string   `json:"pwdChangedTime,omitempty"`
 	PwdGraceUseTime      []string `json:"pwdGraceUseTime,omitempty"`
@@ -92,7 +94,7 @@ type CreateUserRequest struct {
 	ObjectClasses      []string `json:"objectClasses,omitempty"`
 	Groups             []string `json:"groups,omitempty"`             // Group CNs to add the user to
 	CreatePrimaryGroup bool     `json:"createPrimaryGroup,omitempty"` // If true, create a posixGroup with CN=UID and the given gidNumber
-	ExpirationDate     string   `json:"expirationDate,omitempty"`     // ISO date string for account expiration (stored in pwdAccountLockedTime)
+	ExpirationDate     string   `json:"expirationDate,omitempty"`     // ISO date; stored in pwdEndTime (needs OpenLDAP >= 2.5)
 }
 
 type UpdateUserRequest struct {
@@ -131,8 +133,9 @@ var defaultUserAttributes = []string{
 	// Shadow attributes
 	"shadowLastChange", "shadowMin", "shadowMax", "shadowWarning",
 	"shadowInactive", "shadowExpire", "shadowFlag",
-	// Password policy operational attributes
-	"pwdAccountLockedTime", "pwdFailureTime", "pwdChangedTime",
+	// Password policy operational attributes. pwdEndTime is the account's
+	// expiry; pwdAccountLockedTime is only ever a lock (see LockUser).
+	"pwdAccountLockedTime", "pwdEndTime", "pwdFailureTime", "pwdChangedTime",
 	"pwdGraceUseTime", "pwdReset", "pwdPolicySubentry",
 }
 
@@ -169,14 +172,17 @@ type UserListItem struct {
 	GroupsCount          int    `json:"groupsCount"`
 	AccountLocked        bool   `json:"accountLocked"`
 	PwdAccountLockedTime string `json:"pwdAccountLockedTime,omitempty"`
-	ShadowExpire         int    `json:"shadowExpire,omitempty"`
+	// PwdEndTime is the account's expiry, empty when it has none. The status
+	// column reads this; shadowExpire is deliberately not consulted — slapd
+	// ignores it, so it cannot describe whether this account still works.
+	PwdEndTime string `json:"pwdEndTime,omitempty"`
 }
 
 // listUserAttributes is the projection behind UserListItem: what a row shows,
 // plus what sorting and the active/inactive filter need.
 var listUserAttributes = []string{
 	"dn", "uid", "cn", "displayName", "mail", "employeeType",
-	"pwdAccountLockedTime", "shadowExpire",
+	"pwdAccountLockedTime", "pwdEndTime",
 }
 
 // UserStatus filters a listing by whether the account can currently log in.
@@ -261,26 +267,18 @@ func (c *Client) SearchUsersPage(opts UserListOptions) (*UserPage, error) {
 	}, nil
 }
 
-// expired reports whether the account's expiration date has passed. It mirrors
-// the two ways an expiry can be recorded: the ppolicy operational attribute and
-// the shadow one.
+// expired reports whether the account's expiry has passed — the same test the
+// directory applies to pwdEndTime (`then <= now`).
 func (u UserListItem) expired() bool {
-	if u.PwdAccountLockedTime != "" {
-		if t, err := time.Parse("20060102150405Z", u.PwdAccountLockedTime); err == nil {
-			return !t.After(time.Now())
-		}
-		return true
-	}
-	// shadowExpire counts days since the epoch; 0 and the "never" sentinel do
-	// not express an expiry.
-	if u.ShadowExpire > 0 && u.ShadowExpire < ShadowExpireNever {
-		return time.Unix(int64(u.ShadowExpire)*86400, 0).Before(time.Now())
-	}
-	return false
+	expiresAt, ok := u.expiresAt()
+	return ok && !expiresAt.After(time.Now())
 }
 
 // ShadowExpireNever is the conventional "no expiration" ceiling for
-// shadowExpire; the UI and the API guards use the same bound.
+// shadowExpire. The app no longer derives account status from that attribute —
+// slapd ignores it, only PAM/SSSD on the hosts read it — but the API still uses
+// this bound to tell "an expiry" from "cleared" when someone edits the raw
+// shadow field.
 const ShadowExpireNever = 99999
 
 func sortUserList(items []UserListItem, opts UserListOptions) {
@@ -308,19 +306,7 @@ func displayNameOf(u UserListItem) string {
 }
 
 func entryToUserListItem(entry *ldap.Entry) UserListItem {
-	shadowExpire, _ := strconv.Atoi(entry.GetAttributeValue("shadowExpire"))
-	lockedTime := entry.GetAttributeValue("pwdAccountLockedTime")
-
-	// Same rule as entryToUser: a past (or unparseable) pwdAccountLockedTime
-	// means locked, a future one is a scheduled expiration.
-	var accountLocked bool
-	if lockedTime != "" {
-		if t, err := time.Parse("20060102150405Z", lockedTime); err == nil {
-			accountLocked = !t.After(time.Now())
-		} else {
-			accountLocked = true
-		}
-	}
+	lockedTime := entry.GetAttributeValue(lockAttr)
 
 	return UserListItem{
 		DN:                   entry.DN,
@@ -329,9 +315,9 @@ func entryToUserListItem(entry *ldap.Entry) UserListItem {
 		DisplayName:          entry.GetAttributeValue("displayName"),
 		Mail:                 entry.GetAttributeValue("mail"),
 		EmployeeType:         entry.GetAttributeValue("employeeType"),
-		AccountLocked:        accountLocked,
+		AccountLocked:        lockedTime != "",
 		PwdAccountLockedTime: lockedTime,
-		ShadowExpire:         shadowExpire,
+		PwdEndTime:           entry.GetAttributeValue(expiryAttr),
 	}
 }
 
@@ -618,30 +604,12 @@ func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 		}
 	}
 
-	// Set expiration date if provided (stored in pwdAccountLockedTime)
+	// Set the expiration date if one was requested. Reported rather than
+	// swallowed: an operator who typed a date and got a user without one has no
+	// way to notice.
 	if req.ExpirationDate != "" {
-		// Parse the date and convert to LDAP generalized time format
-		// Expected input format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS
-		expirationTime, err := time.Parse("2006-01-02", req.ExpirationDate)
-		if err != nil {
-			// Try parsing with time component
-			expirationTime, err = time.Parse("2006-01-02T15:04:05", req.ExpirationDate)
-			if err != nil {
-				// Try ISO 8601 format
-				expirationTime, err = time.Parse(time.RFC3339, req.ExpirationDate)
-			}
-		}
-		if err == nil {
-			// Convert to LDAP generalized time format (end of day in UTC)
-			if expirationTime.Hour() == 0 && expirationTime.Minute() == 0 && expirationTime.Second() == 0 {
-				// If only date provided, set to end of day
-				expirationTime = expirationTime.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-			}
-			ldapTime := expirationTime.UTC().Format("20060102150405Z")
-			modReq := ldap.NewModifyRequest(dn, nil)
-			modReq.Add("pwdAccountLockedTime", []string{ldapTime})
-			// Ignore error - ppolicy may not be configured
-			_ = c.Modify(modReq)
+		if err := c.SetUserExpiration(dn, req.ExpirationDate); err != nil {
+			return nil, fmt.Errorf("create user %s: set expiration: %w", req.UID, err)
 		}
 	}
 
@@ -779,99 +747,128 @@ func (c *Client) DeleteUser(dn string) error {
 	return c.Delete(dn)
 }
 
-// LockUser locks a user account by setting pwdAccountLockedTime (ppolicy).
-// A past timestamp tells the server to deny binds and marks the account as
-// locked in the UI. The previous implementation also prefixed userPassword
-// with "!"; that path was dropped because under olcPPolicyHashCleartext the
-// server re-hashes the prefixed value, making the original password
+// permanentLockValue is OpenLDAP's convention for "locked until an
+// administrator says otherwise": ppolicy special-cases this exact
+// pwdAccountLockedTime value and never lifts it.
+//
+// Writing the current time instead — which is what this used to do — makes the
+// lock expire on its own after pwdLockoutDuration (1800s in the bundled policy),
+// so "Locked" in the UI silently became "unlocked" half an hour later.
+const permanentLockValue = "000001010000Z"
+
+// lockAttr and expiryAttr are deliberately separate concerns:
+//
+//   - lockAttr (pwdAccountLockedTime) means "disabled now". ppolicy also writes
+//     it itself when an account trips pwdMaxFailure.
+//   - expiryAttr (pwdEndTime) means "stops working at this instant", enforced by
+//     the directory and never lifted automatically. Requires OpenLDAP >= 2.5;
+//     see Capabilities.ScheduledExpiry.
+const (
+	lockAttr   = "pwdAccountLockedTime"
+	expiryAttr = "pwdEndTime"
+)
+
+// ErrScheduledExpiryUnsupported is returned when an expiration date is requested
+// on a directory whose ppolicy overlay has no pwdEndTime. Callers surface it
+// rather than writing an attribute the server would ignore.
+var ErrScheduledExpiryUnsupported = errors.New("this directory does not support scheduled account expiry (pwdEndTime requires OpenLDAP 2.5 or later)")
+
+// LockUser disables an account now, by setting pwdAccountLockedTime to the
+// permanent-lock value. It does not touch the account's expiration date, and
+// never touches userPassword: an earlier implementation prefixed it with "!",
+// which under olcPPolicyHashCleartext got re-hashed, making the original password
 // unrecoverable on unlock.
 func (c *Client) LockUser(dn string) error {
-	entry, err := c.GetEntry(dn, []string{"pwdAccountLockedTime"})
+	entry, err := c.GetEntry(dn, []string{lockAttr})
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	existing := entry.GetAttributeValue("pwdAccountLockedTime")
-	now := time.Now().UTC().Format("20060102150405Z")
 
 	modReq := ldap.NewModifyRequest(dn, nil)
-	if existing == "" {
-		modReq.Add("pwdAccountLockedTime", []string{now})
+	if entry.GetAttributeValue(lockAttr) == "" {
+		modReq.Add(lockAttr, []string{permanentLockValue})
 	} else {
-		// Replace whether the existing value is a past lock (idempotent) or a
-		// future expiration (locking now supersedes the schedule).
-		modReq.Replace("pwdAccountLockedTime", []string{now})
+		// Idempotent, and upgrades a ppolicy failure-lockout (which carries a
+		// concrete timestamp and would lift itself) to a deliberate one.
+		modReq.Replace(lockAttr, []string{permanentLockValue})
 	}
 	return c.Modify(modReq)
 }
 
-// UnlockUser removes a manual lock by deleting pwdAccountLockedTime. If the
-// attribute holds a future timestamp it is a scheduled expiration set via
-// SetUserExpiration, not a lock, so we refuse rather than silently destroying
-// the schedule. userPassword is never touched.
+// UnlockUser re-enables a locked account by removing pwdAccountLockedTime. It
+// leaves any expiration date alone — the two are independent now — and returns
+// nil when the account was not locked.
 func (c *Client) UnlockUser(dn string) error {
-	entry, err := c.GetEntry(dn, []string{"pwdAccountLockedTime"})
+	entry, err := c.GetEntry(dn, []string{lockAttr})
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	locked := entry.GetAttributeValue("pwdAccountLockedTime")
-	if locked == "" {
+	if entry.GetAttributeValue(lockAttr) == "" {
 		return nil
 	}
-	if t, perr := time.Parse("20060102150405Z", locked); perr == nil && t.After(time.Now()) {
-		return fmt.Errorf("account has a scheduled expiration, not a manual lock; clear it via the expiration endpoint")
-	}
 
 	modReq := ldap.NewModifyRequest(dn, nil)
-	modReq.Delete("pwdAccountLockedTime", []string{})
+	modReq.Delete(lockAttr, []string{})
 	return c.Modify(modReq)
 }
 
-// SetUserExpiration sets or clears the account expiration date (pwdAccountLockedTime)
-// If expirationDate is empty, the expiration is cleared
+// SetUserExpiration sets or clears the date after which the directory refuses
+// this account's binds (pwdEndTime). An empty expirationDate clears it.
+//
+// Clearing is always allowed, even on a directory without pwdEndTime: an entry
+// carrying a value from a capable server must remain fixable from anywhere.
 func (c *Client) SetUserExpiration(dn string, expirationDate string) error {
-	// Check if the attribute currently exists
-	entry, err := c.GetEntry(dn, []string{"pwdAccountLockedTime"})
+	if expirationDate != "" && !c.Capabilities().ScheduledExpiry {
+		return ErrScheduledExpiryUnsupported
+	}
+
+	entry, err := c.GetEntry(dn, []string{expiryAttr})
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	hasExpiration := entry.GetAttributeValue("pwdAccountLockedTime") != ""
+	hasExpiration := entry.GetAttributeValue(expiryAttr) != ""
 
 	modReq := ldap.NewModifyRequest(dn, nil)
 
 	if expirationDate == "" {
-		// Clear the expiration
-		if hasExpiration {
-			modReq.Delete("pwdAccountLockedTime", []string{})
-		} else {
-			return nil // Nothing to clear
+		if !hasExpiration {
+			return nil
 		}
+		modReq.Delete(expiryAttr, []string{})
+		return c.Modify(modReq)
+	}
+
+	ldapTime, err := parseExpirationDate(expirationDate)
+	if err != nil {
+		return err
+	}
+	if hasExpiration {
+		modReq.Replace(expiryAttr, []string{ldapTime})
 	} else {
-		// Parse the date and convert to LDAP generalized time format
-		expirationTime, err := time.Parse("2006-01-02", expirationDate)
+		modReq.Add(expiryAttr, []string{ldapTime})
+	}
+	return c.Modify(modReq)
+}
+
+// parseExpirationDate accepts a plain day, a local datetime or an RFC 3339
+// timestamp and renders it as LDAP generalized time. A bare day becomes the last
+// second of that day, so "expires on the 28th" means the 28th is still usable.
+func parseExpirationDate(value string) (string, error) {
+	expirationTime, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		expirationTime, err = time.Parse("2006-01-02T15:04:05", value)
 		if err != nil {
-			expirationTime, err = time.Parse("2006-01-02T15:04:05", expirationDate)
+			expirationTime, err = time.Parse(time.RFC3339, value)
 			if err != nil {
-				expirationTime, err = time.Parse(time.RFC3339, expirationDate)
-				if err != nil {
-					return fmt.Errorf("invalid date format: %w", err)
-				}
+				return "", fmt.Errorf("invalid date format: %w", err)
 			}
-		}
-
-		// If only date provided, set to end of day
-		if expirationTime.Hour() == 0 && expirationTime.Minute() == 0 && expirationTime.Second() == 0 {
-			expirationTime = expirationTime.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-		}
-		ldapTime := expirationTime.UTC().Format("20060102150405Z")
-
-		if hasExpiration {
-			modReq.Replace("pwdAccountLockedTime", []string{ldapTime})
-		} else {
-			modReq.Add("pwdAccountLockedTime", []string{ldapTime})
 		}
 	}
 
-	return c.Modify(modReq)
+	if expirationTime.Hour() == 0 && expirationTime.Minute() == 0 && expirationTime.Second() == 0 {
+		expirationTime = expirationTime.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	}
+	return expirationTime.UTC().Format("20060102150405Z"), nil
 }
 
 // SetSSHPublicKeys replaces all SSH public keys for a user
@@ -1157,19 +1154,11 @@ func entryToUser(entry *ldap.Entry) User {
 	// Check if user has a password set
 	hasPassword := entry.GetAttributeValue("userPassword") != ""
 
-	// Account is locked when pwdAccountLockedTime is set to a past timestamp.
-	// A future value represents a scheduled expiration set via
-	// SetUserExpiration (and is surfaced separately via PwdAccountLockedTime).
-	// An unparseable value (including the ppolicy "000001010000Z" permanent-
-	// lock sentinel) is treated as locked.
-	var accountLocked bool
-	if locked := entry.GetAttributeValue("pwdAccountLockedTime"); locked != "" {
-		if t, err := time.Parse("20060102150405Z", locked); err == nil {
-			accountLocked = !t.After(time.Now())
-		} else {
-			accountLocked = true
-		}
-	}
+	// pwdAccountLockedTime is a lock, full stop: set means disabled. ppolicy
+	// writes it itself after pwdMaxFailure, and LockUser writes the
+	// permanent-lock value. The account's *expiry* is pwdEndTime, reported
+	// separately so the UI can distinguish "disabled" from "expires on".
+	accountLocked := entry.GetAttributeValue(lockAttr) != ""
 
 	// Shadow attributes (all integers)
 	shadowLastChange, _ := strconv.Atoi(entry.GetAttributeValue("shadowLastChange"))
@@ -1229,7 +1218,8 @@ func entryToUser(entry *ldap.Entry) User {
 		ShadowExpire:     shadowExpire,
 		ShadowFlag:       shadowFlag,
 		// Password policy operational attributes
-		PwdAccountLockedTime: entry.GetAttributeValue("pwdAccountLockedTime"),
+		PwdAccountLockedTime: entry.GetAttributeValue(lockAttr),
+		PwdEndTime:           entry.GetAttributeValue(expiryAttr),
 		PwdFailureTime:       entry.GetAttributeValues("pwdFailureTime"),
 		PwdChangedTime:       entry.GetAttributeValue("pwdChangedTime"),
 		PwdGraceUseTime:      entry.GetAttributeValues("pwdGraceUseTime"),

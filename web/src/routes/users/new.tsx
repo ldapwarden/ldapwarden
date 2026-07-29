@@ -46,16 +46,9 @@ function NewUserPage() {
     queryFn: ({ signal }) => api.admin.getConfig(signal),
   })
 
-  // Check if policies module is enabled
-  const enabledModules = useMemo(() => {
-    const modules = config?.app?.modules?.value
-    if (Array.isArray(modules)) {
-      return new Set(modules)
-    }
-    return new Set<string>()
-  }, [config])
-
-  const showPoliciesModule = enabledModules.has('policies')
+  // Scheduled expiry needs pwdEndTime in the directory (OpenLDAP >= 2.5); the
+  // backend refuses to write one otherwise, so the field is not offered.
+  const canExpire = config?.capabilities?.scheduledAccountExpiry ?? false
 
   const [primaryGroup, setPrimaryGroup] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
@@ -368,7 +361,7 @@ function NewUserPage() {
               />
             </div>
 
-            {showPoliciesModule && (
+            {canExpire && (
               <div className="space-y-2">
                 <Label htmlFor="expirationDate" className="flex items-center gap-2">
                   <CalendarClock className="h-4 w-4" />
@@ -381,7 +374,7 @@ function NewUserPage() {
                   min={new Date().toISOString().split('T')[0]} // Minimum is today
                 />
                 <p className="text-xs text-muted-foreground">
-                  Optional. If set, the account will be locked on this date.
+                  Optional. The directory refuses this account from that date on.
                 </p>
               </div>
             )}

@@ -225,6 +225,7 @@ export const UserSchema = z.object({
   shadowFlag: z.number().optional(),
   // Password policy operational attributes
   pwdAccountLockedTime: z.string().optional(),
+  pwdEndTime: z.string().optional(),
   pwdFailureTime: z.array(z.string()).optional(),
   pwdChangedTime: z.string().optional(),
   pwdGraceUseTime: z.array(z.string()).optional(),
@@ -246,7 +247,9 @@ export const UserListItemSchema = z.object({
   groupsCount: z.number().optional(),
   accountLocked: z.boolean().optional(),
   pwdAccountLockedTime: z.string().optional(),
-  shadowExpire: z.number().optional(),
+  // The account's expiry. shadowExpire is deliberately absent: slapd ignores it,
+  // so it cannot say whether the account still works.
+  pwdEndTime: z.string().optional(),
 })
 
 export const UsersResponseSchema = z.object({
@@ -489,6 +492,12 @@ export const ConfigResponseSchema = z.object({
     usersObjects: ConfigValueSchema,
     groupsObjects: ConfigValueSchema,
   }),
+  // Probed from the directory, not configured — plain booleans, no env var.
+  capabilities: z
+    .object({
+      scheduledAccountExpiry: z.boolean(),
+    })
+    .optional(),
   mail: z.object({
     host: ConfigValueSchema,
     port: ConfigValueSchema,

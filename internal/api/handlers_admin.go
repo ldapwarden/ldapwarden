@@ -14,11 +14,23 @@ type ConfigResponse struct {
 	Session  SessionConfigResponse  `json:"session"`
 	App      AppConfigResponse      `json:"app"`
 	Mail     MailConfigResponse     `json:"mail"`
+	// Capabilities is probed from the directory rather than configured, so it
+	// carries plain booleans instead of ConfigValues (there is no env var to
+	// show, and no default to compare against).
+	Capabilities CapabilitiesResponse `json:"capabilities"`
+}
+
+// CapabilitiesResponse tells the UI which features the connected directory can
+// actually enforce, so it can hide the ones that would silently do nothing.
+type CapabilitiesResponse struct {
+	// ScheduledAccountExpiry requires pwdEndTime, i.e. OpenLDAP 2.5 or later
+	// with the ppolicy overlay. Without it the UI offers lock/unlock only.
+	ScheduledAccountExpiry bool `json:"scheduledAccountExpiry"`
 }
 
 type ServerConfigResponse struct {
-	Host        ConfigValue `json:"host"`
-	Port        ConfigValue `json:"port"`
+	Host ConfigValue `json:"host"`
+	Port ConfigValue `json:"port"`
 }
 
 type DatabaseConfigResponse struct {
@@ -112,6 +124,9 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			GroupsObjects:     getConfigValue("LDAPWARDEN_GROUPS_OBJECTS", cfg.App.GroupsObjects, []string{"posixGroup"}),
 			AuditNotifyEmails: getConfigValue("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", cfg.App.AuditNotifyEmails, []string(nil)),
 			TrustedProxies:    getConfigValue("LDAPWARDEN_TRUSTED_PROXIES", cfg.App.TrustedProxies, []string(nil)),
+		},
+		Capabilities: CapabilitiesResponse{
+			ScheduledAccountExpiry: s.ldapClient.Capabilities().ScheduledExpiry,
 		},
 		Mail: MailConfigResponse{
 			Host:     getConfigValue("MAIL_HOST", cfg.Mail.Host, "localhost"),

@@ -69,6 +69,9 @@ func TestIntegration_Overview_CountsAndBuckets(t *testing.T) {
 // whole purpose is that this list is neither empty nor noisy.
 func TestIntegration_Overview_ExpiringWindow(t *testing.T) {
 	env := setupTestServer(t)
+	if !env.LDAP.Capabilities().ScheduledExpiry {
+		t.Skip("directory has no pwdEndTime, so no account can carry an expiry to report")
+	}
 	token := loginAs(t, env, "admin", "admin123").Token
 
 	soon := createTestUser(t, env, token)

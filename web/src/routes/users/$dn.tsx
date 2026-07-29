@@ -106,6 +106,10 @@ function UserDetailPage() {
   const showShadowTab = enabledObjects.has('shadowaccount')
   const showSudoTab = enabledModules.has('sudo')
   const showPoliciesModule = enabledModules.has('policies')
+  // Scheduled expiry needs pwdEndTime in the directory (OpenLDAP >= 2.5). The
+  // backend refuses to write one otherwise, so the controls stay hidden rather
+  // than failing on submit.
+  const canExpire = config?.capabilities?.scheduledAccountExpiry ?? false
 
   // Check which objectClasses the user actually has
   const userObjectClasses = useMemo(() => {
@@ -269,6 +273,7 @@ function UserDetailPage() {
             canWrite={canWrite}
             canDelete={canDelete}
             showPoliciesModule={showPoliciesModule}
+            canExpire={canExpire}
             isSelf={isSelf}
           />
         </TabsContent>
@@ -1925,7 +1930,7 @@ function extractCN(dn: string): string {
 }
 
 // Security Tab (password, lock/unlock, delete)
-function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, canDelete: boolean, showPoliciesModule: boolean, isSelf: boolean }) {
+function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExpire, isSelf }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, canDelete: boolean, showPoliciesModule: boolean, canExpire: boolean, isSelf: boolean }) {
   const queryClient = useQueryClient()
   const router = useRouter()
   const [password, setPassword] = useState('')
@@ -1956,12 +1961,14 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
   })
 
   // Determine if the account has a future expiration date
-  const hasFutureExpiration = user?.pwdAccountLockedTime && isLdapTimestampInFuture(user.pwdAccountLockedTime)
-  const hasPastLockTime = user?.pwdAccountLockedTime && !isLdapTimestampInFuture(user.pwdAccountLockedTime)
+  // Expiry and lock are independent: pwdEndTime says when the directory will
+  // start refusing the account, pwdAccountLockedTime says it already does.
+  const hasFutureExpiration = user?.pwdEndTime && isLdapTimestampInFuture(user.pwdEndTime)
+  const hasPastExpiration = user?.pwdEndTime && !isLdapTimestampInFuture(user.pwdEndTime)
 
   const [expirationDate, setExpirationDate] = useState(
-    user?.pwdAccountLockedTime && hasFutureExpiration
-      ? ldapTimestampToDateString(user.pwdAccountLockedTime)
+    user?.pwdEndTime && hasFutureExpiration
+      ? ldapTimestampToDateString(user.pwdEndTime)
       : ''
   )
 
@@ -2215,7 +2222,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4 p-4 rounded-lg border">
-            <div className={`p-3 rounded-full ${user?.accountLocked ? 'bg-destructive/10' : hasFutureExpiration ? 'bg-warning/15' : 'bg-success/15'}`}>
+            <div className={`p-3 rounded-full ${user?.accountLocked || hasPastExpiration ? 'bg-destructive/10' : hasFutureExpiration ? 'bg-warning/15' : 'bg-success/15'}`}>
               {user?.accountLocked ? (
                 <Lock className="h-6 w-6 text-destructive" />
               ) : hasFutureExpiration ? (
@@ -2226,23 +2233,31 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
             </div>
             <div className="flex-1">
               <p className="font-medium">
-                {user?.accountLocked ? 'Account Locked' : hasFutureExpiration ? 'Account Active (Expires Soon)' : 'Account Active'}
+                {user?.accountLocked
+                  ? 'Account Locked'
+                  : hasPastExpiration
+                    ? 'Account Expired'
+                    : hasFutureExpiration
+                      ? 'Account Active (Expires Soon)'
+                      : 'Account Active'}
               </p>
               <p className="text-sm text-muted-foreground">
                 {user?.accountLocked
                   ? 'User cannot log in until the account is unlocked'
-                  : hasFutureExpiration
-                    ? 'Account will be locked on the expiration date'
-                    : 'User can log in normally'}
+                  : hasPastExpiration
+                    ? 'The directory refuses this account: its expiry has passed'
+                    : hasFutureExpiration
+                      ? 'The directory will refuse this account from the expiry date'
+                      : 'User can log in normally'}
               </p>
-              {user?.accountLocked && hasPastLockTime && (
+              {user?.accountLocked && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Locked on: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
                 </p>
               )}
-              {hasFutureExpiration && (
+              {(hasFutureExpiration || hasPastExpiration) && (
                 <p className="text-xs text-warning mt-1">
-                  Expires on: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
+                  {hasPastExpiration ? 'Expired on' : 'Expires on'}: {formatLdapTimestamp(user.pwdEndTime!)}
                 </p>
               )}
             </div>
@@ -2281,14 +2296,23 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
           {/* Setting an expiration writes the same attribute `lock` does, so on your
               own account it is the same lockout by another name — the API refuses
               it (see refuseSelfTarget). Clearing an existing one stays available. */}
-          {showPoliciesModule && canWrite && isSelf && hasFutureExpiration && (
+          {!canExpire && canWrite && (
+            <div className="pt-4 border-t">
+              <Callout variant="info">
+                This directory cannot schedule account expiry: its ppolicy overlay has no{' '}
+                <code>pwdEndTime</code> (OpenLDAP 2.5 or later). Locking is unaffected.
+              </Callout>
+            </div>
+          )}
+
+          {canExpire && canWrite && isSelf && hasFutureExpiration && (
             <div className="pt-4 border-t space-y-2">
               <Label className="flex items-center gap-2">
                 <CalendarClock className="h-4 w-4" />
                 Account Expiration
               </Label>
               <Callout variant="warning">
-                This account expires on {formatLdapTimestamp(user.pwdAccountLockedTime!)}. It is the
+                This account expires on {formatLdapTimestamp(user.pwdEndTime!)}. It is the
                 account you are signed in with, so only clearing the date is available here.
               </Callout>
               <Button
@@ -2301,7 +2325,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
             </div>
           )}
 
-          {showPoliciesModule && canWrite && isSelf && !hasFutureExpiration && (
+          {canExpire && canWrite && isSelf && !hasFutureExpiration && (
             <div className="pt-4 border-t">
               <Callout variant="info">
                 Setting an expiration date on the account you are signed in with would lock you out,
@@ -2310,7 +2334,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
             </div>
           )}
 
-          {showPoliciesModule && canWrite && !isSelf && !user?.accountLocked && (
+          {canExpire && canWrite && !isSelf && (
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between mb-2">
                 <Label className="flex items-center gap-2">
@@ -2345,8 +2369,8 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
                       variant="ghost"
                       onClick={() => {
                         setEditingExpiration(false)
-                        if (user?.pwdAccountLockedTime && hasFutureExpiration) {
-                          setExpirationDate(ldapTimestampToDateString(user.pwdAccountLockedTime))
+                        if (user?.pwdEndTime && hasFutureExpiration) {
+                          setExpirationDate(ldapTimestampToDateString(user.pwdEndTime))
                         }
                       }}
                     >
@@ -2356,7 +2380,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  This account is scheduled to expire on {formatLdapTimestamp(user.pwdAccountLockedTime!)}.
+                  This account is scheduled to expire on {formatLdapTimestamp(user.pwdEndTime!)}.
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-2">
@@ -2380,13 +2404,13 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
                 <div>
                   <p className="font-medium text-warning">Scheduled Expiration</p>
                   <p className="text-sm text-muted-foreground">
-                    Account expires on: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
+                    Account expires on: {formatLdapTimestamp(user.pwdEndTime!)}
                   </p>
                 </div>
               </div>
             )}
 
-            {hasPastLockTime && (
+            {user?.accountLocked && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
                 <Lock className="h-5 w-5 text-destructive shrink-0" />
                 <div>

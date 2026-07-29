@@ -1214,7 +1214,38 @@ All errors return a JSON object with an `error` field:
 - `404 Not Found` - Resource not found
 - `409 Conflict` - The request is permitted in principle but conflicts with the
   caller's own state — see *Protecting the signed-in account* below
+- `422 Unprocessable Entity` - The directory cannot do what was asked, e.g.
+  setting an account expiry on OpenLDAP < 2.5, which has no `pwdEndTime`
 - `500 Internal Server Error` - Server error
+
+### Account Expiry and Locking
+
+`POST /api/users/{dn}/lock` sets `pwdAccountLockedTime` to OpenLDAP's
+permanent-lock value, so the directory refuses the account until
+`POST /api/users/{dn}/unlock` removes it. Locking never touches the expiry.
+
+`PUT /api/users/{dn}/expiration` sets `pwdEndTime` — the attribute slapd enforces
+as a validity limit — from a `YYYY-MM-DD` date (a bare day becomes its last
+second, so the named day is still usable). An empty `expirationDate` clears it.
+
+```json
+{ "expirationDate": "2026-12-31" }
+```
+
+The attribute exists only on OpenLDAP 2.5 and later; on an older directory this
+endpoint returns `422` rather than writing something the server ignores. Clearing
+is always accepted, so an entry carrying a value from a newer server stays fixable.
+
+`GET /api/admin/config` reports whether it will work:
+
+```json
+{ "capabilities": { "scheduledAccountExpiry": true } }
+```
+
+A user's `accountLocked` (any `pwdAccountLockedTime`) and `pwdEndTime` are
+independent: an account can be locked, expired, both, or neither. `shadowExpire`
+is not consulted — slapd ignores it, so it cannot describe whether the account
+still works.
 
 ### Protecting the signed-in account
 

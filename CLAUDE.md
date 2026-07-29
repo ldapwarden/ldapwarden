@@ -87,6 +87,19 @@ MVP implemented with:
 - Audit logging with per-attribute diffs and CSV export
 - Docker Compose deployment
 
+## Directory Semantics
+- **Locking** is `pwdAccountLockedTime` = `000001010000Z` (OpenLDAP's
+  permanent-lock value). Never write a timestamp there: ppolicy lifts a
+  timestamped lock once `pwdLockoutDuration` elapses.
+- **Account expiry** is `pwdEndTime`, and nothing else. It needs OpenLDAP >= 2.5;
+  `Client.Capabilities().ScheduledExpiry` probes for it and the UI hides the
+  controls when absent.
+- **`shadowExpire` is not an account expiry** for this app: slapd ignores it (only
+  PAM/SSSD read it). It stays editable as a raw attribute and must not drive
+  status, the dashboard or notifications.
+- ppolicy enforces none of the above unless a policy applies to the entry
+  (`olcPPolicyDefault` or `pwdPolicySubentry`).
+
 ## UI Conventions
 - List views page, sort and filter **server-side**; the browser renders one page
   of a narrow projection. Never add a column that requires shipping a whole

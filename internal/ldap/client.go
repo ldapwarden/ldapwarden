@@ -16,6 +16,13 @@ type Client struct {
 	config config.LDAPConfig
 	mu     sync.Mutex
 	conn   *ldap.Conn
+
+	// Capability probe result. The subschema does not change while slapd runs,
+	// short of an administrator loading a module, so it is cached until
+	// RefreshCapabilities is called.
+	capMu     sync.Mutex
+	capProbed bool
+	caps      Capabilities
 }
 
 func NewClient(cfg config.LDAPConfig) *Client {

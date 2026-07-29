@@ -17,6 +17,10 @@ func (s *Server) handleGetSchema(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRefreshSchema(w http.ResponseWriter, r *http.Request) {
+	// Re-probe capabilities too: loading an overlay is exactly the kind of change
+	// an operator makes before hitting refresh, and pwdEndTime appears with it.
+	s.ldapClient.RefreshCapabilities()
+
 	schema, err := s.ldapClient.GetSchema()
 	if err != nil {
 		writeServerError(w, r, "refresh schema", err)

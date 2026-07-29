@@ -10,15 +10,14 @@ interface Status {
 function statusOf(user: AccountStatusFields, now: Date): Status {
   const expiresAt = accountExpiration(user)
 
-  // A locked account and a lapsed expiration are the same underlying state (a
-  // past pwdAccountLockedTime blocks login), so both read as locked; the label
-  // keeps the nuance where the two can be told apart.
-  if (user.accountLocked || (expiresAt && expiresAt < now)) {
-    return {
-      icon: Lock,
-      className: 'text-destructive',
-      label: user.accountLocked ? 'Account locked' : 'Account expired',
-    }
+  // Two independent states now, and both refuse the bind: a lock
+  // (pwdAccountLockedTime, set by an administrator or by ppolicy after too many
+  // failures) and a lapsed expiry (pwdEndTime).
+  if (user.accountLocked) {
+    return { icon: Lock, className: 'text-destructive', label: 'Account locked' }
+  }
+  if (expiresAt && expiresAt < now) {
+    return { icon: Lock, className: 'text-destructive', label: 'Account expired' }
   }
 
   if (expiresAt) {

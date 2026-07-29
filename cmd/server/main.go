@@ -32,6 +32,15 @@ import (
 var migrationsFS embed.FS
 
 func main() {
+	// One-shot maintenance commands live behind a subcommand so the default
+	// invocation stays "start the server".
+	if len(os.Args) > 1 && os.Args[1] == "migrate-account-expiry" {
+		if err := runExpiryMigration(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}

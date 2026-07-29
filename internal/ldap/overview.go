@@ -106,16 +106,17 @@ func (c *Client) GetOverview() (*Overview, error) {
 	return overview, nil
 }
 
-// expiresAt returns the account's expiration date, if it has one.
+// expiresAt returns the instant the directory will start refusing this account,
+// from pwdEndTime. A value the server cannot parse is reported as "no expiry"
+// rather than guessed at — slapd itself treats an unparseable value as locked, and
+// that shows up as the lock state instead.
 func (u UserListItem) expiresAt() (time.Time, bool) {
-	if u.PwdAccountLockedTime != "" {
-		if t, err := time.Parse("20060102150405Z", u.PwdAccountLockedTime); err == nil {
-			return t, true
-		}
+	if u.PwdEndTime == "" {
 		return time.Time{}, false
 	}
-	if u.ShadowExpire > 0 && u.ShadowExpire < ShadowExpireNever {
-		return time.Unix(int64(u.ShadowExpire)*86400, 0), true
+	t, err := time.Parse("20060102150405Z", u.PwdEndTime)
+	if err != nil {
+		return time.Time{}, false
 	}
-	return time.Time{}, false
+	return t, true
 }
