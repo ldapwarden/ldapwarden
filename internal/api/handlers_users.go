@@ -365,6 +365,14 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 
 	action := "expiration_set"
 	message := "expiration date set"
+	// The expiration date is written to pwdAccountLockedTime — the very attribute
+	// `lock` uses — so setting one on your own account is the same lockout by
+	// another name. Clearing one cannot lock anybody out, and is how you undo it,
+	// so that stays allowed.
+	if req.ExpirationDate != "" && s.refuseSelfTarget(w, r, dn, "set an expiration date on") {
+		return
+	}
+
 	if req.ExpirationDate == "" {
 		action = "expiration_cleared"
 		message = "expiration date cleared"
@@ -608,6 +616,14 @@ func (s *Server) handleUpdateUserShadow(w http.ResponseWriter, r *http.Request) 
 
 	if err := validateShadowRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// shadowExpire is the other way to expire an account. Only an actual expiry
+	// is refused on your own entry: 0 and the "never" ceiling clear it, and the
+	// remaining shadow fields cannot lock anyone out.
+	if req.ShadowExpire != nil && *req.ShadowExpire > 0 && *req.ShadowExpire < ldap.ShadowExpireNever &&
+		s.refuseSelfTarget(w, r, dn, "set a shadow expiry on") {
 		return
 	}
 

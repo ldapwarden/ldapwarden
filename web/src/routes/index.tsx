@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
 import { Skeleton } from '@/components/ui/skeleton'
 import { encodeDN } from '@/lib/utils'
-import { toneStyle, type Tone } from '@/lib/tones'
+import { actionTone, toneStyle, type Tone } from '@/lib/tones'
 import {
   CalendarClock,
   CheckCircle2,
@@ -347,13 +347,6 @@ function ListSkeleton({ rows }: { rows: number }) {
   )
 }
 
-function actionTone(action: string): Tone {
-  if (action.includes('create')) return 'emerald'
-  if (action.includes('delete') || action.includes('remove') || action.includes('failed')) return 'rose'
-  if (action.includes('update') || action.includes('rename') || action.includes('add')) return 'blue'
-  if (action.includes('login') || action.includes('logout')) return 'violet'
-  return 'slate'
-}
 
 // describeTarget reads as "<actor> → <resource>": who did it and to what.
 function describeTarget(log: AuditLog): string {

@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 // Categorical hues available to the `.tone` class (see index.css). Order is
 // the rotation used when colouring an open-ended set of values, so a directory
 // with three employee types always gets blue / emerald / violet.
-export const TONES = [
+const TONES = [
   'blue',
   'emerald',
   'violet',
@@ -35,4 +35,17 @@ export function assignTones(values: string[]): Map<string, Tone> {
     map.set(value, TONES[index % TONES.length])
   })
   return map
+}
+
+/**
+ * Tint for an audit action, by what it does to the directory. Shared by the
+ * audit log and the dashboard's activity list so the same action never shows up
+ * in two colours, and mirrors the colours the notification emails use.
+ */
+export function actionTone(action: string): Tone {
+  if (action.includes('create')) return 'emerald'
+  if (action.includes('delete') || action.includes('remove') || action.includes('failed')) return 'rose'
+  if (action.includes('update') || action.includes('rename') || action.includes('add')) return 'blue'
+  if (action.includes('login') || action.includes('logout')) return 'violet'
+  return 'slate'
 }

@@ -49,3 +49,23 @@ export function ldapTimestampToDateString(timestamp: string): string {
   if (!date) return ''
   return date.toISOString().split('T')[0]
 }
+
+/**
+ * Whether two DNs designate the same entry, for deciding whether the UI is
+ * looking at the signed-in account.
+ *
+ * Case- and whitespace-insensitive, which covers the ways the same DN gets
+ * written ("uid=a, ou=People" vs "uid=a,ou=People"). This is a display decision
+ * only: the API compares DNs properly (see sameDN in internal/api/dn.go) and
+ * refuses the dangerous operations regardless of what the UI chose to show.
+ */
+export function sameDn(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false
+  const normalise = (dn: string) =>
+    dn
+      .split(',')
+      .map((part) => part.trim().replace(/\s*=\s*/, '='))
+      .join(',')
+      .toLowerCase()
+  return normalise(a) === normalise(b)
+}

@@ -17,7 +17,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Callout } from '@/components/ui/callout'
 import { TableEmptyState } from '@/components/ui/empty-state'
 import { TableSkeletonRows } from '@/components/ui/skeleton'
-import { toneStyle, type Tone } from '@/lib/tones'
+import { actionTone, toneStyle } from '@/lib/tones'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/list-search'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import { useSearchHotkey } from '@/lib/use-hotkey'
@@ -109,15 +109,6 @@ export const Route = createFileRoute('/audit-logs')({
   component: AuditLogsPage,
 })
 
-// Tint an action by what it does to the directory, mirroring the colours the
-// audit notification emails already use.
-function actionTone(action: string): Tone {
-  if (action.includes('create')) return 'emerald'
-  if (action.includes('delete') || action.includes('remove') || action.includes('failed')) return 'rose'
-  if (action.includes('update') || action.includes('rename') || action.includes('add')) return 'blue'
-  if (action.includes('login') || action.includes('logout')) return 'violet'
-  return 'slate'
-}
 
 // resourceLink maps an entry back to the page for its resource. Deletions get no
 // link: the entry is precisely the record that the target no longer exists.

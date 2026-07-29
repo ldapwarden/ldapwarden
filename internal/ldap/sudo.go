@@ -63,21 +63,6 @@ func (c *Client) SudoBaseDN() string {
 	return fmt.Sprintf("%s,%s", c.config.SudoersOU, c.config.BaseDN)
 }
 
-// ListSudoRoles returns all sudo roles
-func (c *Client) ListSudoRoles() ([]SudoRole, error) {
-	entries, err := c.Search(c.SudoBaseDN(), "(objectClass=sudoRole)", defaultSudoAttributes)
-	if err != nil {
-		return nil, err
-	}
-
-	roles := make([]SudoRole, 0, len(entries))
-	for _, entry := range entries {
-		roles = append(roles, entryToSudoRole(entry))
-	}
-
-	return roles, nil
-}
-
 // SudoRolePage is one page of a sudo-role listing.
 type SudoRolePage struct {
 	Items     []SudoRole

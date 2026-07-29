@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, userPhotoUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString } from '@/lib/utils'
+import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, sameDn } from '@/lib/utils'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useDebounced } from '@/lib/use-debounced'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
@@ -64,7 +64,7 @@ function UserDetailPage() {
   // signed in with locks you out of the app — and if you are the only admin, the
   // way back is ldapmodify. The API refuses these outright (see
   // refuseSelfTarget); the UI explains rather than offering them.
-  const isSelf = (session?.userDn ?? '').toLowerCase() === dn.toLowerCase()
+  const isSelf = sameDn(session?.userDn, dn)
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user', dn],
@@ -240,7 +240,7 @@ function UserDetailPage() {
 
         {showShadowTab && (
           <TabsContent value="shadow">
-            <ShadowTab user={user!} dn={dn} canWrite={canWrite} hasObjectClass={hasShadowAccount} />
+            <ShadowTab user={user!} dn={dn} canWrite={canWrite} hasObjectClass={hasShadowAccount} isSelf={isSelf} />
           </TabsContent>
         )}
 
@@ -1452,7 +1452,7 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
 }
 
 // Shadow Tab (shadowAccount)
-function ShadowTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, hasObjectClass: boolean }) {
+function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, hasObjectClass: boolean, isSelf: boolean }) {
   const queryClient = useQueryClient()
   const [isAddingObjectClass, setIsAddingObjectClass] = useState(false)
 
@@ -1660,12 +1660,14 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<R
                 type="number"
                 value={formData.shadowExpire}
                 onChange={(e) => setFormData({ ...formData, shadowExpire: e.target.value })}
-                disabled={!canWrite}
+                disabled={!canWrite || isSelf}
                 placeholder="Not set"
               />
               <p className="text-xs text-muted-foreground">
-                Days since epoch when account expires
-                {formData.shadowExpire && ` (${daysToDate(parseInt(formData.shadowExpire))})`}
+                {isSelf
+                  ? 'Expiring your own account would lock you out, so this field is read-only here.'
+                  : 'Days since epoch when account expires'}
+                {!isSelf && formData.shadowExpire && ` (${daysToDate(parseInt(formData.shadowExpire))})`}
               </p>
             </div>
             <div className="space-y-2">
@@ -2276,8 +2278,39 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
             </div>
           )}
 
-          {/* Expiration Date Management - only show when policies module is enabled */}
-          {showPoliciesModule && canWrite && !user?.accountLocked && (
+          {/* Setting an expiration writes the same attribute `lock` does, so on your
+              own account it is the same lockout by another name — the API refuses
+              it (see refuseSelfTarget). Clearing an existing one stays available. */}
+          {showPoliciesModule && canWrite && isSelf && hasFutureExpiration && (
+            <div className="pt-4 border-t space-y-2">
+              <Label className="flex items-center gap-2">
+                <CalendarClock className="h-4 w-4" />
+                Account Expiration
+              </Label>
+              <Callout variant="warning">
+                This account expires on {formatLdapTimestamp(user.pwdAccountLockedTime!)}. It is the
+                account you are signed in with, so only clearing the date is available here.
+              </Callout>
+              <Button
+                variant="outline"
+                onClick={() => setExpirationMutation.mutate(null)}
+                disabled={setExpirationMutation.isPending}
+              >
+                {setExpirationMutation.isPending ? 'Clearing...' : 'Clear expiration'}
+              </Button>
+            </div>
+          )}
+
+          {showPoliciesModule && canWrite && isSelf && !hasFutureExpiration && (
+            <div className="pt-4 border-t">
+              <Callout variant="info">
+                Setting an expiration date on the account you are signed in with would lock you out,
+                so it is not available here.
+              </Callout>
+            </div>
+          )}
+
+          {showPoliciesModule && canWrite && !isSelf && !user?.accountLocked && (
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between mb-2">
                 <Label className="flex items-center gap-2">

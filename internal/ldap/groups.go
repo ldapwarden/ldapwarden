@@ -38,20 +38,6 @@ var defaultGroupAttributes = []string{
 	"sambaSID", "sambaGroupType", "displayName",
 }
 
-func (c *Client) ListGroups() ([]Group, error) {
-	entries, err := c.Search(c.GroupBaseDN(), "(objectClass=posixGroup)", defaultGroupAttributes)
-	if err != nil {
-		return nil, err
-	}
-
-	groups := make([]Group, 0, len(entries))
-	for _, entry := range entries {
-		groups = append(groups, entryToGroup(entry))
-	}
-
-	return groups, nil
-}
-
 // GroupListItem is what the group list endpoint returns: a row's worth of
 // fields plus the member count, instead of every group's full member list.
 type GroupListItem struct {

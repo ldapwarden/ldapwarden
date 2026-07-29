@@ -276,6 +276,54 @@ func createTestUser(t *testing.T, env *testEnv, token string) *ldap.User {
 	return &user
 }
 
+// createTestAdmin creates a throwaway account in the configured admin group and
+// logs in as it, returning the user and its session token.
+//
+// Tests about what an operator may do to *their own* account need a caller they
+// can abuse; running them as the seeded `admin` leaves its attributes altered for
+// every later test (and for whoever is looking at the dev instance).
+func createTestAdmin(t *testing.T, env *testEnv, token string) (*ldap.User, string) {
+	t.Helper()
+
+	suffix := uniqueSuffix(t)
+	uid := "testadmin-" + suffix
+	n := testIDNumber(suffix)
+	password := "testadmin-" + suffix
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
+		"uid":       uid,
+		"givenName": "Test",
+		"sn":        "Admin-" + suffix,
+		"uidNumber": n,
+		"gidNumber": n,
+		"password":  password,
+	}, token)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create test admin: status=%d body=%s", resp.StatusCode, body)
+	}
+	var user ldap.User
+	if err := json.Unmarshal(body, &user); err != nil {
+		t.Fatalf("unmarshal test admin: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete, userPath(user.DN), nil, token)
+	})
+
+	adminGroupDN := "cn=" + env.Config.App.AdminGroup + "," + env.LDAP.GroupBaseDN()
+	if resp, body := doJSON(t, env, http.MethodPost, groupPath(adminGroupDN)+"/members",
+		map[string]string{"memberUid": uid}, token); resp.StatusCode != http.StatusOK {
+		t.Fatalf("add test admin to %s: status=%d body=%s", adminGroupDN, resp.StatusCode, body)
+	}
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete, groupPath(adminGroupDN)+"/members",
+			map[string]string{"memberUid": uid}, token)
+	})
+
+	// Log in only once the membership is in place: permissions are derived at
+	// login, and granting admin purges the user's existing sessions.
+	return &user, loginAs(t, env, uid, password).Token
+}
+
 // createTestGroup creates a group via the API, registers a cleanup that
 // deletes it, and returns the parsed group. Fatals on failure.
 func createTestGroup(t *testing.T, env *testEnv, token string) *ldap.Group {

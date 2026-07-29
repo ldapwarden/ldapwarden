@@ -114,7 +114,7 @@ func (u UserListItem) expiresAt() (time.Time, bool) {
 		}
 		return time.Time{}, false
 	}
-	if u.ShadowExpire > 0 && u.ShadowExpire < shadowExpireNever {
+	if u.ShadowExpire > 0 && u.ShadowExpire < ShadowExpireNever {
 		return time.Unix(int64(u.ShadowExpire)*86400, 0), true
 	}
 	return time.Time{}, false

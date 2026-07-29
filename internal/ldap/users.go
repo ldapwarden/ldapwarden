@@ -273,15 +273,15 @@ func (u UserListItem) expired() bool {
 	}
 	// shadowExpire counts days since the epoch; 0 and the "never" sentinel do
 	// not express an expiry.
-	if u.ShadowExpire > 0 && u.ShadowExpire < shadowExpireNever {
+	if u.ShadowExpire > 0 && u.ShadowExpire < ShadowExpireNever {
 		return time.Unix(int64(u.ShadowExpire)*86400, 0).Before(time.Now())
 	}
 	return false
 }
 
-// shadowExpireNever is the conventional "no expiration" ceiling for
-// shadowExpire; the UI uses the same bound.
-const shadowExpireNever = 99999
+// ShadowExpireNever is the conventional "no expiration" ceiling for
+// shadowExpire; the UI and the API guards use the same bound.
+const ShadowExpireNever = 99999
 
 func sortUserList(items []UserListItem, opts UserListOptions) {
 	switch opts.Sort {

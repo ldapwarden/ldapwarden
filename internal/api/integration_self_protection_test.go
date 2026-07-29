@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
 // TestIntegration_SelfProtection_RefusesLockoutActions checks the API refuses the
@@ -15,9 +17,11 @@ import (
 // including their own.
 func TestIntegration_SelfProtection_RefusesLockoutActions(t *testing.T) {
 	env := setupTestServer(t)
-	login := loginAs(t, env, "admin", "admin123")
-	token := login.Token
-	selfDN := login.Session.UserDN
+	// A throwaway admin, not the seeded one: these requests are meant to attack
+	// the caller's own account, and a test must not leave the shared fixture
+	// altered.
+	self, token := createTestAdmin(t, env, loginAs(t, env, "admin", "admin123").Token)
+	selfDN := self.DN
 
 	cases := []struct {
 		name   string
@@ -28,7 +32,12 @@ func TestIntegration_SelfProtection_RefusesLockoutActions(t *testing.T) {
 		{"lock", http.MethodPost, userPath(selfDN) + "/lock", nil},
 		{"delete", http.MethodDelete, userPath(selfDN), nil},
 		{"remove password", http.MethodDelete, userPath(selfDN) + "/password", nil},
-		{"rename", http.MethodPost, userPath(selfDN) + "/change-uid", map[string]string{"newUid": "admin-renamed"}},
+		{"rename", http.MethodPost, userPath(selfDN) + "/change-uid", map[string]string{"newUid": "renamed-" + self.UID}},
+		// Both of these write an expiry rather than a lock, which is the same
+		// lockout by another name: pwdAccountLockedTime is the attribute `lock`
+		// itself uses, and shadowExpire is what the status column reads.
+		{"expire", http.MethodPut, userPath(selfDN) + "/expiration", map[string]string{"expirationDate": "2020-01-01"}},
+		{"shadow expiry", http.MethodPut, userPath(selfDN) + "/shadow", map[string]any{"shadowExpire": 1}},
 	}
 
 	for _, tc := range cases {
@@ -52,7 +61,38 @@ func TestIntegration_SelfProtection_RefusesLockoutActions(t *testing.T) {
 	if strings.Contains(string(body), `"accountLocked":true`) {
 		t.Error("own account ended up locked")
 	}
-	loginAs(t, env, "admin", "admin123") // fatals if authentication broke
+	// Still able to authenticate: the guard has to leave the account usable.
+	if resp, body := doJSON(t, env, http.MethodGet, "/api/auth/me", nil, token); resp.StatusCode != http.StatusOK {
+		t.Fatalf("own session no longer valid: status=%d body=%s", resp.StatusCode, body)
+	}
+}
+
+// TestIntegration_SelfProtection_ClearingOwnExpiryAllowed keeps the escape hatch
+// open: a date already on your account must be removable, otherwise an operator
+// who inherits an expiring admin account has no way back.
+func TestIntegration_SelfProtection_ClearingOwnExpiryAllowed(t *testing.T) {
+	env := setupTestServer(t)
+	self, token := createTestAdmin(t, env, loginAs(t, env, "admin", "admin123").Token)
+	selfDN := self.DN
+
+	// Clearing when nothing is set is a no-op, which is exactly the shape of the
+	// request the UI sends for "Clear expiration".
+	resp, body := doJSON(t, env, http.MethodPut, userPath(selfDN)+"/expiration",
+		map[string]string{"expirationDate": ""}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("clearing own expiration: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	// Neutral shadow edits stay available too — only shadowExpire is refused.
+	resp, body = doJSON(t, env, http.MethodPut, userPath(selfDN)+"/shadow",
+		map[string]any{"shadowWarning": 7}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("neutral shadow edit on own account: status=%d body=%s", resp.StatusCode, body)
+	}
+	if resp, body := doJSON(t, env, http.MethodPut, userPath(selfDN)+"/shadow",
+		map[string]any{"shadowExpire": ldap.ShadowExpireNever}, token); resp.StatusCode != http.StatusOK {
+		t.Fatalf("clearing own shadow expiry: status=%d body=%s", resp.StatusCode, body)
+	}
 }
 
 // TestIntegration_SelfProtection_OtherAccountsUnaffected pins that the guard is

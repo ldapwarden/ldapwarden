@@ -1209,9 +1209,32 @@ All errors return a JSON object with an `error` field:
 **Common HTTP status codes:**
 - `400 Bad Request` - Invalid request body or parameters
 - `401 Unauthorized` - Not authenticated
-- `403 Forbidden` - Insufficient permissions
+- `403 Forbidden` - Insufficient permissions, or a cross-origin mutation (see
+  the CORS notes in the README)
 - `404 Not Found` - Resource not found
+- `409 Conflict` - The request is permitted in principle but conflicts with the
+  caller's own state — see *Protecting the signed-in account* below
 - `500 Internal Server Error` - Server error
+
+### Protecting the signed-in account
+
+An administrator holds `users:write` and `users:delete` over every entry,
+including their own, so the following are refused with `409` when the target DN is
+the caller's own account. Each one would otherwise cut the caller off from the
+application — and if they are the only administrator, the way back is
+`ldapmodify` against the directory.
+
+| Endpoint | Refused on self |
+|----------|-----------------|
+| `POST /api/users/{dn}/lock` | always |
+| `DELETE /api/users/{dn}` | always |
+| `DELETE /api/users/{dn}/password` | always |
+| `POST /api/users/{dn}/change-uid` | always — renaming changes the entry's identity, invalidating the caller's session |
+| `PUT /api/users/{dn}/expiration` | when setting a date; clearing one is allowed |
+| `PUT /api/users/{dn}/shadow` | when `shadowExpire` names an actual expiry; other shadow fields, and clearing, are allowed |
+
+Unlocking your own account, and changing your own password
+(`POST /api/auth/change-password`), are always available.
 
 ---
 
