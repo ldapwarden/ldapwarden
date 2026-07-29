@@ -43,16 +43,39 @@ export function useSyncedForm<T>(
 }
 
 /**
- * Warns before leaving a page with unsaved changes — both for in-app
- * navigation (router blocker with a confirm prompt) and for closing/reloading
- * the tab (native beforeUnload dialog). No-op while `when` is false.
+ * Blocks in-app navigation away from a form with unsaved changes, and arms the
+ * native beforeUnload dialog for closing/reloading the tab. No-op while `when`
+ * is false.
+ *
+ * Returns the blocker state so the caller can render the app's own dialog:
+ * `status` is 'blocked' while a navigation is held, `proceed` discards the edits
+ * and continues, `reset` stays put. `leavingPage` distinguishes moving to
+ * another page from switching tabs within the same record — the wording differs,
+ * and "leave without saving?" is simply wrong for a tab switch.
  */
-export function useUnsavedChangesPrompt(when: boolean) {
-  useBlocker({
-    shouldBlockFn: () => {
+export function useUnsavedChangesBlocker(when: boolean) {
+  const blocker = useBlocker({
+    shouldBlockFn: ({ current, next }) => {
       if (!when) return false
-      return !window.confirm('You have unsaved changes. Leave without saving?')
+      // Same route and same params, only the search changed → a tab switch.
+      lastBlockWasSamePage.current =
+        current.routeId === next.routeId &&
+        JSON.stringify(current.params) === JSON.stringify(next.params)
+      return true
     },
+    withResolver: true,
     enableBeforeUnload: when,
   })
+
+  return {
+    status: blocker.status,
+    proceed: blocker.proceed,
+    reset: blocker.reset,
+    leavingPage: !lastBlockWasSamePage.current,
+  }
 }
+
+// Set by shouldBlockFn, read when rendering the dialog. A module-level ref
+// rather than state: it must be readable in the same render that flips
+// `status` to 'blocked', and only one form can be blocked at a time.
+const lastBlockWasSamePage = { current: false }

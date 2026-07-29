@@ -3,7 +3,8 @@ import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-ro
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { useSyncedForm, useUnsavedChangesPrompt } from '@/lib/form-sync'
+import { useSyncedForm } from '@/lib/form-sync'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -114,7 +115,6 @@ function PasswordPolicyDetailPage() {
     pwdCheckModule: policy.pwdCheckModule || '',
   }
   const isDirty = useSyncedForm(serverForm || undefined, formData, setFormData)
-  useUnsavedChangesPrompt(isDirty)
 
   if (isLoading) {
     return <DetailSkeleton cards={2} />
@@ -130,6 +130,7 @@ function PasswordPolicyDetailPage() {
 
   return (
     <div className="space-y-6">
+      <UnsavedChangesGuard when={isDirty} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-4">
           <Link to="/password-policies">

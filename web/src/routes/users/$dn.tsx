@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api, userPhotoUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString } from '@/lib/utils'
-import { useUnsavedChangesPrompt } from '@/lib/form-sync'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useDebounced } from '@/lib/use-debounced'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
@@ -411,7 +411,6 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
     formData.initials !== (user.initials || '') ||
     formData.manager !== (user.manager || '') ||
     formData.description !== (user.description || '')
-  useUnsavedChangesPrompt(textFieldsDirty || photoChanged)
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -490,6 +489,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      <UnsavedChangesGuard when={textFieldsDirty || photoChanged} />
       <form onSubmit={handleSubmit} className="space-y-4">
         {!canWrite && <ReadOnlyNotice />}
         <Card>

@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN } from '@/lib/utils'
-import { useSyncedForm, useUnsavedChangesPrompt } from '@/lib/form-sync'
+import { useSyncedForm } from '@/lib/form-sync'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -88,7 +89,6 @@ function SudoRoleDetailPage() {
     sudoNotAfter: role.sudoNotAfter || '',
   }
   const isDirty = useSyncedForm(serverForm || undefined, formData, setFormData)
-  useUnsavedChangesPrompt(isDirty)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -128,6 +128,7 @@ function SudoRoleDetailPage() {
 
   return (
     <div className="space-y-4">
+      <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" aria-label="Back to sudo roles" onClick={() => router.navigate({ to: '/sudo-roles' })}>
           <ArrowLeft className="h-4 w-4" />
