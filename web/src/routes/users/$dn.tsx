@@ -30,6 +30,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Callout } from '@/components/ui/callout'
 import { PasswordStrength } from '@/components/ui/password-strength'
+import { PasswordInput } from '@/components/ui/password-input'
 import { useState, useRef, useMemo } from 'react'
 
 // Tabs this page can show. Which ones are actually rendered depends on the
@@ -2083,24 +2084,26 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf
           <form onSubmit={handlePasswordChange} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
+                generate={!isSelf}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onValueChange={setPassword}
+                onGenerate={setConfirmPassword}
                 disabled={!canWrite}
+                autoComplete="new-password"
               />
               <PasswordStrength password={password} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onValueChange={setConfirmPassword}
                 disabled={!canWrite}
+                autoComplete="new-password"
               />
               {passwordsDontMatch && (
                 <p className="text-xs text-destructive">Passwords do not match</p>

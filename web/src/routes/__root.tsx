@@ -19,7 +19,7 @@ import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { PasswordStrength } from '@/components/ui/password-strength'
-import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { Avatar } from '@/components/ui/avatar'
 import {
@@ -313,11 +313,10 @@ function RootComponent() {
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">New Password</Label>
-                    <Input
+                    <PasswordInput
                       id="newPassword"
-                      type="password"
                       value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
+                      onValueChange={setNewPassword}
                       autoComplete="new-password"
                     />
                     <PasswordStrength password={newPassword} />
@@ -325,11 +324,10 @@ function RootComponent() {
 
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input
+                    <PasswordInput
                       id="confirmPassword"
-                      type="password"
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onValueChange={setConfirmPassword}
                       autoComplete="new-password"
                     />
                     {passwordsDontMatch && (

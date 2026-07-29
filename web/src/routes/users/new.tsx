@@ -5,6 +5,8 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
+import { PasswordStrength } from '@/components/ui/password-strength'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -106,6 +108,7 @@ function NewUserPage() {
     loginShell: '/bin/bash',
     description: '',
     expirationDate: '',
+    password: '',
   })
 
   const createMutation = useMutation({
@@ -126,6 +129,7 @@ function NewUserPage() {
       homeDirectory: formData.homeDirectory || `/home/${formData.uid}`,
       loginShell: formData.loginShell,
       description: formData.description || undefined,
+      password: formData.password || undefined,
       groups: selectedGroups.length > 0 ? selectedGroups : undefined,
       createPrimaryGroup: !primaryGroup || undefined,
       expirationDate: formData.expirationDate || undefined,
@@ -334,6 +338,25 @@ function NewUserPage() {
                   onChange={(e) => setFormData({ ...formData, loginShell: e.target.value })}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Initial password</Label>
+              <PasswordInput
+                id="password"
+                generate
+                value={formData.password}
+                onValueChange={(password) => setFormData({ ...formData, password })}
+                autoComplete="new-password"
+                placeholder="Leave empty to set one later"
+              />
+              <PasswordStrength password={formData.password} />
+              {!formData.password && (
+                <p className="text-xs text-muted-foreground">
+                  Without a password the account cannot sign in. You can set one later, or send the
+                  user a reset link from their Security tab.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
