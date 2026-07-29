@@ -14,13 +14,13 @@ var safeMethods = map[string]struct{}{
 	http.MethodOptions: {},
 }
 
-// csrfOriginCheck refuses any cookie-authenticated mutation whose Origin
-// (or, falling back, Referer) does not match one of the configured
-// LDAPWARDEN_CORS_ORIGINS. SameSite=Lax on the session cookie already
-// blocks most CSRF vectors, but legitimate browsers always send Origin on
-// non-safe requests, so verifying it costs nothing and closes the niche
-// cases SameSite=Lax doesn't (e.g. simple cross-origin POST with a
-// permissive cookie policy upstream).
+// csrfOriginCheck refuses any cookie-authenticated mutation whose Origin (or,
+// falling back, Referer) is neither this server's own origin nor one of the
+// configured LDAPWARDEN_CORS_ORIGINS. SameSite=Lax on the session cookie
+// already blocks most CSRF vectors, but legitimate browsers always send Origin
+// on non-safe requests, so verifying it costs nothing and closes the niche
+// cases SameSite=Lax doesn't (e.g. simple cross-origin POST with a permissive
+// cookie policy upstream).
 //
 // Bearer-authenticated requests are exempt: a machine client with the
 // raw token has no cookie jar to abuse, the Origin header is typically
@@ -47,9 +47,10 @@ func csrfOriginCheck(allowedOrigins []string) func(http.Handler) http.Handler {
 	}
 }
 
-// originAllowed reports whether the request's Origin (or Referer fallback)
-// is in the allowlist. Returns false on missing/unparseable headers — a
-// legitimate browser always sends one of them on a non-safe request.
+// originAllowed reports whether the request's Origin (or Referer fallback) is
+// this server's own origin, or is in the allowlist. Returns false on
+// missing/unparseable headers — a legitimate browser always sends one of them on
+// a non-safe request.
 func originAllowed(r *http.Request, allowed []string) bool {
 	candidate := r.Header.Get("Origin")
 	if candidate == "" {
@@ -64,10 +65,45 @@ func originAllowed(r *http.Request, allowed []string) bool {
 		candidate = u.Scheme + "://" + u.Host
 	}
 	candidate = strings.TrimRight(candidate, "/")
+
+	// A request whose Origin is this very server is not cross-origin, whatever
+	// the allowlist says: the page that sent it was served from here. No other
+	// site can forge that header, so accepting it costs nothing — and refusing
+	// it broke the normal deployment, where the binary serves the SPA and the
+	// API from one origin: every mutation came back "cross-origin request
+	// refused" until LDAPWARDEN_CORS_ORIGINS happened to name that origin.
+	if own := requestOrigin(r); own != "" && own == candidate {
+		return true
+	}
+
 	for _, a := range allowed {
 		if strings.TrimRight(a, "/") == candidate {
 			return true
 		}
 	}
 	return false
+}
+
+// requestOrigin reconstructs the origin the request was addressed to, i.e. what
+// a browser would send as Origin for a page served by this server.
+//
+// The scheme comes from X-Forwarded-Proto when a trusted proxy supplied one (TLS
+// is terminated upstream, so r.TLS is nil even though the client used https),
+// otherwise from the connection itself. The authority is r.Host — the name the
+// client actually used. X-Forwarded-Host is deliberately ignored: it widens the
+// spoofable surface, and a proxy that rewrites Host is exactly the case
+// LDAPWARDEN_CORS_ORIGINS exists for.
+func requestOrigin(r *http.Request) string {
+	if r.Host == "" {
+		return ""
+	}
+
+	scheme := "http"
+	if proto := forwardedProtoFromContext(r.Context()); proto != "" {
+		scheme = proto
+	} else if r.TLS != nil {
+		scheme = "https"
+	}
+
+	return scheme + "://" + r.Host
 }

@@ -199,7 +199,7 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_GROUPS_OBJECTS` | LDAP objectClasses for groups | `posixGroup` |
 | `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` | Comma-separated recipients that receive an email for every UI modification (audit/traceability). Empty disables. | (empty) |
 | `LDAPWARDEN_TRUSTED_PROXIES` | Comma-separated CIDR list of reverse proxies allowed to set `X-Forwarded-For` / `X-Real-IP`. Empty disables forwarded-header support. | (empty) |
-| `LDAPWARDEN_CORS_ORIGINS` | Comma-separated list of origins allowed by the CORS middleware. `*` is refused (the API serves credentialed requests). | `http://localhost:5173,http://localhost:3000` |
+| `LDAPWARDEN_CORS_ORIGINS` | Comma-separated list of **additional** origins allowed to make credentialed requests. The origin serving the app is always allowed, so this is only needed for a separately-hosted frontend (e.g. `pnpm dev`). `*` is refused. | `http://localhost:5173,http://localhost:3000` |
 | `LDAPWARDEN_DEV_MODE` | Bypass production-secrets validation (also tolerates plain `http://` `PublicURL`). Only for the bundled compose stack and local tests. | `false` |
 
 #### Module Configuration
@@ -276,6 +276,24 @@ is recorded instead.
 - The server **fails to start** if a CIDR is malformed.
 
 Example: `LDAPWARDEN_TRUSTED_PROXIES=10.0.0.0/8,127.0.0.1/32`
+
+#### Cross-origin requests
+
+Cookie-authenticated mutations must carry an `Origin` (or `Referer`) that
+LDAP Warden recognises, which closes the CSRF cases `SameSite=Lax` does not.
+
+**The origin serving the app is always accepted** — when the binary serves both
+the UI and the API, as the Docker image does, nothing needs configuring.
+`LDAPWARDEN_CORS_ORIGINS` is for the case where the frontend lives on a
+*different* origin, such as the Vite dev server during development.
+
+Behind a TLS-terminating reverse proxy, the browser's origin is `https://…` while
+the connection reaching LDAP Warden is plain HTTP. Set
+`LDAPWARDEN_TRUSTED_PROXIES` so the proxy's `X-Forwarded-Proto` is honoured;
+otherwise the scheme cannot be reconstructed and same-origin requests are refused
+(list the public origin in `LDAPWARDEN_CORS_ORIGINS` as a fallback). A proxy that
+rewrites the `Host` header also needs the public origin listed there, since
+`X-Forwarded-Host` is deliberately ignored.
 
 #### Production-secrets validation
 

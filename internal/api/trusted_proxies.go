@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -29,12 +30,29 @@ func ParseTrustedProxies(cidrs []string) ([]*net.IPNet, error) {
 	return out, nil
 }
 
+type forwardedProtoCtxKey struct{}
+
+// forwardedProtoFromContext returns the scheme a trusted proxy reported for this
+// request ("http" or "https"), or "" when there was none. Only
+// trustedProxyRealIPMiddleware sets it, and only for a trusted peer, so callers
+// can treat a non-empty value as authoritative.
+func forwardedProtoFromContext(ctx context.Context) string {
+	proto, _ := ctx.Value(forwardedProtoCtxKey{}).(string)
+	return proto
+}
+
 // trustedProxyRealIPMiddleware rewrites r.RemoteAddr from
-// True-Client-IP / X-Real-IP / X-Forwarded-For — but only when the immediate
-// peer (the connection-level RemoteAddr) belongs to one of the trusted CIDRs.
-// When trusted is empty, headers are never honoured: that's the safe default
-// for a server exposed directly to the Internet, since otherwise any client
-// can inject an audit-log IP of its choosing.
+// True-Client-IP / X-Real-IP / X-Forwarded-For, and records the scheme from
+// X-Forwarded-Proto — but only when the immediate peer (the connection-level
+// RemoteAddr) belongs to one of the trusted CIDRs. When trusted is empty,
+// headers are never honoured: that's the safe default for a server exposed
+// directly to the Internet, since otherwise any client can inject an audit-log
+// IP — or a scheme — of its choosing.
+//
+// The scheme is resolved here rather than where it is used because this is the
+// only point where the *connection* peer is still known: this middleware
+// overwrites RemoteAddr with the client address, so anything downstream has lost
+// the means to decide whether the forwarded headers were trustworthy.
 //
 // This replaces chi's middleware.RealIP, which honoured the headers
 // unconditionally.
@@ -42,12 +60,33 @@ func trustedProxyRealIPMiddleware(trusted []*net.IPNet) func(http.Handler) http.
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if peerIsTrusted(r.RemoteAddr, trusted) {
+				if proto := forwardedProtoFromHeaders(r); proto != "" {
+					r = r.WithContext(context.WithValue(r.Context(), forwardedProtoCtxKey{}, proto))
+				}
 				if v := realIPFromHeaders(r); v != "" {
 					r.RemoteAddr = v
 				}
 			}
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+// forwardedProtoFromHeaders reads X-Forwarded-Proto, keeping only the values
+// that name a scheme we serve. A chain ("https, http") reports the scheme the
+// client used first, which is the one that matters.
+func forwardedProtoFromHeaders(r *http.Request) string {
+	v := r.Header.Get("X-Forwarded-Proto")
+	if i := strings.IndexByte(v, ','); i >= 0 {
+		v = v[:i]
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "https":
+		return "https"
+	case "http":
+		return "http"
+	default:
+		return ""
 	}
 }
 
