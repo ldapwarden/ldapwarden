@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { runBulk, bulkSummary } from '@/lib/bulk'
+import { BulkResultDialog, type BulkOutcome } from '@/components/bulk-result-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -57,6 +58,8 @@ function GroupsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Set when a bulk delete had failures, so they can be listed individually.
+  const [outcome, setOutcome] = useState<BulkOutcome<{ dn: string; cn: string }> | null>(null)
 
 
   const patchSearch = useCallback(
@@ -132,8 +135,13 @@ function GroupsPage() {
       const result = await runBulk(selectedGroups, (g) => api.groups.delete(g.dn))
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       const summary = bulkSummary('Deleted', 'group', result)
-      if (result.failed.length === 0) toast.success(summary)
-      else toast.error(`${summary} First error: ${result.failed[0].error}`)
+      if (result.failed.length === 0) {
+        toast.success(summary)
+      } else {
+        // The toast reports the shape; the dialog says which groups failed and why.
+        toast.error(summary)
+        setOutcome({ verb: 'Deleted', noun: 'group', succeeded: result.succeeded, failed: result.failed })
+      }
       clearSelection()
       setDeleteOpen(false)
     } finally {
@@ -216,6 +224,12 @@ function GroupsPage() {
           </Button>
         </BulkActionBar>
       )}
+
+      <BulkResultDialog
+        outcome={outcome}
+        label={(group) => group.cn}
+        onClose={() => setOutcome(null)}
+      />
 
       <ConfirmDialog
         open={deleteOpen}

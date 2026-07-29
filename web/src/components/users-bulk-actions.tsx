@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { runBulk, bulkSummary } from '@/lib/bulk'
+import { BulkResultDialog, type BulkOutcome } from '@/components/bulk-result-dialog'
 import { BulkActionBar } from '@/components/bulk-action-bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,6 +51,8 @@ export function UsersBulkActions({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [groupMode, setGroupMode] = useState<'add' | 'remove' | null>(null)
   const [expirationOpen, setExpirationOpen] = useState(false)
+  // Set when a run had failures, so they can be listed rather than summarised.
+  const [outcome, setOutcome] = useState<BulkOutcome<BulkUser> | null>(null)
 
   const invalidateUsers = () => queryClient.invalidateQueries({ queryKey: ['users'] })
   const invalidateGroups = () => queryClient.invalidateQueries({ queryKey: ['groups'] })
@@ -69,7 +72,9 @@ export function UsersBulkActions({
       if (result.failed.length === 0) {
         toast.success(summary)
       } else {
-        toast.error(`${summary} First error: ${result.failed[0].error}`)
+        // The toast reports the shape; the dialog says which items failed and why.
+        toast.error(summary)
+        setOutcome({ verb, noun: 'user', succeeded: result.succeeded, failed: result.failed })
       }
       onClear()
     } finally {
@@ -79,6 +84,11 @@ export function UsersBulkActions({
 
   return (
     <>
+      <BulkResultDialog
+        outcome={outcome}
+        label={(user) => `${user.displayName || user.cn} (${user.uid})`}
+        onClose={() => setOutcome(null)}
+      />
       <BulkActionBar count={selected.length} onClear={onClear}>
         <Button variant="outline" size="sm" disabled={running} onClick={() => run('Locked', (u) => api.users.lock(u.dn))}>
           <Lock className="h-4 w-4 mr-1" />

@@ -40,10 +40,11 @@ export async function runBulk<T>(
   return { succeeded, failed }
 }
 
-/** "Locked 12 users." / "Locked 10 users, 2 failed." for a bulk result toast. */
+/** "Locked 12 users." / "Locked 1 user, 2 failed." for a bulk result toast. */
 export function bulkSummary(verb: string, noun: string, result: BulkResult<unknown>): string {
-  const total = result.succeeded + result.failed.length
-  const unit = `${noun}${total === 1 ? '' : 's'}`
+  // Pluralise on the count each word attaches to, not on the batch size:
+  // "Deleted 1 users, 1 failed" was reachable with a batch of two.
+  const unit = `${noun}${result.succeeded === 1 ? '' : 's'}`
   if (result.failed.length === 0) return `${verb} ${result.succeeded} ${unit}.`
   return `${verb} ${result.succeeded} ${unit}, ${result.failed.length} failed.`
 }
