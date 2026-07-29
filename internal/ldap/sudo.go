@@ -78,14 +78,24 @@ func (c *Client) ListSudoRoles() ([]SudoRole, error) {
 	return roles, nil
 }
 
-// SearchSudoRoles lists sudo roles matching an optional substring search (cn,
-// description, sudoUser, sudoCommand), bounded by the configured search size
-// limit. It returns truncated=true when more matches exist than were returned.
-func (c *Client) SearchSudoRoles(search string) ([]SudoRole, bool, error) {
-	filter := andFilter("(objectClass=sudoRole)", substringFilter(search, "cn", "description", "sudoUser", "sudoCommand"))
+// SudoRolePage is one page of a sudo-role listing.
+type SudoRolePage struct {
+	Items     []SudoRole
+	Total     int
+	Truncated bool
+}
+
+// SearchSudoRolesPage lists sudo roles matching an optional substring search
+// (cn, description, sudoUser, sudoCommand), sorted and sliced to one page.
+//
+// Unlike users and groups this keeps the whole object: a sudo role has no photo
+// or member list, so there is nothing worth projecting away — the point here is
+// a correct total and a page the browser did not have to compute.
+func (c *Client) SearchSudoRolesPage(opts ListOptions) (*SudoRolePage, error) {
+	filter := andFilter("(objectClass=sudoRole)", substringFilter(opts.Search, "cn", "description", "sudoUser", "sudoCommand"))
 	entries, truncated, err := c.SearchLimited(c.SudoBaseDN(), filter, defaultSudoAttributes)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	roles := make([]SudoRole, 0, len(entries))
@@ -93,7 +103,18 @@ func (c *Client) SearchSudoRoles(search string) ([]SudoRole, bool, error) {
 		roles = append(roles, entryToSudoRole(entry))
 	}
 
-	return roles, truncated, nil
+	switch opts.Sort {
+	case "sudoOrder":
+		sortBy(roles, opts.Desc, func(a, b SudoRole) bool { return a.SudoOrder < b.SudoOrder })
+	default:
+		sortBy(roles, opts.Desc, func(a, b SudoRole) bool { return foldLess(a.CN, b.CN) })
+	}
+
+	return &SudoRolePage{
+		Items:     page(roles, opts),
+		Total:     len(roles),
+		Truncated: truncated,
+	}, nil
 }
 
 // GetSudoRole returns a sudo role by DN

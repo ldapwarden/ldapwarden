@@ -413,6 +413,8 @@ export const SudoRoleSchema = z.object({
 export const SudoRolesResponseSchema = z.object({
   data: z.array(SudoRoleSchema),
   total: z.number(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
   truncated: z.boolean().optional(),
 })
 
@@ -441,6 +443,8 @@ export const PasswordPolicySchema = z.object({
 export const PasswordPoliciesResponseSchema = z.object({
   data: z.array(PasswordPolicySchema),
   total: z.number(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
   truncated: z.boolean().optional(),
 })
 
@@ -579,13 +583,6 @@ export type TaskRunsResponse = z.infer<typeof TaskRunsResponseSchema>
 export type TriggerTaskResponse = z.infer<typeof TriggerTaskResponseSchema>
 export type ScheduledTasksConfig = z.infer<typeof ScheduledTasksConfigSchema>
 export type Schema = z.infer<typeof SchemaSchema>
-
-// Builds a "?search=..." query string for list endpoints, or "" when no
-// search term is provided.
-function searchQuery(search?: string): string {
-  const trimmed = search?.trim()
-  return trimmed ? `?search=${encodeURIComponent(trimmed)}` : ''
-}
 
 // Paging, sorting and filtering accepted by the user and group list endpoints.
 // Omitting `limit` returns every match (bounded by LDAP_SEARCH_SIZE_LIMIT),
@@ -858,8 +855,8 @@ export const api = {
   },
 
   sudoRoles: {
-    list: (search?: string, signal?: AbortSignal) =>
-      fetchApi(`/sudo-roles${searchQuery(search)}`, {}, SudoRolesResponseSchema, signal),
+    list: (params?: ListParams, signal?: AbortSignal) =>
+      fetchApi(`/sudo-roles${listQuery(params)}`, {}, SudoRolesResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/sudo-roles/${encodeURIComponent(dn)}`, {}, SudoRoleSchema, signal),
@@ -930,8 +927,8 @@ export const api = {
   },
 
   passwordPolicies: {
-    list: (search?: string, signal?: AbortSignal) =>
-      fetchApi(`/password-policies${searchQuery(search)}`, {}, PasswordPoliciesResponseSchema, signal),
+    list: (params?: ListParams, signal?: AbortSignal) =>
+      fetchApi(`/password-policies${listQuery(params)}`, {}, PasswordPoliciesResponseSchema, signal),
 
     get: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/password-policies/${encodeURIComponent(dn)}`, {}, PasswordPolicySchema, signal),

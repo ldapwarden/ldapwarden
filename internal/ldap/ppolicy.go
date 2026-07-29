@@ -101,14 +101,22 @@ func (c *Client) ListPasswordPolicies() ([]PasswordPolicy, error) {
 	return policies, nil
 }
 
-// SearchPasswordPolicies lists policies matching an optional substring search
-// (cn, description), bounded by the configured search size limit. It returns
-// truncated=true when more matches exist than were returned.
-func (c *Client) SearchPasswordPolicies(search string) ([]PasswordPolicy, bool, error) {
-	filter := andFilter("(objectClass=pwdPolicy)", substringFilter(search, "cn", "description"))
+// PasswordPolicyPage is one page of a policy listing.
+type PasswordPolicyPage struct {
+	Items     []PasswordPolicy
+	Total     int
+	Truncated bool
+}
+
+// SearchPasswordPoliciesPage lists policies matching an optional substring
+// search (cn, description), sorted and sliced to one page. Like sudo roles the
+// whole object is kept — policies are small, and the value here is a correct
+// total rather than a smaller payload.
+func (c *Client) SearchPasswordPoliciesPage(opts ListOptions) (*PasswordPolicyPage, error) {
+	filter := andFilter("(objectClass=pwdPolicy)", substringFilter(opts.Search, "cn", "description"))
 	entries, truncated, err := c.SearchLimited(c.PpolicyBaseDN(), filter, defaultPolicyAttributes)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	policies := make([]PasswordPolicy, 0, len(entries))
@@ -116,7 +124,20 @@ func (c *Client) SearchPasswordPolicies(search string) ([]PasswordPolicy, bool, 
 		policies = append(policies, entryToPasswordPolicy(entry))
 	}
 
-	return policies, truncated, nil
+	switch opts.Sort {
+	case "pwdMaxAge":
+		sortBy(policies, opts.Desc, func(a, b PasswordPolicy) bool { return a.PwdMaxAge < b.PwdMaxAge })
+	case "pwdMinLength":
+		sortBy(policies, opts.Desc, func(a, b PasswordPolicy) bool { return a.PwdMinLength < b.PwdMinLength })
+	default:
+		sortBy(policies, opts.Desc, func(a, b PasswordPolicy) bool { return foldLess(a.CN, b.CN) })
+	}
+
+	return &PasswordPolicyPage{
+		Items:     page(policies, opts),
+		Total:     len(policies),
+		Truncated: truncated,
+	}, nil
 }
 
 // GetPasswordPolicy returns a password policy by DN

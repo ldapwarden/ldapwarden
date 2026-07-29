@@ -8,17 +8,22 @@ import (
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
+// handleListPasswordPolicies returns one page of password policies.
 func (s *Server) handleListPasswordPolicies(w http.ResponseWriter, r *http.Request) {
-	policies, truncated, err := s.ldapClient.SearchPasswordPolicies(r.URL.Query().Get("search"))
+	opts := parseListOptions(r)
+
+	result, err := s.ldapClient.SearchPasswordPoliciesPage(opts)
 	if err != nil {
 		writeServerError(w, r, "list password policies", err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":      policies,
-		"total":     len(policies),
-		"truncated": truncated,
+		"data":      result.Items,
+		"total":     result.Total,
+		"limit":     opts.Limit,
+		"offset":    opts.Offset,
+		"truncated": result.Truncated,
 	})
 }
 

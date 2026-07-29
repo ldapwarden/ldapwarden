@@ -20,7 +20,7 @@ import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { TableEmptyState } from '@/components/ui/empty-state'
-import { useCallback, useMemo, useState, useRef } from 'react'
+import { useCallback, useState, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import { useSearchHotkey } from '@/lib/use-hotkey'
@@ -70,9 +70,21 @@ function PasswordPoliciesPage() {
   const searchRef = useRef<HTMLInputElement>(null)
   useSearchHotkey(searchRef)
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['password-policies', q],
-    queryFn: ({ signal }) => api.passwordPolicies.list(q, signal),
+  // Search, sort and paging are applied by the directory side, so the total
+  // describes the whole match rather than the slice in hand.
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['password-policies', { search: q, sortField, sortDirection, currentPage, pageSize }],
+    queryFn: ({ signal }) =>
+      api.passwordPolicies.list(
+        {
+          search: q,
+          sort: sortField,
+          order: sortDirection,
+          limit: pageSize,
+          offset: (currentPage - 1) * pageSize,
+        },
+        signal,
+      ),
     placeholderData: keepPreviousData,
   })
 
@@ -102,42 +114,9 @@ function PasswordPoliciesPage() {
     return `${Math.floor(seconds / 86400)}d`
   }
 
-  const { sortedPolicies, totalFiltered, totalPages } = useMemo(() => {
-    // Search is applied server-side; sort and paginate the returned set here.
-    const sorted = [...(data?.data ?? [])].sort((a, b) => {
-      let aVal: string | number = ''
-      let bVal: string | number = ''
-
-      switch (sortField) {
-        case 'cn':
-          aVal = a.cn.toLowerCase()
-          bVal = b.cn.toLowerCase()
-          break
-        case 'pwdMaxAge':
-          aVal = a.pwdMaxAge ?? 0
-          bVal = b.pwdMaxAge ?? 0
-          break
-        case 'pwdMinLength':
-          aVal = a.pwdMinLength ?? 0
-          bVal = b.pwdMinLength ?? 0
-          break
-      }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-      return 0
-    })
-
-    const totalPages = Math.ceil(sorted.length / pageSize)
-    const startIndex = (currentPage - 1) * pageSize
-    const paginatedPolicies = sorted.slice(startIndex, startIndex + pageSize)
-
-    return {
-      sortedPolicies: paginatedPolicies,
-      totalFiltered: sorted.length,
-      totalPages,
-    }
-  }, [data?.data, sortField, sortDirection, currentPage, pageSize])
+  const sortedPolicies = data?.data ?? []
+  const totalFiltered = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize))
 
   const handlePageChange = (page: number) => {
     // Paging is the one move worth a history entry, so Back returns to the
@@ -193,7 +172,10 @@ function PasswordPoliciesPage() {
         </Callout>
       )}
 
-      <div className="border rounded-lg">
+      {/* Dim the table while a refetch is in flight: keepPreviousData leaves the
+          old rows on screen, which would otherwise look like nothing happened
+          after a sort or page change. */}
+      <div className={`border rounded-lg ${isFetching && !isLoading ? 'opacity-60 transition-opacity' : ''}`}>
         <Table>
           <TableHeader>
             <TableRow>

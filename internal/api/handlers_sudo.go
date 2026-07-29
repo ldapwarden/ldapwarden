@@ -8,17 +8,24 @@ import (
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
+// handleListSudoRoles returns one page of sudo roles. Sorting and paging happen
+// here for the same reason as users and groups: the browser cannot know the true
+// total of a set it only received a slice of.
 func (s *Server) handleListSudoRoles(w http.ResponseWriter, r *http.Request) {
-	roles, truncated, err := s.ldapClient.SearchSudoRoles(r.URL.Query().Get("search"))
+	opts := parseListOptions(r)
+
+	result, err := s.ldapClient.SearchSudoRolesPage(opts)
 	if err != nil {
 		writeServerError(w, r, "list sudo roles", err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":      roles,
-		"total":     len(roles),
-		"truncated": truncated,
+		"data":      result.Items,
+		"total":     result.Total,
+		"limit":     opts.Limit,
+		"offset":    opts.Offset,
+		"truncated": result.Truncated,
 	})
 }
 

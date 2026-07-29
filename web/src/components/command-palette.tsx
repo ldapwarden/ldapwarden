@@ -81,13 +81,13 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const { data: sudoRoles } = useQuery({
     queryKey: ['sudo-roles', { search: term, palette: true }],
-    queryFn: ({ signal }) => api.sudoRoles.list(term, signal),
+    queryFn: ({ signal }) => api.sudoRoles.list({ search: term, limit: perGroupLimit }, signal),
     enabled: open && searching,
   })
 
   const { data: policies } = useQuery({
     queryKey: ['password-policies', { search: term, palette: true }],
-    queryFn: ({ signal }) => api.passwordPolicies.list(term, signal),
+    queryFn: ({ signal }) => api.passwordPolicies.list({ search: term, limit: perGroupLimit }, signal),
     enabled: open && searching && canReadSettings,
   })
 
@@ -122,7 +122,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           run: go('/groups/$dn', { dn: encodeDN(group.dn) }),
         })
       }
-      for (const role of (sudoRoles?.data ?? []).slice(0, perGroupLimit)) {
+      for (const role of sudoRoles?.data ?? []) {
         items.push({
           id: `sudo:${role.dn}`,
           label: role.cn,
@@ -132,7 +132,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           run: go('/sudo-roles/$dn', { dn: encodeDN(role.dn) }),
         })
       }
-      for (const policy of (policies?.data ?? []).slice(0, perGroupLimit)) {
+      for (const policy of policies?.data ?? []) {
         items.push({
           id: `policy:${policy.dn}`,
           label: policy.cn,

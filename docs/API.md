@@ -706,6 +706,20 @@ GET /api/sudo-roles
 
 **Required permission:** `users:read`
 
+**Query parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `search` | Case-insensitive substring match on `cn`, `description`, `sudoUser`, `sudoCommand` | (none) |
+| `sort` | `cn` or `sudoOrder` | `cn` |
+| `order` | `asc` or `desc` | `asc` |
+| `limit` | Page size, capped at 500. `0` or omitted returns every match | (no paging) |
+| `offset` | Entries to skip | `0` |
+
+Entries keep their full attribute set — unlike users and groups there is nothing
+heavy to project away — so the value here is a correct `total` and a page the
+client did not have to compute.
+
 **curl example:**
 ```bash
 curl http://localhost:8000/api/sudo-roles \
@@ -862,6 +876,65 @@ Content-Type: application/json
 ```
 
 **Required permission:** `groups:write`
+
+---
+
+## Password Policies
+
+Requires the ppolicy overlay on the directory (see the schema prerequisites in
+the README). Create / update / delete mirror the other resources; the fields are
+the `pwdPolicy` attributes (`pwdMaxAge`, `pwdMinLength`, `pwdInHistory`,
+`pwdLockout`, …).
+
+### List Password Policies
+
+```http
+GET /api/password-policies
+```
+
+**Required permission:** `settings:read`
+
+**Query parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `search` | Case-insensitive substring match on `cn`, `description` | (none) |
+| `sort` | `cn`, `pwdMaxAge`, `pwdMinLength` | `cn` |
+| `order` | `asc` or `desc` | `asc` |
+| `limit` | Page size, capped at 500. `0` or omitted returns every match | (no paging) |
+| `offset` | Entries to skip | `0` |
+
+**curl example:**
+```bash
+curl "http://localhost:8000/api/password-policies?sort=pwdMinLength&order=desc" \
+  -b cookies.txt
+```
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "dn": "cn=default,ou=policies,dc=example,dc=org",
+      "cn": "default",
+      "description": "Default password policy",
+      "pwdMaxAge": 7776000,
+      "pwdMinLength": 12,
+      "pwdInHistory": 5,
+      "pwdLockout": true
+    }
+  ],
+  "total": 1,
+  "limit": 0,
+  "offset": 0,
+  "truncated": false
+}
+```
+
+### Assigning a Policy to a User
+
+A user's policy is the `pwdPolicySubentry` attribute, set through
+`PUT /api/users/{dn}` like any other attribute.
 
 ---
 
