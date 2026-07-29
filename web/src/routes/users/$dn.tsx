@@ -56,9 +56,14 @@ function UserDetailPage() {
   const { dn: encodedDN } = Route.useParams()
   const dn = decodeDN(encodedDN)
   const router = useRouter()
-  const { hasPermission } = useAuth()
+  const { hasPermission, session } = useAuth()
   const canWrite = hasPermission('users:write')
   const canDelete = hasPermission('users:delete')
+  // Locking, deleting, clearing the password of or renaming the account you are
+  // signed in with locks you out of the app — and if you are the only admin, the
+  // way back is ldapmodify. The API refuses these outright (see
+  // refuseSelfTarget); the UI explains rather than offering them.
+  const isSelf = (session?.userDn ?? '').toLowerCase() === dn.toLowerCase()
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user', dn],
@@ -257,7 +262,14 @@ function UserDetailPage() {
         )}
 
         <TabsContent value="security">
-          <SecurityTab user={user!} dn={dn} canWrite={canWrite} canDelete={canDelete} showPoliciesModule={showPoliciesModule} />
+          <SecurityTab
+            user={user!}
+            dn={dn}
+            canWrite={canWrite}
+            canDelete={canDelete}
+            showPoliciesModule={showPoliciesModule}
+            isSelf={isSelf}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -1910,7 +1922,7 @@ function extractCN(dn: string): string {
 }
 
 // Security Tab (password, lock/unlock, delete)
-function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, canDelete: boolean, showPoliciesModule: boolean }) {
+function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, isSelf }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, canDelete: boolean, showPoliciesModule: boolean, isSelf: boolean }) {
   const queryClient = useQueryClient()
   const router = useRouter()
   const [password, setPassword] = useState('')
@@ -2107,7 +2119,11 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
                   <Key className="h-4 w-4 mr-1" />
                   {changePasswordMutation.isPending ? 'Changing...' : 'Change Password'}
                 </Button>
-                {user.hasPassword ? (
+                {isSelf ? (
+                  <p className="self-center text-sm text-muted-foreground">
+                    Your own password cannot be removed here.
+                  </p>
+                ) : user.hasPassword ? (
                   <Dialog open={removePasswordDialogOpen} onOpenChange={setRemovePasswordDialogOpen}>
                     <DialogTrigger asChild>
                       <Button type="button" variant="outline" disabled={removePasswordMutation.isPending}>
@@ -2227,7 +2243,13 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
             </div>
           </div>
 
-          {canWrite && (
+          {canWrite && isSelf && !user?.accountLocked && (
+            <Callout variant="info">
+              This is the account you are signed in with, so it cannot be locked here.
+            </Callout>
+          )}
+
+          {canWrite && !(isSelf && !user?.accountLocked) && (
             <div className="flex gap-2 flex-wrap">
               {user?.accountLocked ? (
                 <Button
@@ -2426,7 +2448,22 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
         </Card>
       )}
 
-      {canWrite && (
+      {canWrite && isSelf && (
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Change username</CardTitle>
+            <CardDescription>Not available for your own account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Callout variant="info">
+              Renaming an account changes its directory identity, which would invalidate the session
+              you are using. Ask another administrator to rename it.
+            </Callout>
+          </CardContent>
+        </Card>
+      )}
+
+      {canWrite && !isSelf && (
         <Card className="md:col-span-2 border-warning/50">
           <CardHeader>
             <CardTitle>Change username</CardTitle>
@@ -2515,7 +2552,22 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule }: { us
         </Card>
       )}
 
-      {canDelete && (
+      {canDelete && isSelf && (
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Danger Zone</CardTitle>
+            <CardDescription>Not available for your own account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Callout variant="info">
+              You cannot delete the account you are signed in with. Ask another administrator, or
+              sign in with a different account.
+            </Callout>
+          </CardContent>
+        </Card>
+      )}
+
+      {canDelete && !isSelf && (
         <Card className="md:col-span-2 border-destructive/50">
           <CardHeader>
             <CardTitle className="text-destructive">Danger Zone</CardTitle>

@@ -114,6 +114,22 @@ func resolveDN(r *http.Request, base string) (string, error) {
 	return decoded, nil
 }
 
+// sameDN reports whether two DNs designate the same entry, using LDAP
+// distinguishedNameMatch semantics (case-insensitive attribute types) rather
+// than string equality — "UID=alice,ou=People,..." and
+// "uid=alice,ou=People,..." are the same entry.
+func sameDN(a, b string) bool {
+	parsedA, err := ldaplib.ParseDN(a)
+	if err != nil {
+		return false
+	}
+	parsedB, err := ldaplib.ParseDN(b)
+	if err != nil {
+		return false
+	}
+	return parsedA.EqualFold(parsedB)
+}
+
 // dnFirstRDNValue returns the value of the first RDN of dn — i.e. "alice" for
 // "uid=alice,ou=People,dc=example,dc=org" or "admins" for "cn=admins,...".
 // Returns "" when the DN cannot be parsed or has no RDN.

@@ -193,6 +193,10 @@ func (s *Server) handleChangeUserUID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.refuseSelfTarget(w, r, dn, "rename") {
+		return
+	}
+
 	var req struct {
 		NewUID string `json:"newUid"`
 	}
@@ -257,6 +261,10 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.refuseSelfTarget(w, r, dn, "delete") {
+		return
+	}
+
 	if !s.auditMutating(w, r, audit.ActionUserDelete, audit.ResourceUser, dn, s.userNameDetails(dn)) {
 		return
 	}
@@ -300,6 +308,10 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	if s.refuseSelfTarget(w, r, dn, "lock") {
 		return
 	}
 
@@ -410,6 +422,10 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	if s.refuseSelfTarget(w, r, dn, "remove the password of") {
 		return
 	}
 
