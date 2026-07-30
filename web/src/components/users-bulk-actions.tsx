@@ -56,18 +56,20 @@ export function UsersBulkActions({
 
   const invalidateUsers = () => queryClient.invalidateQueries({ queryKey: ['users'] })
   const invalidateGroups = () => queryClient.invalidateQueries({ queryKey: ['groups'] })
+  const invalidateSudo = () => queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
 
   // Run a bulk action, report it, refresh and clear the selection.
   async function run(
     verb: string,
     worker: (u: BulkUser) => Promise<unknown>,
-    opts: { touchesGroups?: boolean } = {},
+    opts: { touchesGroups?: boolean; touchesSudo?: boolean } = {},
   ) {
     setRunning(true)
     try {
       const result = await runBulk(selected, worker)
       invalidateUsers()
       if (opts.touchesGroups) invalidateGroups()
+      if (opts.touchesSudo) invalidateSudo()
       const summary = bulkSummary(verb, 'user', result)
       if (result.failed.length === 0) {
         toast.success(summary)
@@ -125,7 +127,23 @@ export function UsersBulkActions({
         pendingLabel="Deleting..."
         isPending={running}
         onConfirm={async () => {
-          await run('Deleted', (u) => api.users.delete(u.dn), { touchesGroups: true })
+          // Each delete also strips the uid from groups and sudo roles. Collect
+          // what that turned up: the accounts are gone regardless, and a bulk run
+          // is exactly where a silent leftover would go unnoticed.
+          const notes: string[] = []
+          await run(
+            'Deleted',
+            async (u) => {
+              const res = await api.users.delete(u.dn)
+              if (res.warnings.length > 0) {
+                notes.push(`${u.uid}: ${res.warnings.join('; ')}`)
+              }
+            },
+            { touchesGroups: true, touchesSudo: true },
+          )
+          if (notes.length > 0) {
+            toast.warning(`Reference cleanup — ${notes.join(' | ')}`, { duration: 15000 })
+          }
           setDeleteOpen(false)
         }}
       />

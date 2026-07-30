@@ -237,6 +237,11 @@ func groupPath(dn string) string {
 	return "/api/groups/" + url.QueryEscape(dn)
 }
 
+// sudoPath builds the URL-encoded path for a sudo role DN.
+func sudoPath(dn string) string {
+	return "/api/sudo-roles/" + url.QueryEscape(dn)
+}
+
 // testIDNumber returns a UID/GID number derived from the random suffix, in a
 // range above the seed data (which uses 1000-1999). LDAP itself does not
 // enforce posixAccount uidNumber uniqueness, so collisions across runs are

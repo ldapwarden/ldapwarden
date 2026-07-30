@@ -101,6 +101,11 @@ MVP implemented with:
   status, the dashboard or notifications.
 - ppolicy enforces none of the above unless a policy applies to the entry
   (`olcPPolicyDefault` or `pwdPolicySubentry`).
+- **`memberUid` and `sudoUser` store a plain uid, not a DN**, so the directory
+  cannot follow them: any operation on a user that changes or removes its uid has
+  to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,
+  returning `warnings` for what they could not reach. Leaving one behind hands the
+  groups and sudo grants to whoever gets that username next.
 - The bundled stack is OpenLDAP 2.6 built from `ldap/`, with the overlay and
   `olcPPolicyDefault` wired up — so integration tests exercise the real
   enforcement path, not the 422 fallback. From 2.5 the pwdPolicy schema lives

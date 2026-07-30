@@ -2067,9 +2067,18 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
 
   const deleteMutation = useMutation({
     mutationFn: () => api.users.delete(dn),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      // Deleting a user also strips their uid from groups and sudo roles. Report
+      // what that turned up — a step that failed, or a sudo role left with no
+      // user at all — since the account is gone either way and the leftovers are
+      // now the operator's to reconcile.
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
       toast.success('User deleted')
+      if (res.warnings.length > 0) {
+        toast.warning(`Reference cleanup: ${res.warnings.join('; ')}`, { duration: 12000 })
+      }
       router.navigate({ to: '/users' })
     },
     onError: (error: Error) => {

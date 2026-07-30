@@ -312,6 +312,28 @@ curl -X PUT "http://localhost:8000/api/users/$ENCODED_DN" \
 DELETE /api/users/{dn}
 ```
 
+Removes the entry and the references other entries kept to it: the uid in every
+group's `memberUid`, the uid in any `sudoRole`'s `sudoUser`, and `manager`
+attributes pointing at the DN. Neither `memberUid` nor `sudoUser` stores a DN the
+directory could follow, so leaving them behind would hand the uid's groups and
+sudo grants to whoever gets that username next.
+
+Roles reached through `ALL` or a `%group` are left alone — they do not name this
+user. A role that named only this user is emptied but kept, and reported in
+`warnings`.
+
+```json
+{
+  "message": "user deleted",
+  "warnings": ["sudo role \"deploy\" now has no sudoUser: it applied to \"jsmith\" only"]
+}
+```
+
+The entry is deleted first and the references are then migrated best-effort, so a
+cleanup failure is reported in `warnings` rather than failing the request — the
+account is gone either way, and the named leftovers are the operator's to
+reconcile. `404` if there is no such entry.
+
 **Required permission:** `users:delete`
 
 **curl example:**
@@ -683,7 +705,7 @@ POST /api/groups/{dn}/members
 Content-Type: application/json
 
 {
-  "uid": "jsmith"
+  "memberUid": "jsmith"
 }
 ```
 
@@ -697,7 +719,7 @@ ENCODED_DN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$DN', sa
 curl -X POST "http://localhost:8000/api/groups/$ENCODED_DN/members" \
   -H "Content-Type: application/json" \
   -b cookies.txt \
-  -d '{"uid": "jsmith"}'
+  -d '{"memberUid": "jsmith"}'
 ```
 
 ### Remove Member from Group
@@ -707,7 +729,7 @@ DELETE /api/groups/{dn}/members
 Content-Type: application/json
 
 {
-  "uid": "jsmith"
+  "memberUid": "jsmith"
 }
 ```
 
@@ -721,7 +743,7 @@ ENCODED_DN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$DN', sa
 curl -X DELETE "http://localhost:8000/api/groups/$ENCODED_DN/members" \
   -H "Content-Type: application/json" \
   -b cookies.txt \
-  -d '{"uid": "jsmith"}'
+  -d '{"memberUid": "jsmith"}'
 ```
 
 ### Get Group Sudo Roles

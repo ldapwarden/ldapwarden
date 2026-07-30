@@ -743,8 +743,107 @@ func (c *Client) UpdateUser(dn string, req UpdateUserRequest) (*User, error) {
 	return c.GetUser(dn)
 }
 
-func (c *Client) DeleteUser(dn string) error {
-	return c.Delete(dn)
+// DeleteUser removes a user entry and the references other entries kept to it.
+//
+// Deleting the entry alone leaves the uid behind in every group's memberUid and
+// in any sudoRole's sudoUser, because neither stores a DN the directory could
+// follow. Those leftovers are not cosmetic: create an account with the same uid
+// later — recycling a departing employee's username is routine — and it silently
+// inherits the old one's groups and sudo grants. Manager attributes on other
+// users keep pointing at a DN that no longer resolves.
+//
+// Like RenameUser this is non-transactional and in the same order: the entry goes
+// first, because that is the authoritative change and the one the operator asked
+// for, then the references are migrated best-effort. A cleanup that fails is
+// reported in warnings rather than failing the delete, which has already
+// happened; an operator can then reconcile the named leftovers.
+func (c *Client) DeleteUser(dn string) ([]string, error) {
+	// The uid is needed for the cleanup below and is only readable while the
+	// entry exists.
+	user, err := c.GetUser(dn)
+	if err != nil {
+		return nil, err
+	}
+	uid := user.UID
+
+	if err := c.Delete(dn); err != nil {
+		return nil, err
+	}
+
+	// Non-nil so it serialises as an empty JSON array, not null.
+	warnings := []string{}
+	warn := func(what string, err error) {
+		warnings = append(warnings, fmt.Sprintf("%s: %v", what, err))
+	}
+
+	if uid == "" {
+		// Nothing to clean up by uid, and nothing that could have referenced it.
+		return warnings, nil
+	}
+
+	// Group memberships: memberUid holds the plain uid.
+	if groups, err := c.GetUserGroups(uid); err != nil {
+		warn("read group memberships", err)
+	} else {
+		for _, g := range groups {
+			if err := c.RemoveGroupMember(g.DN, uid); err != nil {
+				warn(fmt.Sprintf("remove %q from group %q", uid, g.CN), err)
+			}
+		}
+	}
+
+	// Sudo roles, but only those naming this uid outright: GetUserSudoRoles also
+	// returns the roles that reach the user through "ALL" or a %group, and those
+	// must not be touched.
+	if roles, err := c.GetUserSudoRoles(uid); err != nil {
+		warn("read sudo roles", err)
+	} else {
+		for _, role := range roles {
+			if !containsExact(role.SudoUser, uid) {
+				continue
+			}
+			if err := c.RemoveUserFromSudoRole(role.DN, uid); err != nil {
+				warn(fmt.Sprintf("remove %q from sudo role %q", uid, role.CN), err)
+				continue
+			}
+			// A role that named only this user now grants nothing to anyone. It is
+			// left in place — deleting someone is not authority to delete a role —
+			// but silently keeping an empty rule around is how stale sudo config
+			// accumulates.
+			if len(role.SudoUser) == 1 {
+				warnings = append(warnings, fmt.Sprintf(
+					"sudo role %q now has no sudoUser: it applied to %q only", role.CN, uid))
+			}
+		}
+	}
+
+	// Manager attributes on other users store this DN, which no longer resolves.
+	if users, err := c.ListUsers(); err != nil {
+		warn("scan manager references", err)
+	} else {
+		empty := ""
+		for _, u := range users {
+			if u.Manager != dn {
+				continue
+			}
+			if _, err := c.UpdateUser(u.DN, UpdateUserRequest{Manager: &empty}); err != nil {
+				warn(fmt.Sprintf("clear manager of %q", u.UID), err)
+			}
+		}
+	}
+
+	return warnings, nil
+}
+
+// containsExact reports whether list holds an element exactly equal to value —
+// as opposed to a "%group" or "ALL" entry that merely covers it.
+func containsExact(list []string, value string) bool {
+	for _, v := range list {
+		if v == value {
+			return true
+		}
+	}
+	return false
 }
 
 // permanentLockValue is OpenLDAP's convention for "locked until an

@@ -289,6 +289,13 @@ export const ChangeUidResultSchema = z.object({
 })
 export type ChangeUidResult = z.infer<typeof ChangeUidResultSchema>
 
+// Result of a mutation that also had to clean up references (DELETE /users/{dn}).
+// The operation itself succeeded; warnings name what it could not reach.
+export const WarningsResultSchema = z.object({
+  message: z.string().optional(),
+  warnings: z.array(z.string()).nullish().transform((v) => v ?? []),
+})
+
 export const GroupSchema = z.object({
   dn: z.string(),
   cn: z.string(),
@@ -733,7 +740,7 @@ export const api = {
       }, UserSchema),
 
     delete: (dn: string) =>
-      fetchApi(`/users/${encodeURIComponent(dn)}`, { method: 'DELETE' }),
+      fetchApi(`/users/${encodeURIComponent(dn)}`, { method: 'DELETE' }, WarningsResultSchema),
 
     import: (rows: ImportRow[]) =>
       fetchApi('/users/import', { method: 'POST', body: JSON.stringify({ rows }) }, ImportResultSchema),

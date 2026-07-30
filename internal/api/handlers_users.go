@@ -266,18 +266,32 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// An entry that is not there is a 404, as it is on every other user route —
+	// the delete path used to surface the directory's "No Such Object" as a 500.
+	if user, err := s.ldapClient.GetUser(dn); err != nil || user == nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
 	if !s.auditMutating(w, r, audit.ActionUserDelete, audit.ResourceUser, dn, s.userNameDetails(dn)) {
 		return
 	}
 
-	if err := s.ldapClient.DeleteUser(dn); err != nil {
+	// warnings names the references the delete could not clean up (group
+	// memberships, sudo grants, manager attributes). The entry itself is gone
+	// either way, so they are reported rather than turned into a failure.
+	warnings, err := s.ldapClient.DeleteUser(dn)
+	if err != nil {
 		writeServerError(w, r, "delete user", err)
 		return
 	}
 
 	s.invalidateSessions(r, dn, "user deleted")
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "user deleted"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":  "user deleted",
+		"warnings": warnings,
+	})
 }
 
 func (s *Server) handleGetUserGroups(w http.ResponseWriter, r *http.Request) {
