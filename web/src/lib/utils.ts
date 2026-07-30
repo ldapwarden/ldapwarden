@@ -71,6 +71,44 @@ export function sameDn(a: string | undefined, b: string | undefined): boolean {
 }
 
 /**
+ * An account expiry, rendered as the calendar date it actually falls on.
+ *
+ * `pwdEndTime` for a date-granularity expiry is stored as the last second of that
+ * day in UTC, so rendering it with toLocaleString (which formatLdapTimestamp does,
+ * correctly, for real instants like pwdChangedTime) shifts it to the next day
+ * anywhere east of UTC: pick 20 August in the date field, save, and the page said
+ * 21 August while the field still said the 20th. The date is a date — format it in
+ * the zone it was written in and the two agree.
+ *
+ * A value that is not end-of-day came from somewhere other than this UI, so the
+ * time is shown, labelled, rather than rounded away.
+ */
+export function formatExpiryDate(timestamp: string): string {
+  const date = parseLdapTimestamp(timestamp)
+  if (!date) return timestamp || 'N/A'
+
+  const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeZone: 'UTC' }).format(date)
+  const endOfDay =
+    date.getUTCHours() === 23 && date.getUTCMinutes() === 59 && date.getUTCSeconds() === 59
+  if (endOfDay) return day
+
+  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short', timeZone: 'UTC' }).format(date)
+  return `${day}, ${time} UTC`
+}
+
+/**
+ * The exact instant an expiry takes effect, for a tooltip: the rendered date hides
+ * that "the 20th" ends at 23:59:59 UTC, which is the 21st in local time for anyone
+ * east of Greenwich. Available on hover rather than in the sentence, because the
+ * date is what the operator chose and the instant is the footnote.
+ */
+export function expiryInstantTitle(timestamp: string): string {
+  const date = parseLdapTimestamp(timestamp)
+  if (!date) return ''
+  return `${timestamp} — ${date.toLocaleString()} in your local time`
+}
+
+/**
  * The value of a DN's first component — "jdoe" out of
  * "uid=jdoe,ou=People,dc=example,dc=org".
  *

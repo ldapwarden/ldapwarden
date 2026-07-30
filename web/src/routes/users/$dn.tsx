@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, userPhotoUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
+import { decodeDN, encodeDN, expiryInstantTitle, formatExpiryDate, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
 
@@ -2284,8 +2284,8 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                 </p>
               )}
               {(hasFutureExpiration || hasPastExpiration) && (
-                <p className="text-xs text-warning mt-1">
-                  {hasPastExpiration ? 'Expired on' : 'Expires on'}: {formatLdapTimestamp(user.pwdEndTime!)}
+                <p className="text-xs text-warning mt-1" title={expiryInstantTitle(user.pwdEndTime!)}>
+                  {hasPastExpiration ? 'Expired on' : 'Expires on'}: {formatExpiryDate(user.pwdEndTime!)}
                 </p>
               )}
             </div>
@@ -2357,8 +2357,12 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                 Account Expiration
               </Label>
               <Callout variant="warning">
-                This account expires on {formatLdapTimestamp(user.pwdEndTime!)}. It is the
-                account you are signed in with, so only clearing the date is available here.
+                This account expires on{' '}
+                <span title={expiryInstantTitle(user.pwdEndTime!)}>
+                  {formatExpiryDate(user.pwdEndTime!)}
+                </span>
+                . It is the account you are signed in with, so only clearing the date is available
+                here.
               </Callout>
               <Button
                 variant="outline"
@@ -2401,6 +2405,11 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                       onChange={setExpirationDate}
                       min={new Date().toISOString().split('T')[0]}
                     />
+                    {/* Say which day boundary is meant. pwdEndTime is an instant,
+                        and "the 20th" has to end somewhere. */}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The account stops working at the end of this day, UTC.
+                    </p>
                   </div>
                   <Button
                     variant="outline"
