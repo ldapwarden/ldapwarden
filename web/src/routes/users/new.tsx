@@ -60,7 +60,7 @@ function NewUserPage() {
 
   // Scheduled expiry needs pwdEndTime in the directory (OpenLDAP >= 2.5); the
   // backend refuses to write one otherwise, so the field is not offered.
-  const canExpire = config?.capabilities?.scheduledAccountExpiry ?? false
+  const canExpire = config?.capabilities?.scheduledExpirySupported ?? false
 
   const [primaryGroup, setPrimaryGroup] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])

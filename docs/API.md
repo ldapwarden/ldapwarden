@@ -1296,11 +1296,77 @@ The attribute exists only on OpenLDAP 2.5 and later; on an older directory this
 endpoint returns `422` rather than writing something the server ignores. Clearing
 is always accepted, so an entry carrying a value from a newer server stays fixable.
 
-`GET /api/admin/config` reports whether it will work:
+`GET /api/admin/config` reports two different things, and the difference matters:
 
 ```json
-{ "capabilities": { "scheduledAccountExpiry": true } }
+{
+  "capabilities": {
+    "scheduledExpirySupported": true,
+    "policyEnforcement": "unknown"
+  }
+}
 ```
+
+`scheduledExpirySupported` says `pwdEndTime` can be written. `policyEnforcement`
+says whether writing it will have any effect — ppolicy enforces nothing unless a
+policy applies to the entry, and the attributes stay writable regardless. With the
+overlay loaded but no `olcPPolicyDefault` and no `pwdPolicySubentry`, locking an
+account and expiring it both succeed, both do nothing, and the account keeps
+authenticating.
+
+| `policyEnforcement` | Meaning |
+|---|---|
+| `enforced` | A policy was seen to apply. |
+| `not-enforced` | Proven: either `cn=config` was readable and carries no default policy, or a self-test locked an account and it authenticated anyway. |
+| `unknown` | The normal answer. The bind identity cannot read `cn=config`, and nothing else distinguishes the two states. Not a problem in itself. |
+
+`unknown` is honest rather than lazy. With an ordinary bind identity, `cn=config`
+answers "no such object", the monitor backend is usually absent, the server does
+not synthesise an effective `pwdPolicySubentry`, the ppolicy control is advertised
+by the module rather than by a policy, and `pwdChangedTime` is stamped either way.
+`pwdFailureTime` does differ — but it tracks `pwdMaxFailure`, so a policy with
+`pwdLockout: FALSE` looks exactly like no policy while still enforcing
+`pwdEndTime`. Concluding from it would warn about a working directory.
+
+### Verify Policy Enforcement
+
+```http
+POST /api/admin/policy-selftest
+```
+
+**Required permission:** `settings:write`
+
+The only definitive answer, and the reason it is an explicit action: it **writes to
+the directory**. It creates `uid=ldapwarden-policy-selftest` in the user OU, gives
+it a random password, checks it can authenticate, locks it, checks whether the
+directory now refuses it, and removes the entry. `409` if that DN is already taken
+— an entry the self-test did not create is never touched.
+
+```json
+{
+  "result": "enforced",
+  "probeDn": "uid=ldapwarden-policy-selftest,ou=People,dc=example,dc=org",
+  "cleanedUp": true,
+  "steps": [
+    "created uid=ldapwarden-policy-selftest,ou=People,dc=example,dc=org",
+    "set a password via PasswordModify",
+    "bind succeeded before locking (control)",
+    "wrote pwdAccountLockedTime = 000001010000Z",
+    "bind refused after locking — the directory enforces the policy",
+    "removed uid=ldapwarden-policy-selftest,ou=People,dc=example,dc=org"
+  ]
+}
+```
+
+`steps` is the evidence, so the verdict can be checked rather than trusted.
+`cleanedUp: false` is the one outcome needing action: the probe entry is still
+there and must be removed by hand.
+
+The verdict covers **newly created entries in the user OU**. A policy attached
+per-entry through `pwdPolicySubentry` applies to those entries and says nothing
+about this one. The result is remembered in memory and surfaces as
+`policyEnforcement` until the server restarts — re-run it after changing the
+policy configuration.
 
 A user's `accountLocked` (any `pwdAccountLockedTime`) and `pwdEndTime` are
 independent: an account can be locked, expired, both, or neither. `shadowExpire`

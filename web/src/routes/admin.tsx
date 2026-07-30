@@ -1,6 +1,6 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ConfigValue } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -9,7 +9,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Callout } from '@/components/ui/callout'
-import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock } from 'lucide-react'
+import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { useState } from 'react'
+import type { PolicySelfTest } from '@/lib/api'
 import { toast } from 'sonner'
 
 export const Route = createFileRoute('/admin')({
@@ -245,6 +248,8 @@ function AdminPage() {
           </CardContent>
         </Card>
 
+        <DirectoryEnforcementCard capabilities={config!.capabilities} />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -453,5 +458,176 @@ function AdminPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+// What the app knows about whether the directory enforces a password policy, and
+// the one way to find out for certain.
+//
+// The distinction is not academic: ppolicy enforces nothing unless a policy
+// applies to the entry, yet pwdAccountLockedTime and pwdEndTime stay writable, so
+// an unenforced directory happily reports accounts as locked or expired while
+// letting them authenticate. Nothing readable with an ordinary bind identity
+// distinguishes the two states, hence "unknown" and hence the self-test.
+function DirectoryEnforcementCard({
+  capabilities,
+}: {
+  capabilities: { scheduledExpirySupported: boolean; policyEnforcement: string } | undefined
+}) {
+  const queryClient = useQueryClient()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [result, setResult] = useState<PolicySelfTest | null>(null)
+
+  const selfTest = useMutation({
+    mutationFn: api.admin.policySelfTest,
+    onSuccess: (res) => {
+      setResult(res)
+      setConfirmOpen(false)
+      // The server now knows something it did not before; the state shown above
+      // comes from the config query, so it has to be re-read.
+      queryClient.invalidateQueries({ queryKey: ['admin', 'config'] })
+      if (res.result === 'enforced') {
+        toast.success('The directory enforces the password policy')
+      } else if (res.result === 'not-enforced') {
+        toast.warning('The directory does not enforce any password policy')
+      } else {
+        toast.warning('The self-test could not reach a conclusion')
+      }
+      if (!res.cleanedUp) {
+        toast.error(`The probe entry could not be removed — delete ${res.probeDn} by hand`, {
+          duration: 20000,
+        })
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const enforcement = capabilities?.policyEnforcement ?? 'unknown'
+  const state = {
+    enforced: {
+      icon: ShieldCheck,
+      tone: 'text-success',
+      label: 'Enforced',
+      blurb: 'A password policy applies. Locking an account and expiring it will be honoured by the directory.',
+    },
+    'not-enforced': {
+      icon: ShieldAlert,
+      tone: 'text-destructive',
+      label: 'Not enforced',
+      blurb:
+        'No password policy applies. Locking and account expiry will be written to the directory and ignored — accounts will keep authenticating. Set olcPPolicyDefault on the ppolicy overlay, or a pwdPolicySubentry on each entry.',
+    },
+    unknown: {
+      icon: ShieldQuestion,
+      tone: 'text-muted-foreground',
+      label: 'Unknown',
+      blurb:
+        'This bind identity cannot read cn=config, which is normal. Every other signal is identical whether or not a policy applies, so the app will not guess. Run the self-test for a definitive answer.',
+    },
+  }[enforcement] ?? {
+    icon: ShieldQuestion,
+    tone: 'text-muted-foreground',
+    label: enforcement,
+    blurb: '',
+  }
+  const StateIcon = state.icon
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5" />
+          Directory enforcement
+        </CardTitle>
+        <CardDescription>What the connected directory will actually apply</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <Label>Scheduled account expiry</Label>
+          <div className="flex items-center gap-2 text-sm">
+            {capabilities?.scheduledExpirySupported ? (
+              <>
+                <CheckCircle className="h-4 w-4 text-success" aria-hidden="true" />
+                <span>Supported</span>
+              </>
+            ) : (
+              <>
+                <XCircle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <span>Unavailable</span>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Whether <code>pwdEndTime</code> exists, i.e. OpenLDAP 2.5 or later with the ppolicy
+            overlay loaded. Says nothing about whether it will be enforced.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Password policy</Label>
+          <div className="flex items-center gap-2 text-sm">
+            <StateIcon className={`h-4 w-4 ${state.tone}`} aria-hidden="true" />
+            <span>{state.label}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{state.blurb}</p>
+        </div>
+
+        <div className="pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmOpen(true)}
+            disabled={selfTest.isPending}
+          >
+            {selfTest.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4 mr-1" />
+            )}
+            {selfTest.isPending ? 'Testing...' : 'Run self-test'}
+          </Button>
+        </div>
+
+        {result && (
+          <Callout
+            variant={
+              result.result === 'enforced' ? 'success' : result.result === 'not-enforced' ? 'error' : 'warning'
+            }
+          >
+            <p className="font-medium">
+              {result.result === 'enforced'
+                ? 'Enforced: a locked probe account was refused.'
+                : result.result === 'not-enforced'
+                  ? 'Not enforced: a locked probe account authenticated anyway.'
+                  : 'Inconclusive.'}
+            </p>
+            {result.detail && <p className="mt-1 text-xs">{result.detail}</p>}
+            {/* The steps are the evidence — a verdict about security should be
+                checkable, not taken on faith. */}
+            <ul className="mt-2 space-y-0.5 text-xs font-mono">
+              {result.steps.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ul>
+          </Callout>
+        )}
+      </CardContent>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={(open) => { if (!open) setConfirmOpen(false) }}
+        title="Run the policy self-test?"
+        description={
+          'This is the only way to know for certain, and it writes to the directory: it creates ' +
+          'the entry uid=ldapwarden-policy-selftest in the user OU, gives it a random password, ' +
+          'locks it, tries to authenticate as it, and removes it. The verdict covers newly created ' +
+          'entries in that OU. If an entry with that name already exists, nothing is touched.'
+        }
+        confirmLabel="Run self-test"
+        pendingLabel="Testing..."
+        isPending={selfTest.isPending}
+        onConfirm={() => selfTest.mutate()}
+      />
+    </Card>
   )
 }

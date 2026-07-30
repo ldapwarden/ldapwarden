@@ -475,6 +475,25 @@ export const PasswordPoliciesResponseSchema = z.object({
   truncated: z.boolean().optional(),
 })
 
+// Whether the directory actually enforces a password policy. "unknown" is the
+// normal answer and means the app cannot tell from its bind identity — every
+// readable signal is identical either way — not that anything is wrong. Only a
+// self-test, or a readable cn=config, settles it.
+export const PolicyEnforcementSchema = z
+  .enum(['enforced', 'not-enforced', 'unknown'])
+  .catch('unknown')
+export type PolicyEnforcement = z.infer<typeof PolicyEnforcementSchema>
+
+// Outcome of POST /admin/policy-selftest.
+export const PolicySelfTestSchema = z.object({
+  result: PolicyEnforcementSchema,
+  probeDn: z.string(),
+  steps: z.array(z.string()).nullish().transform((v) => v ?? []),
+  cleanedUp: z.boolean(),
+  detail: z.string().optional(),
+})
+export type PolicySelfTest = z.infer<typeof PolicySelfTestSchema>
+
 export const ConfigValueSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]),
   source: z.enum(['env', 'default']),
@@ -516,10 +535,13 @@ export const ConfigResponseSchema = z.object({
     usersObjects: ConfigValueSchema,
     groupsObjects: ConfigValueSchema,
   }),
-  // Probed from the directory, not configured — plain booleans, no env var.
+  // Probed from the directory, not configured — no env var behind these.
   capabilities: z
     .object({
-      scheduledAccountExpiry: z.boolean(),
+      // Whether pwdEndTime can be written at all, not whether writing it will be
+      // enforced — that is policyEnforcement, a genuinely different question.
+      scheduledExpirySupported: z.boolean(),
+      policyEnforcement: PolicyEnforcementSchema,
     })
     .optional(),
   mail: z.object({
@@ -1056,6 +1078,11 @@ export const api = {
   admin: {
     getConfig: (signal?: AbortSignal) =>
       fetchApi('/admin/config', {}, ConfigResponseSchema, signal),
+
+    // Writes a throwaway entry to the directory to prove whether a password
+    // policy is enforced. Explicit action, never automatic.
+    policySelfTest: () =>
+      fetchApi('/admin/policy-selftest', { method: 'POST' }, PolicySelfTestSchema),
 
     scheduledTasks: {
       getConfig: (signal?: AbortSignal) =>

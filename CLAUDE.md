@@ -70,6 +70,7 @@ parameters the list endpoints accept.
 - `GET /api/users/:dn/photo` - User photo as `image/jpeg`
 - `GET/POST/PUT/DELETE /api/groups` - Group CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
 - `GET /api/groups/:dn/members` - Membership resolved to names
+- `POST /api/admin/policy-selftest` - Prove whether ppolicy is enforced (writes a throwaway entry)
 - `POST/DELETE /api/groups/:dn/members` - Group membership
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
@@ -100,7 +101,12 @@ MVP implemented with:
   PAM/SSSD read it). It stays editable as a raw attribute and must not drive
   status, the dashboard or notifications.
 - ppolicy enforces none of the above unless a policy applies to the entry
-  (`olcPPolicyDefault` or `pwdPolicySubentry`).
+  (`olcPPolicyDefault` or `pwdPolicySubentry`) — and the attributes stay writable
+  regardless, so an unenforced directory reports accounts as locked while letting
+  them authenticate. **Whether a policy applies is not detectable** from an
+  ordinary bind identity: every readable signal is identical either way (see the
+  comment on `Enforcement`). Hence three states, `unknown` by default, and
+  `POST /api/admin/policy-selftest` as the only proof.
 - **`memberUid` and `sudoUser` store a plain uid, not a DN**, so the directory
   cannot follow them: any operation on a user that changes or removes its uid has
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,

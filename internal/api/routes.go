@@ -190,6 +190,8 @@ func (s *Server) setupRoutes() chi.Router {
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermSettingsRead)).Get("/config", s.handleGetConfig)
+				// Writes a throwaway entry to the directory, hence settings:write.
+				r.With(s.requirePermission(rbac.PermSettingsWrite)).Post("/policy-selftest", s.handlePolicySelfTest)
 
 				// Scheduled tasks management
 				r.Route("/scheduled-tasks", func(r chi.Router) {

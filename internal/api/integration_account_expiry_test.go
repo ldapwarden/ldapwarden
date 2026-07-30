@@ -126,15 +126,23 @@ func TestIntegration_Overview_ReportsCapability(t *testing.T) {
 	}
 	var config struct {
 		Capabilities struct {
-			ScheduledAccountExpiry bool `json:"scheduledAccountExpiry"`
+			ScheduledExpirySupported bool   `json:"scheduledExpirySupported"`
+			PolicyEnforcement        string `json:"policyEnforcement"`
 		} `json:"capabilities"`
 	}
 	if err := json.Unmarshal(body, &config); err != nil {
 		t.Fatalf("unmarshal config: %v", err)
 	}
-	if config.Capabilities.ScheduledAccountExpiry != env.LDAP.Capabilities().ScheduledExpiry {
-		t.Errorf("config reports scheduledAccountExpiry=%v, directory probe says %v",
-			config.Capabilities.ScheduledAccountExpiry, env.LDAP.Capabilities().ScheduledExpiry)
+	if config.Capabilities.ScheduledExpirySupported != env.LDAP.Capabilities().ScheduledExpiry {
+		t.Errorf("config reports scheduledExpirySupported=%v, directory probe says %v",
+			config.Capabilities.ScheduledExpirySupported, env.LDAP.Capabilities().ScheduledExpiry)
+	}
+	// Whatever the answer, it has to be one of the three — the UI switches on it.
+	switch config.Capabilities.PolicyEnforcement {
+	case "enforced", "not-enforced", "unknown":
+	default:
+		t.Errorf("policyEnforcement=%q is not one of enforced/not-enforced/unknown",
+			config.Capabilities.PolicyEnforcement)
 	}
 }
 

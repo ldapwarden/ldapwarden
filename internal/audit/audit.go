@@ -114,6 +114,7 @@ const (
 	ActionPwdPolicyCreate  Action = "pwdpolicy.create"
 	ActionPwdPolicyUpdate  Action = "pwdpolicy.update"
 	ActionPwdPolicyDelete  Action = "pwdpolicy.delete"
+	ActionPolicySelfTest                 Action = "policy.selftest"
 	ActionAccountExpirationNotification  Action = "notification.account_expiration"
 	ActionPasswordExpirationNotification Action = "notification.password_expiration"
 )
@@ -126,6 +127,7 @@ const (
 	ResourceSchema    ResourceType = "schema"
 	ResourceSudoRole  ResourceType = "sudorole"
 	ResourcePwdPolicy ResourceType = "pwdpolicy"
+	ResourceDirectory ResourceType = "directory"
 )
 
 type LogEntry struct {

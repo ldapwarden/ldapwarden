@@ -114,7 +114,10 @@ function UserDetailPage() {
   // Scheduled expiry needs pwdEndTime in the directory (OpenLDAP >= 2.5). The
   // backend refuses to write one otherwise, so the controls stay hidden rather
   // than failing on submit.
-  const canExpire = config?.capabilities?.scheduledAccountExpiry ?? false
+  const canExpire = config?.capabilities?.scheduledExpirySupported ?? false
+  // Only ever "not-enforced" on evidence — see PolicyEnforcementSchema. Anything
+  // else, including the usual "unknown", stays silent rather than crying wolf.
+  const policyEnforcement = config?.capabilities?.policyEnforcement ?? 'unknown'
 
   // Check which objectClasses the user actually has
   const userObjectClasses = useMemo(() => {
@@ -279,6 +282,7 @@ function UserDetailPage() {
             canDelete={canDelete}
             showPoliciesModule={showPoliciesModule}
             canExpire={canExpire}
+            policyEnforcement={policyEnforcement}
             isSelf={isSelf}
           />
         </TabsContent>
@@ -1918,7 +1922,7 @@ function extractCN(dn: string): string {
 }
 
 // Security Tab (password, lock/unlock, delete)
-function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExpire, isSelf }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, canDelete: boolean, showPoliciesModule: boolean, canExpire: boolean, isSelf: boolean }) {
+function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExpire, policyEnforcement, isSelf }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, canDelete: boolean, showPoliciesModule: boolean, canExpire: boolean, policyEnforcement: string, isSelf: boolean }) {
   const queryClient = useQueryClient()
   const router = useRouter()
   const [password, setPassword] = useState('')
@@ -2314,6 +2318,22 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                   {lockMutation.isPending ? 'Locking...' : 'Lock Account'}
                 </Button>
               )}
+            </div>
+          )}
+
+          {/* The controls above write attributes the directory only honours while a
+              password policy applies to the entry. When we know it does not, say so
+              here rather than let the status column claim a lock that isn't one. An
+              entry carrying its own pwdPolicySubentry is covered whatever the
+              directory-wide answer is, so it is exempt. */}
+          {policyEnforcement === 'not-enforced' && !user.pwdPolicySubentry && (
+            <div className="pt-4 border-t">
+              <Callout variant="error">
+                No password policy applies to this directory, so locking and account expiry are
+                written but <strong>not enforced</strong> — the account will keep authenticating.
+                Set <code>olcPPolicyDefault</code> on the ppolicy overlay, or a{' '}
+                <code>pwdPolicySubentry</code> on this entry.
+              </Callout>
             </div>
           )}
 

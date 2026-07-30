@@ -1,9 +1,13 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/ldapwarden/ldapwarden/internal/audit"
+	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
 type ConfigResponse struct {
@@ -20,12 +24,22 @@ type ConfigResponse struct {
 	Capabilities CapabilitiesResponse `json:"capabilities"`
 }
 
-// CapabilitiesResponse tells the UI which features the connected directory can
-// actually enforce, so it can hide the ones that would silently do nothing.
+// CapabilitiesResponse tells the UI what the connected directory can do, so it
+// can hide what would silently do nothing.
 type CapabilitiesResponse struct {
-	// ScheduledAccountExpiry requires pwdEndTime, i.e. OpenLDAP 2.5 or later
-	// with the ppolicy overlay. Without it the UI offers lock/unlock only.
-	ScheduledAccountExpiry bool `json:"scheduledAccountExpiry"`
+	// ScheduledExpirySupported requires pwdEndTime, i.e. OpenLDAP 2.5 or later
+	// with the ppolicy overlay loaded. Without it the UI offers lock/unlock only.
+	//
+	// Named "supported" rather than "enabled" on purpose: it answers whether the
+	// attribute can be written, not whether writing it will have any effect. That
+	// second question is PolicyEnforcement.
+	ScheduledExpirySupported bool `json:"scheduledExpirySupported"`
+
+	// PolicyEnforcement is "enforced", "not-enforced" or "unknown". Unknown is
+	// the normal answer — it means the bind identity cannot read cn=config, not
+	// that anything is wrong. See POST /api/admin/policy-selftest for a
+	// definitive answer.
+	PolicyEnforcement string `json:"policyEnforcement"`
 }
 
 type ServerConfigResponse struct {
@@ -126,7 +140,8 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			TrustedProxies:    getConfigValue("LDAPWARDEN_TRUSTED_PROXIES", cfg.App.TrustedProxies, []string(nil)),
 		},
 		Capabilities: CapabilitiesResponse{
-			ScheduledAccountExpiry: s.ldapClient.Capabilities().ScheduledExpiry,
+			ScheduledExpirySupported: s.ldapClient.Capabilities().ScheduledExpiry,
+			PolicyEnforcement:        string(s.ldapClient.Capabilities().PolicyEnforcement),
 		},
 		Mail: MailConfigResponse{
 			Host:     getConfigValue("MAIL_HOST", cfg.Mail.Host, "localhost"),
@@ -210,4 +225,35 @@ func getConfigValueMaskedPassword(envVar string, currentValue string) ConfigValu
 		Source: source,
 		EnvVar: envVar,
 	}
+}
+
+// handlePolicySelfTest verifies, by experiment, that the directory enforces a
+// password policy — the one question no read can answer.
+//
+// It creates a throwaway entry, locks it, tries to authenticate as it and removes
+// it. That writes to the directory, which is why it is an explicit action behind
+// settings:write and is recorded in the audit log rather than run on startup.
+func (s *Server) handlePolicySelfTest(w http.ResponseWriter, r *http.Request) {
+	if !s.auditMutating(w, r, audit.ActionPolicySelfTest, audit.ResourceDirectory,
+		s.ldapClient.UserBaseDN(), map[string]interface{}{
+			"probeUid": ldap.PolicySelfTestUID,
+		}) {
+		return
+	}
+
+	result, err := s.ldapClient.TestPolicyEnforcement()
+	if err != nil {
+		if errors.Is(err, ldap.ErrSelfTestEntryExists) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		writeServerError(w, r, "policy self-test", err)
+		return
+	}
+
+	// Remember it: a proven verdict beats the "unknown" the passive probe returns,
+	// and the UI reads enforcement from the capability set.
+	s.ldapClient.RecordEnforcementVerdict(result.Result)
+
+	writeJSON(w, http.StatusOK, result)
 }

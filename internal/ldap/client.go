@@ -23,6 +23,9 @@ type Client struct {
 	capMu     sync.Mutex
 	capProbed bool
 	caps      Capabilities
+	// verdict is what a policy self-test observed, if one has been run. It fills
+	// in for the passive enforcement probe, which normally cannot tell.
+	verdict Enforcement
 }
 
 func NewClient(cfg config.LDAPConfig) *Client {
