@@ -139,7 +139,11 @@ open http://localhost:8000
 
 The Docker Compose setup includes:
 - **LDAP Warden** — The main application (port 8000)
-- **OpenLDAP** — Pre-configured LDAP server with sample data (port 389)
+- **OpenLDAP 2.6** — Pre-configured LDAP server with sample data (port 389),
+  built from `ldap/` with the ppolicy overlay enabled and `olcPPolicyDefault`
+  pointing at `cn=default,ou=policies,dc=example,dc=org`. The directory is baked
+  into the image and copied into the volumes on first start, so what you change
+  through the app survives a restart; `docker compose down -v` restores the seed.
 - **PostgreSQL** — Database for sessions and audit logs (port 5432)
 - **Redis** — Session store (port 6379)
 - **phpLDAPadmin** — Optional LDAP browser for debugging (port 8080, not started by default). Bring it up with `docker compose --profile debug up -d` or `docker compose up -d phpldapadmin`.
@@ -216,7 +220,8 @@ enforced by the directory rather than by LDAP Warden:
 overlay gained `pwdEndTime`. On an older directory the UI hides the expiration
 controls and the API refuses to set one (HTTP 422) rather than writing something
 the server would ignore; locking is unaffected. The check is a probe of the
-subschema, refreshed with the schema-refresh action.
+subschema, refreshed with the schema-refresh action. The bundled compose stack
+runs 2.6 with a default policy in effect, so both states work out of the box.
 
 Two caveats worth knowing:
 
@@ -268,9 +273,10 @@ LDAP Warden allows you to customize which features are visible based on your LDA
 > # Sudo roles
 > ldapadd -Y EXTERNAL -H ldapi:/// -f ldap/schema/sudo.ldif
 > # Password policies — enable the ppolicy overlay (skip if already configured).
-> # Most OpenLDAP builds already ship the pwdPolicy schema; if yours doesn't,
-> # load ldap/schema/ppolicy.ldif first.
-> ldapadd -Y EXTERNAL -H ldapi:/// -f ldap/config/ppolicy-overlay.ldif
+> # From OpenLDAP 2.5 the pwdPolicy schema is built into the overlay module, so
+> # loading the module is all it takes; adjust olcPPolicyDefault in the file to
+> # a policy entry that exists in your tree.
+> ldapmodify -Y EXTERNAL -H ldapi:/// -f ldap/config/ppolicy-overlay.ldif
 > ```
 >
 > These LDIFs target OpenLDAP's `cn=config`. For a different directory server
@@ -452,9 +458,12 @@ If you prefer to run services locally without Docker:
    sudo dpkg-reconfigure slapd
    ```
 
-   Load the sudo schema and seed data:
+   Load the sudo schema, enable the ppolicy overlay and add the seed data. The
+   overlay is what makes locking and expiry work at all — see [Account expiry and
+   locking](#account-expiry-and-locking):
    ```bash
    ldapadd -Y EXTERNAL -H ldapi:/// -f ldap/schema/sudo.ldif
+   ldapmodify -Y EXTERNAL -H ldapi:/// -f ldap/config/ppolicy-overlay.ldif
    ldapadd -x -D "cn=admin,dc=example,dc=org" -W -f ldap/seed.ldif
    ```
 

@@ -49,7 +49,8 @@ web/                 # React frontend
   src/routes/        # TanStack Router pages
   src/components/    # UI components
   src/lib/           # API client, auth, utils
-ldap/                # OpenLDAP seed data
+ldap/                # OpenLDAP 2.6 image for the bundled stack: schema,
+                     # ppolicy overlay, seed data
 ```
 
 ## Code Conventions
@@ -99,6 +100,10 @@ MVP implemented with:
   status, the dashboard or notifications.
 - ppolicy enforces none of the above unless a policy applies to the entry
   (`olcPPolicyDefault` or `pwdPolicySubentry`).
+- The bundled stack is OpenLDAP 2.6 built from `ldap/`, with the overlay and
+  `olcPPolicyDefault` wired up — so integration tests exercise the real
+  enforcement path, not the 422 fallback. From 2.5 the pwdPolicy schema lives
+  inside the overlay module; never load a separate `ppolicy.ldif`.
 
 ## UI Conventions
 - List views page, sort and filter **server-side**; the browser renders one page

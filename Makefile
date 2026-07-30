@@ -40,20 +40,10 @@ test:
 	go test ./...
 
 # Run integration tests against docker-compose services
+# --wait replaces the hand-rolled polling loops: all three services declare a
+# healthcheck, and the directory's is the same ldapsearch this used to run.
 test-integration:
-	@docker compose up -d postgres redis openldap
-	@echo "Waiting for postgres..."
-	@until docker exec ldapwarden-postgres pg_isready -U ldapwarden > /dev/null 2>&1; do sleep 1; done
-	@echo "Waiting for redis..."
-	@until docker exec ldapwarden-redis redis-cli ping > /dev/null 2>&1; do sleep 1; done
-	@echo "Waiting for OpenLDAP..."
-	@ready=0; for i in $$(seq 1 60); do \
-		if docker exec ldapwarden-openldap ldapsearch -x -D "cn=admin,dc=example,dc=org" -w admin -b "dc=example,dc=org" -s base -H ldap://localhost > /dev/null 2>&1; then \
-			echo "OpenLDAP ready"; ready=1; break; \
-		fi; \
-		sleep 2; \
-	done; \
-	if [ $$ready -eq 0 ]; then echo "OpenLDAP did not become ready"; exit 1; fi
+	@docker compose up -d --wait postgres redis openldap
 	LDAPWARDEN_TEST_INTEGRATION=1 go test -tags integration -count=1 -v ./...
 
 # Clean build artifacts

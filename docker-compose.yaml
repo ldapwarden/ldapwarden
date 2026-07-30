@@ -46,7 +46,7 @@ services:
       redis:
         condition: service_healthy
       openldap:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
   # Datastore and directory ports are bound to 127.0.0.1 only — the
@@ -91,25 +91,40 @@ services:
   # reach the directory through the docker network only. The LDAPS port
   # (636) used to be mapped but the app speaks ldap:// (LDAP_TLS=false), so
   # nothing on the host actually used it.
+  #
+  # OpenLDAP 2.6, built from ./ldap — see the comment at the top of its
+  # Dockerfile for why this is a local build rather than a published image.
+  # 2.5 is the floor: pwdEndTime, and therefore scheduled account expiry,
+  # does not exist before it.
+  #
+  # The directory is baked into the image and copied into the volumes on
+  # first start only, so your edits survive a restart. `docker compose down
+  # -v` puts the seed back.
   openldap:
-    image: osixia/openldap:1.5.0
+    build: ./ldap
+    image: ldapwarden-openldap:latest
     container_name: ldapwarden-openldap
-    environment:
-      LDAP_ORGANISATION: "Example Inc."
-      LDAP_DOMAIN: "example.org"
-      LDAP_ADMIN_PASSWORD: "admin"
-      LDAP_CONFIG_PASSWORD: "config"
-      LDAP_READONLY_USER: "false"
-      LDAP_TLS: "false"
     ports:
       - "389:389"
     volumes:
-      - openldap_data:/var/lib/ldap
-      - openldap_config:/etc/ldap/slapd.d
-      - ./ldap/schema/sudo.ldif:/container/service/slapd/assets/config/bootstrap/schema/sudo.ldif
-      - ./ldap/config/ppolicy-overlay.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/40-ppolicy.ldif
-      - ./ldap/seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif
-    command: --copy-service
+      - directory_data:/var/lib/ldap
+      - directory_config:/etc/ldap/slapd.d
+    healthcheck:
+      test:
+        - "CMD"
+        - "ldapsearch"
+        - "-x"
+        - "-H"
+        - "ldap://localhost"
+        - "-b"
+        - "dc=example,dc=org"
+        - "-s"
+        - "base"
+        - "dn"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   # Opt-in only: start with `docker compose --profile debug up -d` (or
   # `docker compose up phpldapadmin` to bring it up alongside the default
@@ -129,5 +144,11 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  openldap_data:
-  openldap_config:
+  # Renamed when the directory moved from OpenLDAP 2.4 to 2.6: the old
+  # openldap_data / openldap_config volumes hold a cn=config written by the
+  # osixia image, which points at module paths that do not exist here. Starting
+  # from fresh volumes rebuilds the directory from the seed; the old ones are
+  # left alone and can be removed with
+  #   docker volume rm ldapwarden_openldap_data ldapwarden_openldap_config
+  directory_data:
+  directory_config:
