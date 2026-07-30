@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -17,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { PickerOverflow } from '@/components/ui/picker-overflow'
+import { usePickerSearch } from '@/lib/use-picker-search'
 import { Lock, Unlock, Trash2, UserPlus, UserMinus, CalendarClock } from 'lucide-react'
 
 export interface BulkUser {
@@ -39,11 +41,9 @@ interface GroupOption {
  */
 export function UsersBulkActions({
   selected,
-  groups,
   onClear,
 }: {
   selected: BulkUser[]
-  groups: GroupOption[]
   onClear: () => void
 }) {
   const queryClient = useQueryClient()
@@ -132,7 +132,6 @@ export function UsersBulkActions({
 
       <GroupPickerDialog
         mode={groupMode}
-        groups={groups}
         count={selected.length}
         running={running}
         onClose={() => setGroupMode(null)}
@@ -164,37 +163,33 @@ export function UsersBulkActions({
 
 function GroupPickerDialog({
   mode,
-  groups,
   count,
   running,
   onClose,
   onConfirm,
 }: {
   mode: 'add' | 'remove' | null
-  groups: GroupOption[]
   count: number
   running: boolean
   onClose: () => void
   onConfirm: (group: GroupOption) => void
 }) {
-  const [search, setSearch] = useState('')
-  const [selectedDn, setSelectedDn] = useState<string | null>(null)
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const list = q ? groups.filter((g) => g.cn.toLowerCase().includes(q)) : groups
-    return [...list].sort((a, b) => a.cn.localeCompare(b.cn))
-  }, [groups, search])
-
-  const selected = groups.find((g) => g.dn === selectedDn) ?? null
+  // The chosen group is held whole rather than by DN: the candidate list is one
+  // search's worth, so a later keystroke can drop the choice out of it, and the
+  // confirm button must not go dead because of that.
+  const [selected, setSelected] = useState<GroupOption | null>(null)
+  const picker = usePickerSearch(['groups', 'picker', 'bulk'], api.groups.list, {
+    sort: 'cn',
+    enabled: mode !== null,
+  })
 
   return (
     <Dialog
       open={mode !== null}
       onOpenChange={(open) => {
         if (!open) {
-          setSearch('')
-          setSelectedDn(null)
+          picker.reset()
+          setSelected(null)
           onClose()
         }
       }}
@@ -209,16 +204,20 @@ function GroupPickerDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <Input placeholder="Search groups..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            placeholder="Search groups..."
+            value={picker.input}
+            onChange={(e) => picker.setInput(e.target.value)}
+          />
           <div className="max-h-64 overflow-y-auto space-y-1">
-            {filtered.length > 0 ? (
-              filtered.map((group) => {
-                const isSelected = group.dn === selectedDn
+            {picker.items.length > 0 ? (
+              picker.items.map((group) => {
+                const isSelected = group.dn === selected?.dn
                 return (
                   <button
                     key={group.dn}
                     type="button"
-                    onClick={() => setSelectedDn(group.dn)}
+                    onClick={() => setSelected({ dn: group.dn, cn: group.cn })}
                     className={`w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors ${
                       isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
                     }`}
@@ -228,9 +227,17 @@ function GroupPickerDialog({
                 )
               })
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No groups found</p>
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {picker.isFetching ? 'Searching...' : 'No groups found'}
+              </p>
             )}
           </div>
+          <PickerOverflow count={picker.overflow} />
+          {selected && !picker.items.some((g) => g.dn === selected.dn) && (
+            <p className="text-xs text-muted-foreground">
+              Selected: <span className="font-medium">{selected.cn}</span>
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

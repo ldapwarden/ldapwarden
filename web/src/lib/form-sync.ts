@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useBlocker } from '@tanstack/react-router'
 
 /**
@@ -40,6 +40,29 @@ export function useSyncedForm<T>(
   }, [serverJSON])
 
   return serverJSON !== null && JSON.stringify(form) !== serverJSON
+}
+
+/**
+ * Whether a creation form has been touched, for arming UnsavedChangesGuard.
+ *
+ * A detail form compares itself to the server's copy (useSyncedForm); a creation
+ * form has no server copy, so it compares against the values it held on its
+ * first render. Snapshotting rather than taking the initial object as a second
+ * argument keeps the two from drifting apart — which matters because the
+ * defaults are spread across a dozen fields. It does assume nothing populates
+ * the form asynchronously; a form that adopts fetched defaults would read as
+ * edited the moment they land.
+ *
+ * `settled` disarms the guard: once the record has been created the page
+ * navigates to it, and that navigation must not be blocked by the very values
+ * that were just saved.
+ */
+export function useCreationFormDirty<T>(current: T, settled: boolean): boolean {
+  const currentJSON = JSON.stringify(current)
+  // State, not a ref: the initial value has to be readable during render, and
+  // useState's initialiser is exactly "the value from the first render".
+  const [initialJSON] = useState(currentJSON)
+  return !settled && currentJSON !== initialJSON
 }
 
 /**

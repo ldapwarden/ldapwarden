@@ -2,7 +2,9 @@ package ldap
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-ldap/ldap/v3"
 )
@@ -220,6 +222,90 @@ func (c *Client) RemoveGroupMember(groupDN, memberUID string) error {
 	modReq.Delete("memberUid", []string{memberUID})
 
 	return c.Modify(modReq)
+}
+
+// GroupMember is one entry of a group's membership, resolved to something worth
+// displaying.
+//
+// A group stores memberUid values, not references, so the uid is the only thing
+// the group entry itself can tell you. The rest comes from the user entries.
+type GroupMember struct {
+	// UID is always set; it is the value stored on the group.
+	UID string `json:"uid"`
+	// The remaining fields are empty when no user entry carries this uid — a
+	// dangling membership, which the UI shows as the bare uid.
+	DN          string `json:"dn,omitempty"`
+	CN          string `json:"cn,omitempty"`
+	DisplayName string `json:"displayName,omitempty"`
+	HasPhoto    bool   `json:"hasPhoto"`
+}
+
+// GroupMembers resolves a group's memberUid values to user entries.
+//
+// One search with an OR filter over the group's uids, rather than the browser
+// downloading every user to look names up: a group has as many members as it has
+// members, while the directory has as many users as it has users. Members with
+// no matching user entry are still returned, uid only, because a dangling
+// membership is something the operator needs to see rather than a row that
+// silently disappears.
+func (c *Client) GroupMembers(groupDN string) ([]GroupMember, error) {
+	group, err := c.GetGroup(groupDN)
+	if err != nil {
+		return nil, err
+	}
+	if len(group.MemberUIDs) == 0 {
+		return []GroupMember{}, nil
+	}
+
+	var uids strings.Builder
+	uids.WriteString("(|")
+	for _, uid := range group.MemberUIDs {
+		fmt.Fprintf(&uids, "(uid=%s)", ldap.EscapeFilter(uid))
+	}
+	uids.WriteString(")")
+	memberFilter := "(&(objectClass=inetOrgPerson)" + uids.String() + ")"
+
+	entries, err := c.Search(c.UserBaseDN(), memberFilter, []string{"uid", "cn", "displayName"})
+	if err != nil {
+		return nil, err
+	}
+
+	// Which of them have a photo, asked for as dn only: the answer is a boolean
+	// per row, and requesting jpegPhoto would put every member's photo in this
+	// payload just to compute it. Same trick as usersWithPhoto.
+	withPhoto := make(map[string]bool)
+	if photos, perr := c.Search(c.UserBaseDN(),
+		"(&(objectClass=inetOrgPerson)(jpegPhoto=*)"+uids.String()+")", []string{"dn"}); perr == nil {
+		for _, entry := range photos {
+			withPhoto[entry.DN] = true
+		}
+	}
+
+	resolved := make(map[string]GroupMember, len(entries))
+	for _, entry := range entries {
+		uid := entry.GetAttributeValue("uid")
+		resolved[uid] = GroupMember{
+			UID:         uid,
+			DN:          entry.DN,
+			CN:          entry.GetAttributeValue("cn"),
+			DisplayName: entry.GetAttributeValue("displayName"),
+			HasPhoto:    withPhoto[entry.DN],
+		}
+	}
+
+	members := make([]GroupMember, 0, len(group.MemberUIDs))
+	for _, uid := range group.MemberUIDs {
+		if member, ok := resolved[uid]; ok {
+			members = append(members, member)
+			continue
+		}
+		members = append(members, GroupMember{UID: uid})
+	}
+	sort.Slice(members, func(i, j int) bool {
+		return strings.ToLower(members[i].UID) < strings.ToLower(members[j].UID)
+	})
+
+	return members, nil
 }
 
 func (c *Client) GetUserGroups(uid string) ([]Group, error) {

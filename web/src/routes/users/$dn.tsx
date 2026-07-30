@@ -4,9 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, userPhotoUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, sameDn } from '@/lib/utils'
+import { decodeDN, encodeDN, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
+import { PickerOverflow } from '@/components/ui/picker-overflow'
+import { usePickerSearch } from '@/lib/use-picker-search'
+
+// A password-policy dropdown is not searched, so it takes a generous bound:
+// enough that no real directory reaches it, small enough to stay a dropdown.
+const POLICY_OPTIONS_LIMIT = 200
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
-import { useDebounced } from '@/lib/use-debounced'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -290,62 +295,33 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   // Group pending removal confirmation (drives one controlled dialog).
   const [confirmRemoveGroup, setConfirmRemoveGroup] = useState<{ dn: string; cn: string } | null>(null)
-  const [groupSearch, setGroupSearch] = useState('')
   const [managerDropdownOpen, setManagerDropdownOpen] = useState(false)
-  const [managerSearch, setManagerSearch] = useState('')
 
-  // Fetch all groups to find available ones
-  const { data: allGroups } = useQuery({
-    queryKey: ['groups'],
-    queryFn: ({ signal }) => api.groups.list(undefined, signal),
+  // Both pickers search the directory instead of filtering a local copy of it.
+  // Headroom covers the candidates dropped below (groups already joined, the
+  // user being edited), so the list is not empty while matches remain.
+  const groupPicker = usePickerSearch(['groups', 'picker', dn], api.groups.list, {
+    sort: 'cn',
+    headroom: groups.length,
+    enabled: addGroupOpen,
+  })
+  const managerPicker = usePickerSearch(['users', 'picker', 'manager', dn], api.users.list, {
+    sort: 'displayName',
+    headroom: 1,
+    enabled: managerDropdownOpen,
   })
 
-  // Fetch all users for manager dropdown
-  const { data: allUsers } = useQuery({
-    queryKey: ['users'],
-    queryFn: ({ signal }) => api.users.list(undefined, signal),
-  })
-
-  // Debounce the manager search so a large directory isn't re-filtered and
-  // re-sorted on every keystroke.
-  const debouncedManagerSearch = useDebounced(managerSearch)
-
-  // Filter users for manager dropdown (exclude current user)
-  const availableManagers = useMemo(() => {
-    const filtered = allUsers?.data.filter(u => u.dn !== dn) ?? []
-
-    // Filter by search
-    const searched = debouncedManagerSearch
-      ? filtered.filter(u => {
-          const searchLower = debouncedManagerSearch.toLowerCase()
-          return (
-            u.uid.toLowerCase().includes(searchLower) ||
-            (u.displayName || u.cn).toLowerCase().includes(searchLower)
-          )
-        })
-      : filtered
-
-    // Sort by display name
-    return [...searched].sort((a, b) => {
-      const aName = (a.displayName || a.cn).toLowerCase()
-      const bName = (b.displayName || b.cn).toLowerCase()
-      return aName.localeCompare(bName)
-    })
-  }, [allUsers?.data, dn, debouncedManagerSearch])
+  // Nobody can manage themselves.
+  const availableManagers = useMemo(
+    () => managerPicker.items.filter(u => u.dn !== dn),
+    [managerPicker.items, dn],
+  )
 
   // Groups the user is NOT a member of
   const availableGroups = useMemo(() => {
     const memberGroupDns = new Set(groups.map(g => g.dn))
-    const filtered = allGroups?.data.filter(g => !memberGroupDns.has(g.dn)) ?? []
-
-    // Filter by search
-    const searched = groupSearch
-      ? filtered.filter(g => g.cn.toLowerCase().includes(groupSearch.toLowerCase()))
-      : filtered
-
-    // Sort by name
-    return [...searched].sort((a, b) => a.cn.localeCompare(b.cn))
-  }, [allGroups?.data, groups, groupSearch])
+    return groupPicker.items.filter(g => !memberGroupDns.has(g.dn))
+  }, [groupPicker.items, groups])
 
   const addToGroupMutation = useMutation({
     mutationFn: async (groupDns: string[]) => {
@@ -360,7 +336,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
       setAddGroupOpen(false)
       const count = selectedGroups.length
       setSelectedGroups([])
-      setGroupSearch('')
+      groupPicker.reset()
       toast.success(`User added to ${count} group${count > 1 ? 's' : ''}`)
     },
     onError: (error: Error) => {
@@ -690,8 +666,13 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                     >
                       {formData.manager ? (
                         (() => {
-                          const mgr = allUsers?.data.find(u => u.dn === formData.manager)
-                          return mgr ? `${mgr.displayName || mgr.cn} (${mgr.uid})` : formData.manager
+                          // The candidate list is one search's worth, so the
+                          // current manager is often not in it. Its uid, taken
+                          // from the DN, reads better than the DN itself.
+                          const mgr = managerPicker.items.find(u => u.dn === formData.manager)
+                          return mgr
+                            ? `${mgr.displayName || mgr.cn} (${mgr.uid})`
+                            : rdnValue(formData.manager)
                         })()
                       ) : (
                         <span className="text-muted-foreground">Select manager...</span>
@@ -708,8 +689,8 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                     <div className="space-y-4">
                       <Input
                         placeholder="Search users..."
-                        value={managerSearch}
-                        onChange={(e) => setManagerSearch(e.target.value)}
+                        value={managerPicker.input}
+                        onChange={(e) => managerPicker.setInput(e.target.value)}
                       />
                       <div className="max-h-64 overflow-y-auto space-y-1">
                         {formData.manager && (
@@ -718,7 +699,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                             onClick={() => {
                               setFormData({ ...formData, manager: '' })
                               setManagerDropdownOpen(false)
-                              setManagerSearch('')
+                              managerPicker.reset()
                             }}
                             className="w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors hover:bg-muted text-muted-foreground"
                           >
@@ -734,7 +715,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                               onClick={() => {
                                 setFormData({ ...formData, manager: mgr.dn })
                                 setManagerDropdownOpen(false)
-                                setManagerSearch('')
+                                managerPicker.reset()
                               }}
                               className={`w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors ${
                                 formData.manager === mgr.dn
@@ -763,10 +744,15 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                           ))
                         ) : (
                           <p className="text-sm text-muted-foreground text-center py-4">
-                            No users found
+                            {managerPicker.isFetching
+                              ? 'Searching...'
+                              : managerPicker.input
+                                ? 'No user matches this search.'
+                                : 'No other user to pick from.'}
                           </p>
                         )}
                       </div>
+                      <PickerOverflow count={managerPicker.overflow} />
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -820,8 +806,8 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                   <div className="relative">
                     <Input
                       placeholder="Search groups..."
-                      value={groupSearch}
-                      onChange={(e) => setGroupSearch(e.target.value)}
+                      value={groupPicker.input}
+                      onChange={(e) => groupPicker.setInput(e.target.value)}
                     />
                   </div>
                   {selectedGroups.length > 0 && (
@@ -866,16 +852,21 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                       })
                     ) : (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        No groups available
+                        {groupPicker.isFetching
+                          ? 'Searching...'
+                          : groupPicker.input
+                            ? 'No group matches this search.'
+                            : 'This user is already in every group.'}
                       </p>
                     )}
                   </div>
+                  <PickerOverflow count={groupPicker.overflow} />
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => {
                     setAddGroupOpen(false)
                     setSelectedGroups([])
-                    setGroupSearch('')
+                    groupPicker.reset()
                   }}>
                     Cancel
                   </Button>
@@ -1717,7 +1708,6 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
   const queryClient = useQueryClient()
   const [addRoleOpen, setAddRoleOpen] = useState(false)
   const [selectedRole, setSelectedRole] = useState('')
-  const [roleSearch, setRoleSearch] = useState('')
 
   // Fetch user's sudo roles
   const { data: userSudoRoles, isLoading: loadingUserRoles } = useQuery({
@@ -1725,25 +1715,18 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
     queryFn: ({ signal }) => api.users.getSudoRoles(dn, signal),
   })
 
-  // Fetch all sudo roles
-  const { data: allSudoRoles } = useQuery({
-    queryKey: ['sudo-roles'],
-    queryFn: ({ signal }) => api.sudoRoles.list(undefined, signal),
+  // Candidate roles come from the directory; headroom covers the ones the user
+  // already holds, dropped just below.
+  const rolePicker = usePickerSearch(['sudo-roles', 'picker', dn], api.sudoRoles.list, {
+    sort: 'cn',
+    headroom: userSudoRoles?.data.length ?? 0,
+    enabled: addRoleOpen,
   })
 
-  // Sudo roles the user is NOT a member of
   const availableRoles = useMemo(() => {
     const userRoleDns = new Set(userSudoRoles?.data.map(r => r.dn) ?? [])
-    const filtered = allSudoRoles?.data.filter(r => !userRoleDns.has(r.dn)) ?? []
-
-    // Filter by search
-    const searched = roleSearch
-      ? filtered.filter(r => r.cn.toLowerCase().includes(roleSearch.toLowerCase()))
-      : filtered
-
-    // Sort by name
-    return [...searched].sort((a, b) => a.cn.localeCompare(b.cn))
-  }, [allSudoRoles?.data, userSudoRoles?.data, roleSearch])
+    return rolePicker.items.filter(r => !userRoleDns.has(r.dn))
+  }, [rolePicker.items, userSudoRoles?.data])
 
   const addToRoleMutation = useMutation({
     mutationFn: (roleDn: string) => api.sudoRoles.addUser(roleDn, user.uid),
@@ -1752,7 +1735,7 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
       queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
       setAddRoleOpen(false)
       setSelectedRole('')
-      setRoleSearch('')
+      rolePicker.reset()
       toast.success('User added to sudo role')
     },
     onError: (error: Error) => {
@@ -1803,8 +1786,8 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                 <div className="relative">
                   <Input
                     placeholder="Search sudo roles..."
-                    value={roleSearch}
-                    onChange={(e) => setRoleSearch(e.target.value)}
+                    value={rolePicker.input}
+                    onChange={(e) => rolePicker.setInput(e.target.value)}
                   />
                 </div>
                 <div className="max-h-64 overflow-y-auto space-y-1">
@@ -1836,16 +1819,21 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                     ))
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No sudo roles available
+                      {rolePicker.isFetching
+                        ? 'Searching...'
+                        : rolePicker.input
+                          ? 'No sudo role matches this search.'
+                          : 'This user is already in every sudo role.'}
                     </p>
                   )}
                 </div>
+                <PickerOverflow count={rolePicker.overflow} />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => {
                   setAddRoleOpen(false)
                   setSelectedRole('')
-                  setRoleSearch('')
+                  rolePicker.reset()
                 }}>
                   Cancel
                 </Button>
@@ -1972,11 +1960,38 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
       : ''
   )
 
+  // A dropdown, not a searchable picker: a directory has a handful of policies.
+  // Bounded and sorted all the same, because an unbounded list endpoint stops at
+  // LDAP_SEARCH_SIZE_LIMIT without saying so.
   const { data: passwordPolicies } = useQuery({
-    queryKey: ['password-policies'],
-    queryFn: ({ signal }) => api.passwordPolicies.list(undefined, signal),
+    queryKey: ['password-policies', 'options'],
+    queryFn: ({ signal }) =>
+      api.passwordPolicies.list({ sort: 'cn', order: 'asc', limit: POLICY_OPTIONS_LIMIT }, signal),
     enabled: showPoliciesModule,
   })
+
+  const policyOptions = useMemo(() => {
+    const listed = passwordPolicies?.data ?? []
+    const options = [
+      { value: '', label: 'Default (none)' },
+      ...listed.map((policy) => ({
+        value: policy.dn,
+        label: policy.cn + (policy.description ? ` - ${policy.description}` : ''),
+      })),
+    ]
+    // The applied policy may be outside the page we fetched. Without an option
+    // for it the select would show a different policy than the one in force.
+    const applied = user?.pwdPolicySubentry
+    if (applied && !listed.some((policy) => policy.dn === applied)) {
+      options.push({ value: applied, label: extractCN(applied) })
+    }
+    return options
+  }, [passwordPolicies?.data, user?.pwdPolicySubentry])
+
+  const policiesNotShown = Math.max(
+    0,
+    (passwordPolicies?.total ?? 0) - (passwordPolicies?.data.length ?? 0),
+  )
 
   const updatePolicyMutation = useMutation({
     mutationFn: (pwdPolicySubentry: string | undefined) =>
@@ -2293,9 +2308,10 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
             </div>
           )}
 
-          {/* Setting an expiration writes the same attribute `lock` does, so on your
-              own account it is the same lockout by another name — the API refuses
-              it (see refuseSelfTarget). Clearing an existing one stays available. */}
+          {/* An expiration writes pwdEndTime, not the lock attribute, but the
+              directory refuses the bind either way — so on your own account it is
+              the same lockout by another name and the API refuses it (see
+              refuseSelfTarget). Clearing an existing one stays available. */}
           {!canExpire && canWrite && (
             <div className="pt-4 border-t">
               <Callout variant="info">
@@ -2450,19 +2466,19 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                       const newPolicy = e.target.value
                       updatePolicyMutation.mutate(newPolicy || undefined)
                     }}
-                    options={[
-                      { value: '', label: 'Default (none)' },
-                      ...(passwordPolicies?.data || []).map((policy) => ({
-                        value: policy.dn,
-                        label: policy.cn + (policy.description ? ` - ${policy.description}` : ''),
-                      })),
-                    ]}
+                    options={policyOptions}
                     className="mt-1"
                     disabled={updatePolicyMutation.isPending}
                   />
                 ) : (
                   <p className="font-medium font-mono text-xs mt-1">
                     {user?.pwdPolicySubentry ? extractCN(user.pwdPolicySubentry) : 'Default'}
+                  </p>
+                )}
+                {canWrite && policiesNotShown > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {policiesNotShown} further {policiesNotShown === 1 ? 'policy is' : 'policies are'} not
+                    listed here — the directory returned as many as it will.
                   </p>
                 )}
               </div>

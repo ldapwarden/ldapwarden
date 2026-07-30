@@ -69,3 +69,18 @@ export function sameDn(a: string | undefined, b: string | undefined): boolean {
       .toLowerCase()
   return normalise(a) === normalise(b)
 }
+
+/**
+ * The value of a DN's first component — "jdoe" out of
+ * "uid=jdoe,ou=People,dc=example,dc=org".
+ *
+ * A label of last resort, for showing a referenced entry the current view has
+ * not fetched (a manager picked before the picker's search results changed). It
+ * is the uid in practice, so it reads as a name rather than as a DN. Falls back
+ * to the whole string if there is no `=`.
+ */
+export function rdnValue(dn: string): string {
+  const first = dn.split(',')[0]
+  const eq = first.indexOf('=')
+  return eq === -1 ? dn : first.slice(eq + 1).trim()
+}

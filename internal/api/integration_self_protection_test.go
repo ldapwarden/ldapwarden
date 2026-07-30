@@ -34,8 +34,10 @@ func TestIntegration_SelfProtection_RefusesLockoutActions(t *testing.T) {
 		{"remove password", http.MethodDelete, userPath(selfDN) + "/password", nil},
 		{"rename", http.MethodPost, userPath(selfDN) + "/change-uid", map[string]string{"newUid": "renamed-" + self.UID}},
 		// Both of these write an expiry rather than a lock, which is the same
-		// lockout by another name: pwdAccountLockedTime is the attribute `lock`
-		// itself uses, and shadowExpire is what the status column reads.
+		// lockout by another name: a lapsed pwdEndTime makes the directory refuse
+		// the bind exactly as a lock does, and shadowExpire does the same on any
+		// host whose PAM/SSSD reads it — so an admin can still shut themselves out
+		// of the machines even though slapd ignores that one.
 		{"expire", http.MethodPut, userPath(selfDN) + "/expiration", map[string]string{"expirationDate": "2020-01-01"}},
 		{"shadow expiry", http.MethodPut, userPath(selfDN) + "/shadow", map[string]any{"shadowExpire": 1}},
 	}

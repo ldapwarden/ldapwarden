@@ -157,6 +157,7 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/", s.handleCreateGroup)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Put("/{dn}", s.handleUpdateGroup)
 				r.With(s.requirePermission(rbac.PermGroupsDelete)).Delete("/{dn}", s.handleDeleteGroup)
+				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}/members", s.handleGetGroupMembers)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/{dn}/members", s.handleAddGroupMember)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Delete("/{dn}/members", s.handleRemoveGroupMember)
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}/sudo-roles", s.handleGetGroupSudoRoles)

@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Callout } from '@/components/ui/callout'
 import { ArrowLeft, Save, ShieldCheck, Plus, X, Users, Terminal, Clock } from 'lucide-react'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
+import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/sudo-roles/new')({
@@ -90,6 +92,11 @@ function NewSudoRolePage() {
     }
   }
 
+  const isDirty = useCreationFormDirty(
+    formData,
+    createMutation.isPending || createMutation.isSuccess,
+  )
+
   if (!canWrite) {
     return (
       <Callout variant="error">
@@ -100,6 +107,7 @@ function NewSudoRolePage() {
 
   return (
     <div className="space-y-4">
+      <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" aria-label="Back to sudo roles" onClick={() => router.navigate({ to: '/sudo-roles' })}>
           <ArrowLeft className="h-4 w-4" />

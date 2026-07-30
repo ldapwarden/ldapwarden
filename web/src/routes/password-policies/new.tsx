@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save } from 'lucide-react'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
+import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { encodeDN } from '@/lib/utils'
@@ -67,8 +69,14 @@ function NewPasswordPolicyPage() {
     createMutation.mutate()
   }
 
+  const isDirty = useCreationFormDirty(
+    formData,
+    createMutation.isPending || createMutation.isSuccess,
+  )
+
   return (
     <div className="space-y-6">
+      <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
         <Link to="/password-policies">
           <Button variant="ghost" size="icon" aria-label="Back to password policies">

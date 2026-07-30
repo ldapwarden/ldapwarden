@@ -4,6 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
+import { PickerOverflow } from '@/components/ui/picker-overflow'
+import { usePickerSearch } from '@/lib/use-picker-search'
+import { userPhotoUrl, type GroupMember } from '@/lib/api'
 import { decodeDN } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,16 +60,18 @@ function GroupDetailPage() {
 
   const [newMember, setNewMember] = useState('')
   const [addMemberOpen, setAddMemberOpen] = useState(false)
-  const [memberSearch, setMemberSearch] = useState('')
 
   const { data: group, isLoading, error } = useQuery({
     queryKey: ['group', dn],
     queryFn: ({ signal }) => api.groups.get(dn, signal),
   })
 
-  const { data: usersData } = useQuery({
-    queryKey: ['users'],
-    queryFn: ({ signal }) => api.users.list(undefined, signal),
+  // The membership, resolved to names by the directory. The browser used to do
+  // this by downloading every user and matching uids locally, which only worked
+  // as far as LDAP_SEARCH_SIZE_LIMIT.
+  const { data: membersData } = useQuery({
+    queryKey: ['group', dn, 'members'],
+    queryFn: ({ signal }) => api.groups.members(dn, signal),
   })
 
   const { data: config } = useQuery({
@@ -174,29 +180,23 @@ function GroupDetailPage() {
     updateMutation.mutate(description)
   }
 
-  const availableUsers = useMemo(() => {
-    const filtered = usersData?.data.filter(
-      (user) => !group?.memberUid?.includes(user.uid)
-    ) ?? []
+  // Candidates come from the directory, not from a local copy of it. The
+  // headroom covers the members filtered out just below: without it a term whose
+  // first hits are all already in the group would show an empty picker.
+  const memberPicker = usePickerSearch(['users', 'picker', dn], api.users.list, {
+    sort: 'displayName',
+    headroom: group?.memberUid?.length ?? 0,
+    enabled: addMemberOpen,
+  })
 
-    // Filter by search term
-    const searched = memberSearch
-      ? filtered.filter((user) => {
-          const searchLower = memberSearch.toLowerCase()
-          return (
-            user.uid.toLowerCase().includes(searchLower) ||
-            (user.displayName || user.cn).toLowerCase().includes(searchLower)
-          )
-        })
-      : filtered
-
-    // Sort by display name
-    return [...searched].sort((a, b) => {
-      const aName = (a.displayName || a.cn).toLowerCase()
-      const bName = (b.displayName || b.cn).toLowerCase()
-      return aName.localeCompare(bName)
-    })
-  }, [usersData?.data, group?.memberUid, memberSearch])
+  const alreadyMembers = useMemo(
+    () => new Set(group?.memberUid ?? []),
+    [group?.memberUid],
+  )
+  const availableUsers = useMemo(
+    () => memberPicker.items.filter((user) => !alreadyMembers.has(user.uid)),
+    [memberPicker.items, alreadyMembers],
+  )
 
   if (isLoading) {
     return <DetailSkeleton cards={2} />
@@ -274,15 +274,14 @@ function GroupDetailPage() {
           <TabsContent value="members">
             <MembersTab
               group={group!}
-              usersData={usersData}
+              members={membersData?.data}
               availableUsers={availableUsers}
+              picker={memberPicker}
               canWrite={canWrite}
               addMemberOpen={addMemberOpen}
               setAddMemberOpen={setAddMemberOpen}
               newMember={newMember}
               setNewMember={setNewMember}
-              memberSearch={memberSearch}
-              setMemberSearch={setMemberSearch}
               addMemberMutation={addMemberMutation}
               removeMemberMutation={removeMemberMutation}
             />
@@ -329,6 +328,10 @@ function InformationTab({
 
   return (
     <form onSubmit={(e) => onSubmit(e, description)} className="space-y-4">
+      {/* The guard lives here rather than on the page: this is where the edited
+          value is held, and the tab unmounts when you switch away — which is
+          exactly the navigation worth intercepting. */}
+      <UnsavedChangesGuard when={description !== (group.description || '')} />
       {!canWrite && <ReadOnlyNotice />}
       <Card>
         <CardHeader>
@@ -374,28 +377,26 @@ function InformationTab({
 // Members Tab
 function MembersTab({
   group,
-  usersData,
+  members,
   availableUsers,
+  picker,
   canWrite,
   addMemberOpen,
   setAddMemberOpen,
   newMember,
   setNewMember,
-  memberSearch,
-  setMemberSearch,
   addMemberMutation,
   removeMemberMutation,
 }: {
   group: NonNullable<ReturnType<typeof api.groups.get> extends Promise<infer T> ? T : never>
-  usersData: { data: Array<{ uid: string; cn: string; displayName?: string; jpegPhoto?: string }> } | undefined
-  availableUsers: Array<{ uid: string; cn: string; displayName?: string; jpegPhoto?: string }>
+  members: GroupMember[] | undefined
+  availableUsers: Array<{ dn: string; uid: string; cn: string; displayName?: string; hasPhoto?: boolean }>
+  picker: ReturnType<typeof usePickerSearch<{ dn: string; uid: string; cn: string; displayName?: string; hasPhoto?: boolean }>>
   canWrite: boolean
   addMemberOpen: boolean
   setAddMemberOpen: (open: boolean) => void
   newMember: string
   setNewMember: (uid: string) => void
-  memberSearch: string
-  setMemberSearch: (search: string) => void
   addMemberMutation: ReturnType<typeof useMutation<unknown, Error, string>>
   removeMemberMutation: ReturnType<typeof useMutation<unknown, Error, string>>
 }) {
@@ -430,8 +431,8 @@ function MembersTab({
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search users..."
-                    value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
+                    value={picker.input}
+                    onChange={(e) => picker.setInput(e.target.value)}
                     className="pl-8"
                   />
                 </div>
@@ -449,7 +450,7 @@ function MembersTab({
                         }`}
                       >
                         <Avatar
-                          src={user.jpegPhoto}
+                          url={user.hasPhoto ? userPhotoUrl(user.dn) : undefined}
                           fallback={user.displayName || user.cn}
                           size="sm"
                         />
@@ -469,16 +470,21 @@ function MembersTab({
                     ))
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No users available
+                      {picker.isFetching
+                        ? 'Searching...'
+                        : picker.input
+                          ? 'No user matches this search.'
+                          : 'Every user is already a member.'}
                     </p>
                   )}
                 </div>
+                <PickerOverflow count={picker.overflow} />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => {
                   setAddMemberOpen(false)
                   setNewMember('')
-                  setMemberSearch('')
+                  picker.reset()
                 }}>
                   Close
                 </Button>
@@ -496,8 +502,11 @@ function MembersTab({
       <CardContent>
         {group?.memberUid && group.memberUid.length > 0 ? (
           <ul className="space-y-2">
-            {[...group.memberUid].sort((a, b) => a.localeCompare(b)).map((uid) => {
-              const user = usersData?.data.find((u) => u.uid === uid)
+            {/* The resolved membership when it has arrived, the raw uids until
+                then, so the list never waits on the name lookup to render. */}
+            {(members ?? [...group.memberUid].sort((a, b) => a.localeCompare(b)).map((uid) => ({ uid }) as GroupMember)).map((member) => {
+              const uid = member.uid
+              const name = member.displayName || member.cn
               return (
                 <li
                   key={uid}
@@ -505,15 +514,15 @@ function MembersTab({
                 >
                   <div className="flex items-center gap-3">
                     <Avatar
-                      src={user?.jpegPhoto}
-                      fallback={user?.displayName || user?.cn || uid}
+                      url={member.hasPhoto && member.dn ? userPhotoUrl(member.dn) : undefined}
+                      fallback={name || uid}
                       size="sm"
                     />
                     <div>
                       <span className="font-medium">{uid}</span>
-                      {user && (
+                      {name && (
                         <span className="text-sm text-muted-foreground ml-2">
-                          ({user.displayName || user.cn})
+                          ({name})
                         </span>
                       )}
                     </div>
@@ -724,7 +733,6 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
   const queryClient = useQueryClient()
   const [addRoleOpen, setAddRoleOpen] = useState(false)
   const [selectedRole, setSelectedRole] = useState('')
-  const [roleSearch, setRoleSearch] = useState('')
 
   // Fetch group's sudo roles
   const { data: groupSudoRoles, isLoading: loadingGroupRoles } = useQuery({
@@ -732,25 +740,18 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
     queryFn: ({ signal }) => api.groups.getSudoRoles(dn, signal),
   })
 
-  // Fetch all sudo roles
-  const { data: allSudoRoles } = useQuery({
-    queryKey: ['sudo-roles'],
-    queryFn: ({ signal }) => api.sudoRoles.list(undefined, signal),
+  // Candidate roles, matched by the directory. Headroom for the roles the group
+  // already has, which are dropped below.
+  const rolePicker = usePickerSearch(['sudo-roles', 'picker', dn], api.sudoRoles.list, {
+    sort: 'cn',
+    headroom: groupSudoRoles?.data.length ?? 0,
+    enabled: addRoleOpen,
   })
 
-  // Sudo roles the group is NOT a member of
   const availableRoles = useMemo(() => {
     const groupRoleDns = new Set(groupSudoRoles?.data.map(r => r.dn) ?? [])
-    const filtered = allSudoRoles?.data.filter(r => !groupRoleDns.has(r.dn)) ?? []
-
-    // Filter by search
-    const searched = roleSearch
-      ? filtered.filter(r => r.cn.toLowerCase().includes(roleSearch.toLowerCase()))
-      : filtered
-
-    // Sort by name
-    return [...searched].sort((a, b) => a.cn.localeCompare(b.cn))
-  }, [allSudoRoles?.data, groupSudoRoles?.data, roleSearch])
+    return rolePicker.items.filter(r => !groupRoleDns.has(r.dn))
+  }, [rolePicker.items, groupSudoRoles?.data])
 
   const addToRoleMutation = useMutation({
     mutationFn: (roleDn: string) => api.sudoRoles.addGroup(roleDn, group.cn),
@@ -759,7 +760,7 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
       queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
       setAddRoleOpen(false)
       setSelectedRole('')
-      setRoleSearch('')
+      rolePicker.reset()
       toast.success('Group added to sudo role')
     },
     onError: (error: Error) => {
@@ -810,8 +811,8 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
                 <div className="relative">
                   <Input
                     placeholder="Search sudo roles..."
-                    value={roleSearch}
-                    onChange={(e) => setRoleSearch(e.target.value)}
+                    value={rolePicker.input}
+                    onChange={(e) => rolePicker.setInput(e.target.value)}
                   />
                 </div>
                 <div className="max-h-64 overflow-y-auto space-y-1">
@@ -843,16 +844,21 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
                     ))
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No sudo roles available
+                      {rolePicker.isFetching
+                        ? 'Searching...'
+                        : rolePicker.input
+                          ? 'No sudo role matches this search.'
+                          : 'This group is already in every sudo role.'}
                     </p>
                   )}
                 </div>
+                <PickerOverflow count={rolePicker.overflow} />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => {
                   setAddRoleOpen(false)
                   setSelectedRole('')
-                  setRoleSearch('')
+                  rolePicker.reset()
                 }}>
                   Cancel
                 </Button>

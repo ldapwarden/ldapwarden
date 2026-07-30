@@ -638,6 +638,44 @@ curl -X DELETE "http://localhost:8000/api/groups/$ENCODED_DN" \
   -b cookies.txt
 ```
 
+### List Group Members
+
+```http
+GET /api/groups/{dn}/members
+```
+
+Resolves the group's `memberUid` values to user entries, so a client does not
+have to fetch the user collection to display names.
+
+```json
+{
+  "data": [
+    {
+      "uid": "jdoe",
+      "dn": "uid=jdoe,ou=People,dc=example,dc=org",
+      "cn": "John Doe",
+      "displayName": "John Doe",
+      "hasPhoto": false
+    },
+    { "uid": "ghost", "hasPhoto": false }
+  ]
+}
+```
+
+`uid` is always present — it is the value the group entry stores. The other
+fields are omitted when no user entry carries that uid, which is how a dangling
+membership is reported rather than dropped. Sorted by uid.
+
+**Required permission:** `groups:read`
+
+**curl example:**
+```bash
+DN="cn=developers,ou=Groups,dc=example,dc=org"
+ENCODED_DN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$DN', safe=''))")
+
+curl "http://localhost:8000/api/groups/$ENCODED_DN/members" -b cookies.txt
+```
+
 ### Add Member to Group
 
 ```http

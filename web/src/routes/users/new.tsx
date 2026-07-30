@@ -11,8 +11,17 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
+import { PickerOverflow } from '@/components/ui/picker-overflow'
+import { useCreationFormDirty } from '@/lib/form-sync'
+import { usePickerSearch } from '@/lib/use-picker-search'
 import { ArrowLeft, Save, Wand2, Users, X, CalendarClock } from 'lucide-react'
 import { useState, useMemo } from 'react'
+
+// The primary-group dropdown is not searched, so it takes a generous bound —
+// still a bound, because an unbounded list stops at LDAP_SEARCH_SIZE_LIMIT
+// without saying so.
+const PRIMARY_GROUP_OPTIONS_LIMIT = 200
 
 export const Route = createFileRoute('/users/new')({
   beforeLoad: ({ context }) => {
@@ -36,9 +45,12 @@ function NewUserPage() {
     queryFn: ({ signal }) => api.nextIds.get(signal),
   })
 
+  // Two different needs, two different requests: the primary-group dropdown has
+  // to list groups without a search term, while the membership box searches.
   const { data: allGroups } = useQuery({
-    queryKey: ['groups'],
-    queryFn: ({ signal }) => api.groups.list(undefined, signal),
+    queryKey: ['groups', 'options'],
+    queryFn: ({ signal }) =>
+      api.groups.list({ sort: 'cn', order: 'asc', limit: PRIMARY_GROUP_OPTIONS_LIMIT }, signal),
   })
 
   const { data: config } = useQuery({
@@ -52,7 +64,6 @@ function NewUserPage() {
 
   const [primaryGroup, setPrimaryGroup] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
-  const [groupSearch, setGroupSearch] = useState('')
 
   // Options for the primary group dropdown
   const primaryGroupOptions = useMemo(() => {
@@ -66,6 +77,8 @@ function NewUserPage() {
     ]
   }, [allGroups?.data])
 
+  const groupsNotListed = Math.max(0, (allGroups?.total ?? 0) - (allGroups?.data.length ?? 0))
+
   // Resolve gidNumber from primary group selection or next available
   const resolvedGidNumber = useMemo(() => {
     if (primaryGroup) {
@@ -75,14 +88,17 @@ function NewUserPage() {
     return nextIds?.nextGid ?? 0
   }, [primaryGroup, allGroups?.data, nextIds])
 
-  // Filter and sort available groups
-  const availableGroups = useMemo(() => {
-    const groups = allGroups?.data ?? []
-    const filtered = groupSearch
-      ? groups.filter(g => g.cn.toLowerCase().includes(groupSearch.toLowerCase()))
-      : groups
-    return [...filtered].sort((a, b) => a.cn.localeCompare(b.cn))
-  }, [allGroups?.data, groupSearch])
+  // Membership candidates come from the directory. Headroom covers the groups
+  // already picked, which are filtered out below.
+  const groupPicker = usePickerSearch(['groups', 'picker', 'new-user'], api.groups.list, {
+    sort: 'cn',
+    headroom: selectedGroups.length,
+  })
+
+  const availableGroups = useMemo(
+    () => groupPicker.items.filter(g => !selectedGroups.includes(g.cn)),
+    [groupPicker.items, selectedGroups],
+  )
 
   const [formData, setFormData] = useState({
     uid: '',
@@ -143,12 +159,20 @@ function NewUserPage() {
     createMutation.mutate()
   }
 
+  // Group selections are part of the form, so a half-filled membership list
+  // counts as unsaved work like any typed field.
+  const isDirty = useCreationFormDirty(
+    { ...formData, primaryGroup, selectedGroups },
+    createMutation.isPending || createMutation.isSuccess,
+  )
+
   if (!hasPermission('users:write')) {
     return null
   }
 
   return (
     <div className="space-y-4">
+      <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" aria-label="Back to users" onClick={() => router.navigate({ to: '/users' })}>
           <ArrowLeft className="h-4 w-4" />
@@ -255,6 +279,12 @@ function NewUserPage() {
                 <p className="text-xs text-muted-foreground">
                   If left empty, a new group will be created with the user's UID as name.
                 </p>
+                {groupsNotListed > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {groupsNotListed} further {groupsNotListed === 1 ? 'group is' : 'groups are'} not
+                    listed here — search for them under Additional Groups instead.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -406,23 +436,21 @@ function NewUserPage() {
               <div className="relative">
                 <Input
                   placeholder="Search groups to add..."
-                  value={groupSearch}
-                  onChange={(e) => setGroupSearch(e.target.value)}
+                  value={groupPicker.input}
+                  onChange={(e) => groupPicker.setInput(e.target.value)}
                 />
               </div>
-              {groupSearch && (
-                <div className="max-h-40 overflow-y-auto border rounded-md bg-background">
-                  {availableGroups.filter(g => !selectedGroups.includes(g.cn)).length > 0 ? (
-                    availableGroups
-                      .filter(g => !selectedGroups.includes(g.cn))
-                      .slice(0, 10)
-                      .map((group) => (
+              {groupPicker.input && (
+                <>
+                  <div className="max-h-40 overflow-y-auto border rounded-md bg-background">
+                    {availableGroups.length > 0 ? (
+                      availableGroups.map((group) => (
                         <button
                           key={group.dn}
                           type="button"
                           onClick={() => {
                             setSelectedGroups([...selectedGroups, group.cn])
-                            setGroupSearch('')
+                            groupPicker.reset()
                           }}
                           className="w-full flex items-center gap-2 p-2 text-left hover:bg-muted transition-colors"
                         >
@@ -430,12 +458,14 @@ function NewUserPage() {
                           <span className="font-medium">{group.cn}</span>
                         </button>
                       ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      No matching groups
-                    </p>
-                  )}
-                </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        {groupPicker.isFetching ? 'Searching...' : 'No matching groups'}
+                      </p>
+                    )}
+                  </div>
+                  <PickerOverflow count={groupPicker.overflow} />
+                </>
               )}
               <p className="text-xs text-muted-foreground">
                 Additional groups the user will be added to after creation.

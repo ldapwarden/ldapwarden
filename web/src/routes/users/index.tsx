@@ -107,15 +107,6 @@ function UsersPage() {
     placeholderData: keepPreviousData,
   })
 
-  // Group list for the "add to group" bulk action. Cheap now that the list
-  // projection carries a member count instead of every member uid.
-  const { data: groupsData } = useQuery({
-    queryKey: ['groups', 'picker'],
-    queryFn: ({ signal }) => api.groups.list(undefined, signal),
-    enabled: hasPermission('users:write'),
-    staleTime: 60_000,
-  })
-
   // Memoised so the derived selection/tone maps below keep a stable identity
   // between renders.
   const users = useMemo(() => data?.data ?? [], [data?.data])
@@ -236,7 +227,6 @@ function UsersPage() {
       {canWrite && (
         <UsersBulkActions
           selected={selectedUsers}
-          groups={(groupsData?.data ?? []).map((g) => ({ dn: g.dn, cn: g.cn }))}
           onClear={clearSelection}
         />
       )}

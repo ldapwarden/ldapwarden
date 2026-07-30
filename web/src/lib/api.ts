@@ -320,6 +320,23 @@ export const GroupListItemSchema = z.object({
   membersCount: z.number().optional(),
 })
 
+// A group's membership, resolved server-side. The uid is the value the group
+// entry stores; the rest is only present when a user entry carries that uid, so
+// a dangling membership still renders instead of vanishing.
+export const GroupMemberSchema = z.object({
+  uid: z.string(),
+  dn: z.string().optional(),
+  cn: z.string().optional(),
+  displayName: z.string().optional(),
+  hasPhoto: z.boolean().optional(),
+})
+
+export const GroupMembersResponseSchema = z.object({
+  data: z.array(GroupMemberSchema),
+})
+
+export type GroupMember = z.infer<typeof GroupMemberSchema>
+
 export const GroupListResponseSchema = z.object({
   data: z.array(GroupListItemSchema),
   total: z.number(),
@@ -594,8 +611,8 @@ export type ScheduledTasksConfig = z.infer<typeof ScheduledTasksConfigSchema>
 export type Schema = z.infer<typeof SchemaSchema>
 
 // Paging, sorting and filtering accepted by the user and group list endpoints.
-// Omitting `limit` returns every match (bounded by LDAP_SEARCH_SIZE_LIMIT),
-// which is what the pickers want; the list views always pass one.
+// Omitting `limit` returns every match up to LDAP_SEARCH_SIZE_LIMIT, silently:
+// always pass one. Pickers go through usePickerSearch, which does.
 export interface ListParams {
   search?: string
   sort?: string
@@ -848,6 +865,9 @@ export const api = {
         method: 'DELETE',
         body: JSON.stringify({ memberUid }),
       }),
+
+    members: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/groups/${encodeURIComponent(dn)}/members`, {}, GroupMembersResponseSchema, signal),
 
     getSudoRoles: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/groups/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRolesResponseSchema, signal),

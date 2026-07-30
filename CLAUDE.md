@@ -69,6 +69,7 @@ parameters the list endpoints accept.
 - `GET/POST/PUT/DELETE /api/users` - User CRUD; list takes `search`, `status`, `sort`, `order`, `limit`, `offset`
 - `GET /api/users/:dn/photo` - User photo as `image/jpeg`
 - `GET/POST/PUT/DELETE /api/groups` - Group CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
+- `GET /api/groups/:dn/members` - Membership resolved to names
 - `POST/DELETE /api/groups/:dn/members` - Group membership
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
@@ -109,6 +110,11 @@ MVP implemented with:
 - List views page, sort and filter **server-side**; the browser renders one page
   of a narrow projection. Never add a column that requires shipping a whole
   collection to the client.
+- **Pickers search server-side too**, via `lib/use-picker-search.ts`: an
+  unbounded list request silently stops at `LDAP_SEARCH_SIZE_LIMIT`, so a
+  client-side filter over "everything" is really a filter over the first 500
+  entries. Where a dropdown genuinely cannot search (password policies, the
+  primary group), pass an explicit `limit` and say what is not listed.
 - View state (search, sort, page, size, active tab, audit filters) lives in the
   URL via `validateSearch`, so every view is a shareable link. Helpers:
   `lib/list-search.ts`, `lib/use-url-search-input.ts`.

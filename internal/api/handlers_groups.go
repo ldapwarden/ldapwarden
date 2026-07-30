@@ -65,6 +65,25 @@ func (s *Server) handleGetGroup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, group)
 }
 
+// handleGetGroupMembers returns the group's membership resolved to names, so the
+// members list does not have to be assembled in the browser from a copy of the
+// whole user collection.
+func (s *Server) handleGetGroupMembers(w http.ResponseWriter, r *http.Request) {
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	members, err := s.ldapClient.GroupMembers(dn)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "group not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": members})
+}
+
 func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 	var req ldap.CreateGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

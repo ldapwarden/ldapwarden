@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save, Wand2 } from 'lucide-react'
+import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
+import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/groups/new')({
@@ -59,12 +61,18 @@ function NewGroupPage() {
     createMutation.mutate()
   }
 
+  const isDirty = useCreationFormDirty(
+    formData,
+    createMutation.isPending || createMutation.isSuccess,
+  )
+
   if (!hasPermission('groups:write')) {
     return null
   }
 
   return (
     <div className="space-y-4">
+      <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" aria-label="Back to groups" onClick={() => router.navigate({ to: '/groups' })}>
           <ArrowLeft className="h-4 w-4" />
