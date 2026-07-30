@@ -108,6 +108,11 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 
 ## Quick Start
 
+> **Upgrading an existing install?** Read the *Upgrading* section of
+> [CHANGELOG.md](CHANGELOG.md) first. The current release changes where an
+> account's expiry is stored and moves the bundled directory to OpenLDAP 2.6;
+> neither happens on its own.
+
 ### Prerequisites
 
 - Docker and Docker Compose
