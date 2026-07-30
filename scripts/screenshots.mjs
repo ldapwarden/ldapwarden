@@ -16,6 +16,19 @@ async function main() {
   });
   const page = await context.newPage();
 
+  // The router devtools are dev-only, and these screenshots are taken against a
+  // dev server — so the floating badge lands in the corner of every image in the
+  // README. Hide it: it is part of the toolchain, not of the product. Its open
+  // state is remembered in localStorage, which is why the images used to differ
+  // from one run to the next.
+  await context.addInitScript(() => {
+    const style = document.createElement('style');
+    style.textContent =
+      '.tsqd-parent-container, [class*="TanStackRouterDevtools"], ' +
+      'button[aria-label*="TanStack"], .tsrd-open-btn-container { display: none !important; }';
+    document.addEventListener('DOMContentLoaded', () => document.head.append(style));
+  });
+
   const shoot = async (step, name) => {
     console.log(`${step} ${name}`);
     await page.waitForLoadState('networkidle').catch(() => {});
