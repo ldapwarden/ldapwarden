@@ -10,7 +10,10 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      // import.meta.dirname, not __dirname: vite 8.2 warns that its native
+      // config loader — slated to become the default — cannot provide the CommonJS
+      // globals.
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   server: {
