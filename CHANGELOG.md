@@ -106,6 +106,13 @@ authenticate. The admin page now says what it knows, and
 - CI runs the frontend checks (`tsc`, `eslint`, `vite build`) and the database
   migrations, so a broken frontend fails the PR rather than the release
   (`eb31244`).
+- Frontend dependencies updated in-range: the Radix primitives, `lucide-react`,
+  `react-hook-form`, Vite 8.2, ESLint 10.8, `@vitejs/plugin-react`, `postcss` and
+  `globals`; `pnpm audit` reports no known vulnerabilities. Go modules were already
+  current. TypeScript stays on 6: it builds under 7, but `typescript-eslint`
+  refuses to load against it, so linting stops working
+  ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940))
+  (`cfe2905`).
 
 ### Fixed
 
@@ -119,7 +126,7 @@ authenticate. The admin page now says what it knows, and
   rename, expiration or `shadowExpire` on their own account. All six are refused
   with `409`; clearing an expiry stays available (`55f1281`, `d7cc8fc`).
 - An expiry date displayed a day late anywhere east of UTC: the field said the
-  20th, the page said the 21st.
+  20th, the page said the 21st (`8611a1c`).
 - The theme bootstrap was blocked by the Content-Security-Policy, so the app
   always started in light mode (`ef6619a`).
 - The dashboard grid overflowed a 390 px screen (`ef6619a`).
