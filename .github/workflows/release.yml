@@ -59,15 +59,29 @@ jobs:
           git tag "${{ steps.version.outputs.version }}"
           git push origin "${{ steps.version.outputs.version }}"
 
+      # CHANGELOG.md is a history; a release body is one entry of it. Take the
+      # topmost section — everything between the first "## " heading and the next
+      # — and title it with the version being released, so the body is right
+      # whether the file still says "## Unreleased" or already carries a version.
+      - name: Extract the release notes
+        run: |
+          {
+            echo "## ${{ steps.version.outputs.version }}"
+            echo
+            awk '/^## /{if (seen) exit; seen=1; next} seen' CHANGELOG.md
+          } > release-notes.md
+          echo "--- release body ---"
+          cat release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
           # Auto-generated notes are a commit list, which cannot tell an operator
-          # that a release needs a migration run before it works. CHANGELOG.md
-          # leads; the commit list follows underneath it.
-          body_path: CHANGELOG.md
+          # that a release needs a migration run before it works. The changelog
+          # section leads; the commit list follows underneath it.
+          body_path: release-notes.md
           generate_release_notes: true
           files: |
             ldapwarden-linux-amd64

@@ -1,7 +1,11 @@
 # Changelog
 
-Versions are date-based (`YYYY.MM.DD.HHMMSS`), cut by tagging — see
-`.github/workflows/release.yml`.
+Versions are date-based (`YYYY.MM.DD.HHMMSS`, UTC), cut by tagging — see
+[Cutting a Release](CONTRIBUTING.md#cutting-a-release).
+
+The topmost section here becomes the body of the GitHub release, so anything an
+operator has to *do* before upgrading belongs in an **Upgrading** block at the top
+of it.
 
 ## Unreleased
 

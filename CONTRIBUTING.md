@@ -75,14 +75,61 @@ test: add user creation tests
 ### Backend
 
 ```bash
-go test ./...
+go test ./...          # unit tests
+make test-integration  # against the docker compose services
 ```
 
 ### Frontend
 
+There is no unit-test suite yet; the checks that gate a PR are the type-check,
+the linter and a production build — the same three CI runs.
+
 ```bash
-cd web && pnpm test
+cd web
+pnpm lint
+pnpm build   # tsc -b && vite build
 ```
+
+## Cutting a Release
+
+Versions are date-based: `YYYY.MM.DD.HHMMSS`, UTC. There is no semantic version to
+bump — the tag *is* the version.
+
+Tag by hand rather than using the workflow button. Both work, but only the tag
+route lets you know the version before the release runs, which is what makes it
+possible to write it into the changelog:
+
+```bash
+# 1. Everything green on main
+go test ./... && make test-integration
+(cd web && pnpm lint && pnpm build)
+
+# 2. Name the version and record it in the changelog
+V=$(date -u +'%Y.%m.%d.%H%M%S')
+# rename "## Unreleased" to "## $V — $(date -u +%Y-%m-%d)" in CHANGELOG.md
+git commit -am "docs: release $V"
+
+# 3. Tag it and push — this is what triggers the release workflow
+git tag "$V"
+git push origin main "$V"
+```
+
+The workflow builds the frontend and the Linux binaries, publishes a GitHub
+release and pushes a multi-arch image to `ghcr.io/ldapwarden/ldapwarden`.
+
+**The changelog is the release body.** The workflow extracts the topmost `## `
+section of `CHANGELOG.md` and uses it as the release notes, with the generated
+commit list appended underneath. So anything an operator must *do* to upgrade —
+a migration to run, a volume that changes name, an API response that changes shape
+— belongs in an **Upgrading** block at the top of that section. A commit list
+cannot say "run this before starting the new version".
+
+Start the next section as `## Unreleased` right after tagging, so changes have
+somewhere to land.
+
+Running the workflow from the Actions tab still works and is fine for a
+throwaway build: it makes up a timestamp, tags it, and titles the release body
+with that version even though the file still says `## Unreleased`.
 
 ## Reporting Issues
 
