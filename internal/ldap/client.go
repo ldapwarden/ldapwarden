@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/ldapwarden/ldapwarden/internal/config"
@@ -257,6 +258,66 @@ func (c *Client) GetEntry(dn string, attributes []string) (*ldap.Entry, error) {
 	}
 
 	return result.Entries[0], nil
+}
+
+// noAttributes is RFC 4511's "return no attributes" request. A count needs to
+// know how many entries match, not what is in them.
+const noAttributes = "1.1"
+
+// GeneralizedTime formats an instant the way the directory stores one, for use in
+// a search filter. Ordering comparisons on generalizedTime are standard, so
+// "(pwdEndTime<=...)" is a filter the server can answer.
+func GeneralizedTime(t time.Time) string {
+	return t.UTC().Format(generalizedTimeLayout)
+}
+
+// CountEntries counts the entries matching a filter without fetching them.
+//
+// Deliberately *not* bounded by SearchSizeLimit: that limit exists to keep a list
+// view's payload small, and applying it to a count made the dashboard cap itself
+// at 500 and then warn the operator about its own cap.
+//
+// Asking for no attributes keeps this affordable, though the cost does grow with
+// the directory: measured on 706 entries it moved 55 kB where the old capped-and-
+// wrong version moved 82 kB, but the old one was bounded at 500 entries and this
+// is not. Index the attributes these filters name if the dashboard gets slow —
+// pwdAccountLockedTime and pwdEndTime are unindexed in a default configuration.
+//
+// The returned bool reports that the *server* stopped early, which is a real
+// condition an operator can act on (olcSizeLimit for the bind identity) rather
+// than a self-inflicted one. The DNs are held in memory only for the duration of
+// the call; at 100k entries that is a few MB, against hundreds for full entries.
+func (c *Client) CountEntries(baseDN, filter string) (count int, serverLimited bool, err error) {
+	conn, err := c.connect()
+	if err != nil {
+		return 0, false, err
+	}
+
+	searchRequest := ldap.NewSearchRequest(
+		baseDN,
+		ldap.ScopeWholeSubtree,
+		ldap.NeverDerefAliases,
+		0, 0, false,
+		filter,
+		[]string{noAttributes},
+		nil,
+	)
+
+	result, err := conn.Search(searchRequest)
+	if err != nil {
+		// slapd returns a partial result set alongside any of these, and all three
+		// are limits an operator sets deliberately — often precisely to stop the
+		// unindexed scans these count filters perform. Treating them as failures
+		// would turn "the answer is a lower bound" into "there is no answer".
+		if result != nil && (errors.Is(err, ldap.ErrSizeLimitExceeded) ||
+			ldap.IsErrorWithCode(err, ldap.LDAPResultSizeLimitExceeded) ||
+			ldap.IsErrorWithCode(err, ldap.LDAPResultTimeLimitExceeded) ||
+			ldap.IsErrorWithCode(err, ldap.LDAPResultAdminLimitExceeded)) {
+			return len(result.Entries), true, nil
+		}
+		return 0, false, fmt.Errorf("count entries: %w", err)
+	}
+	return len(result.Entries), false, nil
 }
 
 func (c *Client) Add(entry *ldap.AddRequest) error {

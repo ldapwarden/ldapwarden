@@ -69,7 +69,11 @@ function DashboardPage() {
   }
 
   const users = overview?.users
-  const needsAttention = (users?.locked ?? 0) + (users?.expired ?? 0) + (users?.expiring.length ?? 0)
+  // total - active counts each account that cannot log in once, however many
+  // reasons it has; locked + expired would charge a locked-and-expired account
+  // twice and overstate the headline.
+  const cannotLogIn = users ? users.total - users.active : 0
+  const needsAttention = cannotLogIn + (users?.expiring.length ?? 0)
 
   return (
     <div className="space-y-6">
@@ -104,10 +108,15 @@ function DashboardPage() {
         )}
       </div>
 
+      {/* Only shown when the *directory* stopped a count early — a size limit on
+          the bind identity. It used to fire on the app's own LDAP_SEARCH_SIZE_LIMIT,
+          which meant every directory over 500 entries carried a permanent warning
+          about a knob the operator had no reason to touch. */}
       {overview?.truncated && (
         <Callout variant="warning">
-          The directory holds more entries than <code>LDAP_SEARCH_SIZE_LIMIT</code> allows in one
-          search, so these counts are lower bounds.
+          The directory stopped short of counting every entry, so these figures are lower bounds.
+          Raise the search size limit for the account LDAP Warden binds with
+          (<code>olcSizeLimit</code> on OpenLDAP) to see exact counts.
         </Callout>
       )}
 
@@ -121,12 +130,15 @@ function DashboardPage() {
           to="/users"
           hint={users ? `${users.active} active` : undefined}
         />
+        {/* total - active, not locked + expired: an account can be both, and the
+            sum would count it twice. The breakdown below can therefore add up to
+            more than the headline, which is the honest way round. */}
         <StatCard
           label="Locked or expired"
-          value={users ? users.locked + users.expired : undefined}
+          value={users ? cannotLogIn : undefined}
           loading={isLoading}
           icon={Lock}
-          tone={users && users.locked + users.expired > 0 ? 'rose' : 'slate'}
+          tone={cannotLogIn > 0 ? 'rose' : 'slate'}
           to="/users"
           search={{ inactive: true }}
           hint={users ? `${users.locked} locked, ${users.expired} expired` : undefined}

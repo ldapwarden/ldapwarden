@@ -101,6 +101,15 @@ authenticate. The admin page now says what it knows, and
 - **Pickers search the directory** instead of downloading the collection and
   filtering it locally, which silently stopped working past
   `LDAP_SEARCH_SIZE_LIMIT` (`69ecea2`).
+- **The dashboard counts instead of fetching.** Each figure is now one search with
+  no attributes requested, so the numbers are exact — and on a 706-entry directory
+  the payload is smaller too (55 kB against 82 kB), though that saving narrows as
+  the directory grows. Consider indexing `pwdAccountLockedTime` and `pwdEndTime`,
+  which these filters name and slapd does not index by default.
+  `LDAP_SEARCH_SIZE_LIMIT` no longer bounds them — it exists to keep list payloads
+  small — so the permanent "these counts are lower bounds" warning is gone from
+  every directory of more than 500 entries. It now appears only when the *server*
+  limits the bind identity, which is something an operator can act on.
 - Locking writes `000001010000Z`, the value ppolicy never lifts, instead of the
   current time — which ppolicy lifted after `pwdLockoutDuration`, turning "Locked"
   into "unlocked" half an hour later with nothing recorded (`af9f212`).

@@ -846,6 +846,10 @@ func containsExact(list []string, value string) bool {
 	return false
 }
 
+// generalizedTimeLayout is how the directory writes an instant: RFC 4517
+// generalizedTime, UTC, second granularity.
+const generalizedTimeLayout = "20060102150405Z"
+
 // permanentLockValue is OpenLDAP's convention for "locked until an
 // administrator says otherwise": ppolicy special-cases this exact
 // pwdAccountLockedTime value and never lifts it.
@@ -967,7 +971,7 @@ func parseExpirationDate(value string) (string, error) {
 	if expirationTime.Hour() == 0 && expirationTime.Minute() == 0 && expirationTime.Second() == 0 {
 		expirationTime = expirationTime.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	}
-	return expirationTime.UTC().Format("20060102150405Z"), nil
+	return expirationTime.UTC().Format(generalizedTimeLayout), nil
 }
 
 // SetSSHPublicKeys replaces all SSH public keys for a user

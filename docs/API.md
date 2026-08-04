@@ -1038,19 +1038,31 @@ GET /api/overview
 
 **Required permission:** `users:read`
 
-The directory at a glance, as shown on the dashboard. The counts are computed
-server-side: the alternative is shipping every entry to the client just to
-length-check it.
+The directory at a glance, as shown on the dashboard. Each figure is a count the
+directory performs — one search per state, with no attributes requested — rather
+than a length measured here after fetching every entry. On a 706-entry directory
+that moved 55 kB where the fetch-and-tally version moved 82 kB while still being
+wrong — though the saving narrows as the directory grows, since only the old
+version was bounded. The filters name `pwdAccountLockedTime` and `pwdEndTime`,
+which are unindexed by default; index them if the dashboard gets slow.
 
-- `users.total` / `active` / `locked` / `expired` — the buckets always add up to
-  the total. An account is locked when `pwdAccountLockedTime` is in the past, and
-  expired when its `shadowExpire` day has passed.
+- `users.total` / `locked` / `expired` / `active` — an account is locked when it
+  carries `pwdAccountLockedTime`, and expired when its `pwdEndTime` has passed.
+  The two are independent, so **`locked` + `expired` can exceed
+  `total` − `active`**: an account that is both appears in each and is excluded
+  from `active` once. `active` is the complement of the union, so
+  `total` − `active` is the number of accounts that cannot log in.
 - `users.expiring` — accounts expiring within 30 days, soonest first, capped at
   5. The window matches the expiration scheduler's first reminder, so the
-  dashboard warns about the accounts admins are already emailed about.
+  dashboard warns about the accounts admins are already emailed about. Empty on a
+  directory without `pwdEndTime`.
 - `groups` / `sudoRoles` / `policies` — collection sizes. A module whose schema
   is absent from the directory reports 0 rather than failing the request.
-- `truncated` — a count hit `LDAP_SEARCH_SIZE_LIMIT` and is a lower bound.
+- `truncated` — the **server** stopped a count early, so the figures are lower
+  bounds. This is not `LDAP_SEARCH_SIZE_LIMIT`, which bounds list payloads and is
+  deliberately not applied to counts; it means a size limit applies to the bind
+  identity (`olcSizeLimit` on OpenLDAP). A rootdn bind is normally unlimited, so
+  this is usually `false`.
 
 **Response:**
 ```json

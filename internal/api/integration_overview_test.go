@@ -24,15 +24,22 @@ func getOverview(t *testing.T, env *testEnv, token string) ldap.Overview {
 	return out
 }
 
-// TestIntegration_Overview_CountsAndBuckets checks the dashboard figures add up
-// and that locking an account moves it from the active bucket to the locked one.
+// TestIntegration_Overview_CountsAndBuckets checks the dashboard figures hang
+// together and that locking an account moves it out of the active bucket.
 func TestIntegration_Overview_CountsAndBuckets(t *testing.T) {
 	env := setupTestServer(t)
 	token := loginAs(t, env, "admin", "admin123").Token
 
 	before := getOverview(t, env, token)
-	if before.Users.Total != before.Users.Active+before.Users.Locked+before.Users.Expired {
-		t.Errorf("user buckets do not add up to the total: %+v", before.Users)
+	// Not "the buckets add up": locked and expired are independent states, so an
+	// account that is both is in each and is excluded from active once. Active is
+	// the complement of the union, which is what these two assertions pin.
+	if before.Users.Active > before.Users.Total {
+		t.Errorf("more active accounts than accounts: %+v", before.Users)
+	}
+	if inactive := before.Users.Total - before.Users.Active; before.Users.Locked+before.Users.Expired < inactive {
+		t.Errorf("locked+expired (%d) is below the number of inactive accounts (%d): %+v",
+			before.Users.Locked+before.Users.Expired, inactive, before.Users)
 	}
 	if before.Groups < 1 {
 		t.Errorf("groups = %d, want at least the seeded groups", before.Groups)
