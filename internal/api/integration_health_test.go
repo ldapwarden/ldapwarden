@@ -23,7 +23,7 @@ func decodeHealth(t *testing.T, body []byte) healthResponse {
 func TestIntegration_Probes_NeedNoSession(t *testing.T) {
 	env := setupTestServer(t)
 
-	for _, path := range []string{"/healthz", "/readyz", "/health"} {
+	for _, path := range []string{"/healthz", "/readyz"} {
 		resp, body := doJSON(t, env, http.MethodGet, path, nil, "")
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("%s without a session: status=%d body=%s, want 200", path, resp.StatusCode, body)
@@ -75,18 +75,5 @@ func TestIntegration_Readiness_ChecksEveryDependency(t *testing.T) {
 		if got != "ok" {
 			t.Errorf("%s = %q, want ok", name, got)
 		}
-	}
-}
-
-// TestIntegration_Health_AliasMatchesHealthz keeps the deprecated path honest for
-// as long as it exists: something still pointing at it must get the same answer,
-// not a redirect or a stale body.
-func TestIntegration_Health_AliasMatchesHealthz(t *testing.T) {
-	env := setupTestServer(t)
-
-	_, healthzBody := doJSON(t, env, http.MethodGet, "/healthz", nil, "")
-	_, aliasBody := doJSON(t, env, http.MethodGet, "/health", nil, "")
-	if string(healthzBody) != string(aliasBody) {
-		t.Errorf("/health returned %s, /healthz returned %s", aliasBody, healthzBody)
 	}
 }

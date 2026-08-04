@@ -75,7 +75,7 @@ parameters the list endpoints accept.
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
 - `GET /api/audit-logs/export` - Audit logs as CSV, same filters
-- `GET /healthz` - Liveness (process only). `GET /health` is a deprecated alias
+- `GET /healthz` - Liveness (process only); replaced the old `/health`
 - `GET /readyz` - Readiness: pings Postgres, Redis and LDAP; 503 when any is down
 
 ## Test Accounts (LDAP)

@@ -105,8 +105,7 @@ checks nothing else, on purpose: a liveness probe that fails because the directo
 is slow gets the container restarted, which fixes nothing and drops everyone's
 session. Point a `livenessProbe` and the image's `HEALTHCHECK` here.
 
-`GET /health` is a deprecated alias, kept so an upgrade does not 404 a probe still
-configured for it. It will be removed in a later release.
+This replaced `GET /health`, which no longer exists.
 
 ### Readiness
 

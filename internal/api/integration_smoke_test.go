@@ -13,9 +13,9 @@ import (
 func TestIntegrationSmoke_Health(t *testing.T) {
 	env := setupTestServer(t)
 
-	resp, err := http.Get(env.Server.URL + "/health")
+	resp, err := http.Get(env.Server.URL + "/healthz")
 	if err != nil {
-		t.Fatalf("GET /health: %v", err)
+		t.Fatalf("GET /healthz: %v", err)
 	}
 	defer resp.Body.Close()
 
