@@ -215,6 +215,13 @@ type Logger struct {
 	notifyRecipients  []string
 }
 
+// Ping reports whether the audit database is reachable, for the readiness probe.
+// It matters more than it looks: auditMutating refuses every mutation when the log
+// is unavailable, so an app that cannot reach Postgres is read-only.
+func (l *Logger) Ping(ctx context.Context) error {
+	return l.pool.Ping(ctx)
+}
+
 func NewLogger(pool *pgxpool.Pool, notifier Notifier, notifyRecipients []string) *Logger {
 	return &Logger{
 		pool:             pool,

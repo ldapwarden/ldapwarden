@@ -61,9 +61,11 @@ USER 10001:10001
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Liveness, not readiness: docker restarts an unhealthy container, and restarting
+# because the directory is briefly unreachable would drop every session for
+# nothing. Use /readyz from a load balancer or a readinessProbe instead.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8000/healthz || exit 1
 
 # Run the binary
 ENTRYPOINT ["/app/ldapwarden"]

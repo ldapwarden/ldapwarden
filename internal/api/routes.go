@@ -79,9 +79,16 @@ func (s *Server) setupRoutes() chi.Router {
 	}))
 	r.Use(csrfOriginCheck(s.config.App.CORSOrigins))
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
+	// Kubernetes naming, and the split that goes with it: /healthz says the
+	// process is alive, /readyz says it can serve traffic. Mounted outside /api so
+	// neither needs a session.
+	r.Get("/healthz", s.handleLiveness)
+	r.Get("/readyz", s.handleReadiness)
+	// Deprecated alias for /healthz, kept for one release. Removing it outright
+	// would 404 any livenessProbe still pointing here after an upgrade, and a
+	// failing liveness probe restarts the container — a crash loop caused by the
+	// probe itself.
+	r.Get("/health", s.handleLiveness)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {

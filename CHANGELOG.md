@@ -52,7 +52,14 @@ old names in a `compose.override.yaml`. To discard them:
 docker volume rm ldapwarden_openldap_data ldapwarden_openldap_config
 ```
 
-**3. Two API responses changed shape.** `GET /api/admin/config` renames
+**3. `/health` is now `/healthz`.** The old path still answers, as a deprecated
+alias, so an existing `livenessProbe` or `HEALTHCHECK` keeps working — but move it,
+because the alias goes away in a later release. There is also a new `/readyz`,
+which is what a load balancer or a `readinessProbe` should use: unlike liveness it
+checks PostgreSQL, Redis and the directory, and returns `503` naming the one that
+is down.
+
+**4. Two API responses changed shape.** `GET /api/admin/config` renames
 `capabilities.scheduledAccountExpiry` to `capabilities.scheduledExpirySupported`
 and adds `capabilities.policyEnforcement`; `DELETE /api/users/{dn}` now returns
 `{message, warnings}`. Both are consumed only by the bundled frontend.
@@ -83,6 +90,10 @@ authenticate. The admin page now says what it knows, and
   (`f79f44c`).
 - **`GET /api/groups/{dn}/members`**, resolving `memberUid` to names server-side
   (`69ecea2`).
+- **`GET /healthz` and `GET /readyz`**, the Kubernetes names, split the way the
+  convention intends: liveness reports only that the process answers, readiness
+  pings PostgreSQL, Redis and the directory and returns `503` naming whichever is
+  down. The old `/health` stayed `200` whatever had failed underneath it.
 - Password fields that can be revealed, with a generator and a strength meter
   (`c6ccef0`).
 - Skeleton loaders, actionable empty states, and list/tab state kept in the URL so

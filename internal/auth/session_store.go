@@ -22,6 +22,14 @@ func NewRedisSessionStore(client *redis.Client) *RedisSessionStore {
 	}
 }
 
+// Ping reports whether the store is reachable, for the readiness probe. Sessions
+// live only here, so a session store the app cannot talk to means it cannot
+// authenticate anyone — worth reporting as not ready rather than discovering it on
+// the next login.
+func (s *RedisSessionStore) Ping(ctx context.Context) error {
+	return s.client.Ping(ctx).Err()
+}
+
 func (s *RedisSessionStore) Create(ctx context.Context, session *Session, tokenHash string) error {
 	key := s.prefix + tokenHash
 

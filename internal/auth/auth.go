@@ -41,6 +41,15 @@ type SessionStore interface {
 	Get(ctx context.Context, tokenHash string) (*Session, error)
 	Delete(ctx context.Context, tokenHash string) error
 	DeleteByUserDN(ctx context.Context, userDN string) error
+	// Ping reports reachability, for the readiness probe.
+	Ping(ctx context.Context) error
+}
+
+// PingSessionStore reports whether sessions can be read and written. The store is
+// reached through the interface rather than handed to the API layer, which has no
+// other reason to know a Redis client exists.
+func (s *AuthService) PingSessionStore(ctx context.Context) error {
+	return s.sessionStore.Ping(ctx)
 }
 
 func NewAuthService(ldapClient *ldap.Client, store SessionStore, sessionTTL time.Duration, adminGroup string) *AuthService {

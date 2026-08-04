@@ -89,6 +89,59 @@ curl -X POST http://localhost:8000/api/auth/change-password \
 
 ---
 
+## Health
+
+Both probes are unauthenticated and live outside `/api`, so an orchestrator can
+reach them without credentials.
+
+### Liveness
+
+```http
+GET /healthz
+```
+
+`200` with `{"status": "ok"}` for as long as the process is answering HTTP. It
+checks nothing else, on purpose: a liveness probe that fails because the directory
+is slow gets the container restarted, which fixes nothing and drops everyone's
+session. Point a `livenessProbe` and the image's `HEALTHCHECK` here.
+
+`GET /health` is a deprecated alias, kept so an upgrade does not 404 a probe still
+configured for it. It will be removed in a later release.
+
+### Readiness
+
+```http
+GET /readyz
+```
+
+`200` with `{"status": "ready"}` when the app can serve traffic, `503` with
+`{"status": "degraded"}` when it cannot. Point a `readinessProbe` or a load
+balancer here so requests stop arriving while they would only come back as `500`s.
+
+Each dependency is named, with the error quoted, so an operator does not have to
+guess which one is down:
+
+```json
+{
+  "status": "degraded",
+  "checks": {
+    "database": "ok",
+    "sessions": "dial tcp 127.0.0.1:6379: connect: connection refused",
+    "directory": "ok"
+  }
+}
+```
+
+- `database` — PostgreSQL. `auditMutating` refuses every mutation when the audit log
+  is unavailable, so an app that cannot reach it is read-only.
+- `sessions` — Redis. Sessions live only there, so it cannot authenticate anyone.
+- `directory` — LDAP: the configured base DN is read, which proves the bind
+  credentials work *and* that the tree is reachable.
+
+Each check is bounded by a three-second timeout.
+
+---
+
 ## Users
 
 ### List Users

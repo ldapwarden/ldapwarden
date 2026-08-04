@@ -320,6 +320,17 @@ func (c *Client) CountEntries(baseDN, filter string) (count int, serverLimited b
 	return len(result.Entries), false, nil
 }
 
+// Ping reports whether the directory answers, for the readiness probe. It reads
+// the base entry rather than only binding: a bind proves the credentials work, this
+// also proves the configured base DN exists and is readable, which is the other
+// half of "the app can do its job".
+func (c *Client) Ping() error {
+	if _, err := c.GetEntry(c.config.BaseDN, []string{noAttributes}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) Add(entry *ldap.AddRequest) error {
 	conn, err := c.connect()
 	if err != nil {
