@@ -44,8 +44,6 @@ internal/
   config/            # Configuration
   migrations/        # SQL migrations, embedded in the binary and applied
                      # by the integration tests from that same embed
-db/
-  queries/           # sqlc queries
 web/                 # React frontend
   src/routes/        # TanStack Router pages
   src/components/    # UI components
@@ -55,7 +53,7 @@ ldap/                # OpenLDAP 2.6 image for the bundled stack: schema,
 ```
 
 ## Code Conventions
-- Go: Follow standard project layout, use sqlc for queries
+- Go: Follow standard project layout; SQL is written by hand against pgx
 - TypeScript: Strict mode, Zod for all API responses
 - Commits: Conventional commits (feat:, fix:, docs:)
 - PRs: Must pass lint + tests

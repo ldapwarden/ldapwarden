@@ -50,7 +50,7 @@ We want to build a tool similar to "LDAP Account Manager" (https://www.ldap-acco
 **Stack**
 - Go 1.23+
 - Chi router
-- sqlc for type-safe SQL (preferred over GORM for control)
+- pgx for PostgreSQL, queries written by hand (no ORM, no generator)
 - go-ldap for LDAP operations
 - Redis client: go-redis
 - oapi-codegen for OpenAPI spec generation
@@ -66,8 +66,6 @@ internal/
   rbac/             # Permission checks
   schema/           # LDAP schema parsing
   migrations/       # SQL migrations (embedded in the binary)
-db/
-  queries/          # sqlc query files
 web/                # React app
 ```
 
@@ -91,7 +89,6 @@ web/                # React app
 **Backend**
 - Unit tests for business logic (schema parsing, RBAC)
 - Integration tests against OpenLDAP container
-- sqlc generates type-safe mocks
 
 **Frontend**
 - Vitest for unit tests

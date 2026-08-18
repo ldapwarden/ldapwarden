@@ -519,8 +519,6 @@ ldapwarden/
 │   ├── audit/           # Audit logging
 │   ├── config/          # Configuration
 │   └── migrations/      # SQL migrations (embedded in the binary)
-├── db/
-│   └── queries/         # sqlc queries
 ├── web/                 # React frontend
 │   ├── src/routes/      # TanStack Router pages
 │   ├── src/components/  # UI components
@@ -542,7 +540,7 @@ ldapwarden/
 - [Go](https://go.dev/) — Fast, compiled backend
 - [Chi](https://github.com/go-chi/chi) — Lightweight HTTP router
 - [go-ldap](https://github.com/go-ldap/ldap) — LDAP client library
-- [sqlc](https://sqlc.dev/) — Type-safe SQL
+- [pgx](https://github.com/jackc/pgx) — PostgreSQL driver
 - [PostgreSQL](https://www.postgresql.org/) — Audit logs & metadata
 - [Redis](https://redis.io/) — Session storage
 
