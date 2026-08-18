@@ -48,10 +48,10 @@ func TestIntegration_ServerError_HidesInternalDiagnostics(t *testing.T) {
 
 	// The original LDAP / library diagnostics must not leak.
 	forbidden := []string{
-		"LDAP Result Code",   // go-ldap result wrapping
-		"no such object",     // LDAP server reason phrase
-		"failed to update",   // the old hand-rolled prefix we replaced
-		"go-ldap",            // library marker
+		"LDAP Result Code", // go-ldap result wrapping
+		"no such object",   // LDAP server reason phrase
+		"failed to update", // the old hand-rolled prefix we replaced
+		"go-ldap",          // library marker
 	}
 	for _, needle := range forbidden {
 		if strings.Contains(msg, needle) {

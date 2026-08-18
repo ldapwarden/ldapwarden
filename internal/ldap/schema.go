@@ -9,7 +9,7 @@ import (
 )
 
 type Schema struct {
-	ObjectClasses  map[string]ObjectClass  `json:"objectClasses"`
+	ObjectClasses  map[string]ObjectClass   `json:"objectClasses"`
 	AttributeTypes map[string]AttributeType `json:"attributeTypes"`
 }
 
@@ -24,16 +24,16 @@ type ObjectClass struct {
 }
 
 type AttributeType struct {
-	OID          string `json:"oid"`
-	Name         string `json:"name"`
-	Description  string `json:"description,omitempty"`
-	Syntax       string `json:"syntax,omitempty"`
-	SingleValue  bool   `json:"singleValue"`
-	NoUserMod    bool   `json:"noUserModification"`
-	Usage        string `json:"usage,omitempty"`
-	Equality     string `json:"equality,omitempty"`
-	Substr       string `json:"substr,omitempty"`
-	Ordering     string `json:"ordering,omitempty"`
+	OID         string `json:"oid"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Syntax      string `json:"syntax,omitempty"`
+	SingleValue bool   `json:"singleValue"`
+	NoUserMod   bool   `json:"noUserModification"`
+	Usage       string `json:"usage,omitempty"`
+	Equality    string `json:"equality,omitempty"`
+	Substr      string `json:"substr,omitempty"`
+	Ordering    string `json:"ordering,omitempty"`
 }
 
 var (

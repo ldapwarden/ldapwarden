@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	PermUsersRead    = "users:read"
-	PermUsersWrite   = "users:write"
-	PermUsersDelete  = "users:delete"
-	PermGroupsRead   = "groups:read"
-	PermGroupsWrite  = "groups:write"
-	PermGroupsDelete = "groups:delete"
-	PermAuditRead    = "audit:read"
-	PermSchemaRead   = "schema:read"
-	PermSchemaWrite  = "schema:write"
-	PermSettingsRead = "settings:read"
+	PermUsersRead     = "users:read"
+	PermUsersWrite    = "users:write"
+	PermUsersDelete   = "users:delete"
+	PermGroupsRead    = "groups:read"
+	PermGroupsWrite   = "groups:write"
+	PermGroupsDelete  = "groups:delete"
+	PermAuditRead     = "audit:read"
+	PermSchemaRead    = "schema:read"
+	PermSchemaWrite   = "schema:write"
+	PermSettingsRead  = "settings:read"
 	PermSettingsWrite = "settings:write"
 )
 
