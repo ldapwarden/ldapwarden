@@ -72,14 +72,24 @@ type RedisConfig struct {
 }
 
 type LDAPConfig struct {
-	URL             string
-	BaseDN          string
-	BindDN          string
-	BindPass        string
-	UserOU          string
-	GroupOU         string
-	SudoersOU       string
-	PpolicyOU       string
+	URL       string
+	BaseDN    string
+	BindDN    string
+	BindPass  string
+	UserOU    string
+	GroupOU   string
+	SudoersOU string
+	PpolicyOU string
+	// DefaultPolicyDN names the password policy the directory applies to entries
+	// that carry no pwdPolicySubentry of their own — i.e. what olcPPolicyDefault
+	// is set to on the ppolicy overlay.
+	//
+	// It has to be configured because it cannot be discovered: olcPPolicyDefault
+	// lives in cn=config, which an ordinary bind identity cannot read (see
+	// Client.probePolicyEnforcement). Without it the app cannot tell how long a
+	// lockout lasts for most entries, and reports such a lock as "unknown"
+	// instead of claiming it either holds or has lapsed.
+	DefaultPolicyDN string
 	MinUID          int
 	MinGID          int
 	TLSMode         string // "none", "ssl", "starttls"
@@ -113,6 +123,7 @@ func Load() *Config {
 			GroupOU:         getEnv("LDAP_GROUP_OU", "ou=Groups"),
 			SudoersOU:       getEnv("LDAP_SUDOERS_OU", "ou=sudoers"),
 			PpolicyOU:       getEnv("LDAP_PPOLICY_OU", "ou=policies"),
+			DefaultPolicyDN: getEnv("LDAP_DEFAULT_POLICY_DN", ""),
 			MinUID:          getEnvInt("LDAP_MIN_UID", 1000),
 			MinGID:          getEnvInt("LDAP_MIN_GID", 1000),
 			TLSMode:         getEnv("LDAP_TLS_MODE", "none"),

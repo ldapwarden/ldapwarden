@@ -175,6 +175,33 @@ export const MeAvatarSchema = z.object({
   jpegPhoto: z.string().optional(),
 })
 
+/**
+ * What an entry's `pwdAccountLockedTime` means right now, resolved by the
+ * backend against the policy that applies to the entry.
+ *
+ * `accountLocked` only says the attribute is present, and a ppolicy lockout
+ * whose `pwdLockoutDuration` has elapsed leaves it present until the entry's
+ * next bind — so the attribute alone cannot tell a lock in force from one the
+ * directory has already stopped honouring.
+ */
+export const LockoutSchema = z.object({
+  // manual: locked by an administrator, never lifts on its own.
+  // active: a ppolicy lockout still in force (liftsAt, when the duration is not 0).
+  // lifted: the duration has elapsed; the account authenticates again.
+  // unknown: the applicable policy could not be read, so neither can be claimed.
+  state: z.enum(['none', 'manual', 'active', 'lifted', 'unknown']),
+  lockedAt: z.string().optional(),
+  // When the lockout duration runs out, RFC 3339. In the past under 'lifted'.
+  liftsAt: z.string().optional(),
+  // The applicable pwdLockoutDuration; 0 means the lock never lifts by itself.
+  durationSeconds: z.number().optional(),
+  // The policy that governs this entry: its own pwdPolicySubentry, or the
+  // configured LDAP_DEFAULT_POLICY_DN. Empty when neither is known.
+  policyDn: z.string().optional(),
+})
+
+export type Lockout = z.infer<typeof LockoutSchema>
+
 export const UserSchema = z.object({
   dn: z.string(),
   uid: z.string(),
@@ -231,6 +258,7 @@ export const UserSchema = z.object({
   pwdGraceUseTime: z.array(z.string()).optional(),
   pwdReset: z.boolean().optional(),
   pwdPolicySubentry: z.string().optional(),
+  lockout: LockoutSchema.optional(),
 })
 
 // UserListItemSchema is the narrow projection returned by GET /users. It
@@ -250,6 +278,7 @@ export const UserListItemSchema = z.object({
   // The account's expiry. shadowExpire is deliberately absent: slapd ignores it,
   // so it cannot say whether the account still works.
   pwdEndTime: z.string().optional(),
+  lockout: LockoutSchema.optional(),
 })
 
 export const UsersResponseSchema = z.object({
@@ -519,6 +548,7 @@ export const ConfigResponseSchema = z.object({
     groupOu: ConfigValueSchema,
     sudoersOu: ConfigValueSchema,
     ppolicyOu: ConfigValueSchema,
+    defaultPolicyDn: ConfigValueSchema,
     minUid: ConfigValueSchema,
     minGid: ConfigValueSchema,
     tlsMode: ConfigValueSchema,

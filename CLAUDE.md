@@ -109,6 +109,16 @@ MVP implemented with:
   ordinary bind identity: every readable signal is identical either way (see the
   comment on `Enforcement`). Hence three states, `unknown` by default, and
   `POST /api/admin/policy-selftest` as the only proof.
+- **A lock is not self-describing.** `pwdAccountLockedTime` being present does not
+  mean the account is locked: ppolicy lifts a timestamped lockout once
+  `pwdLockoutDuration` elapses, but it has no timer — it re-reads the value at bind
+  time and deletes it there, so the attribute outlives the lock until someone next
+  tries to log in. `internal/ldap/lockout.go` resolves the value against the
+  applicable policy into `none` / `manual` / `active` / `lifted` / `unknown`; ask
+  `Lockout.Locked()` (Go) or `isLocked()` (`web/src/lib/account.ts`), never the raw
+  attribute. Which policy applies needs `LDAP_DEFAULT_POLICY_DN` for entries
+  without a `pwdPolicySubentry`, since `olcPPolicyDefault` lives in the unreadable
+  `cn=config` — unset, such a lockout resolves to `unknown` and counts as locked.
 - **`memberUid` and `sudoUser` store a plain uid, not a DN**, so the directory
   cannot follow them: any operation on a user that changes or removes its uid has
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,

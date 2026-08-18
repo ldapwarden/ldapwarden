@@ -1,5 +1,5 @@
-import { CalendarClock, CheckCircle2, Lock } from 'lucide-react'
-import { accountExpiration, type AccountStatusFields } from '@/lib/account'
+import { CalendarClock, CheckCircle2, Lock, LockOpen } from 'lucide-react'
+import { accountExpiration, hasLapsedLock, isLocked, type AccountStatusFields } from '@/lib/account'
 
 interface Status {
   icon: typeof Lock
@@ -13,11 +13,25 @@ function statusOf(user: AccountStatusFields, now: Date): Status {
   // Two independent states now, and both refuse the bind: a lock
   // (pwdAccountLockedTime, set by an administrator or by ppolicy after too many
   // failures) and a lapsed expiry (pwdEndTime).
-  if (user.accountLocked) {
+  //
+  // isLocked, not accountLocked: a ppolicy lockout past its pwdLockoutDuration
+  // leaves the attribute behind, and the row would keep reporting a lock the
+  // directory stopped honouring.
+  if (isLocked(user)) {
     return { icon: Lock, className: 'text-destructive', label: 'Account locked' }
   }
   if (expiresAt && expiresAt < now) {
     return { icon: Lock, className: 'text-destructive', label: 'Account expired' }
+  }
+  // The account works, but the entry still carries the lapsed lock — say so
+  // rather than showing a plain "Active" next to a pwdAccountLockedTime value
+  // someone may be reading in phpLDAPadmin.
+  if (hasLapsedLock(user)) {
+    return {
+      icon: LockOpen,
+      className: 'text-success',
+      label: 'Active — lockout expired, flag not yet cleared',
+    }
   }
 
   if (expiresAt) {

@@ -67,6 +67,10 @@ type User struct {
 	PwdGraceUseTime      []string `json:"pwdGraceUseTime,omitempty"`
 	PwdReset             bool     `json:"pwdReset"`
 	PwdPolicySubentry    string   `json:"pwdPolicySubentry,omitempty"`
+	// Lockout is what PwdAccountLockedTime means right now, resolved against the
+	// policy that applies to this entry. AccountLocked only says the attribute is
+	// there, which a lapsed ppolicy lockout also does — see LockState.
+	Lockout *Lockout `json:"lockout,omitempty"`
 }
 
 type CreateUserRequest struct {
@@ -176,13 +180,20 @@ type UserListItem struct {
 	// column reads this; shadowExpire is deliberately not consulted — slapd
 	// ignores it, so it cannot describe whether this account still works.
 	PwdEndTime string `json:"pwdEndTime,omitempty"`
+	// Lockout resolves PwdAccountLockedTime against the applicable policy, so a
+	// row can tell a lock in force from one ppolicy has already lifted.
+	Lockout *Lockout `json:"lockout,omitempty"`
+	// pwdPolicySubentry feeds that resolution and is not part of the row: which
+	// policy governs an entry belongs on the user's own page, and Lockout.PolicyDN
+	// already carries it where it matters.
+	pwdPolicySubentry string
 }
 
 // listUserAttributes is the projection behind UserListItem: what a row shows,
 // plus what sorting and the active/inactive filter need.
 var listUserAttributes = []string{
 	"dn", "uid", "cn", "displayName", "mail", "employeeType",
-	"pwdAccountLockedTime", "pwdEndTime",
+	"pwdAccountLockedTime", "pwdEndTime", "pwdPolicySubentry",
 }
 
 // UserStatus filters a listing by whether the account can currently log in.
@@ -234,12 +245,16 @@ func (c *Client) SearchUsersPage(opts UserListOptions) (*UserPage, error) {
 
 	items := make([]UserListItem, 0, len(entries))
 	inactive := 0
+	// One resolver for the whole page: the policies it reads are the same handful
+	// for every row.
+	lockouts := c.newLockoutResolver()
 	for _, entry := range entries {
 		item := entryToUserListItem(entry)
 		item.GroupsCount = groupCounts[item.UID]
 		item.HasPhoto = withPhoto[entry.DN]
+		item.Lockout = lockouts.resolve(item.PwdAccountLockedTime, item.pwdPolicySubentry)
 
-		isInactive := item.AccountLocked || item.expired()
+		isInactive := item.Lockout.Locked() || item.expired()
 		if isInactive {
 			inactive++
 		}
@@ -318,6 +333,7 @@ func entryToUserListItem(entry *ldap.Entry) UserListItem {
 		AccountLocked:        lockedTime != "",
 		PwdAccountLockedTime: lockedTime,
 		PwdEndTime:           entry.GetAttributeValue(expiryAttr),
+		pwdPolicySubentry:    entry.GetAttributeValue("pwdPolicySubentry"),
 	}
 }
 
@@ -354,6 +370,7 @@ func (c *Client) GetUser(dn string) (*User, error) {
 	}
 
 	user := entryToUser(entry)
+	user.Lockout = c.newLockoutResolver().resolve(user.PwdAccountLockedTime, user.PwdPolicySubentry)
 	return &user, nil
 }
 

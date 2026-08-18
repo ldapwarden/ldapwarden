@@ -108,7 +108,12 @@ func (c *Client) GetOverview() (*Overview, error) {
 	}
 	overview.Users.Total = total
 
-	lockedFilter := fmt.Sprintf("(&%s(%s=*))", userFilter, lockAttr)
+	// Locks that are still refusing binds, not every entry carrying the attribute:
+	// ppolicy leaves a lapsed lockout in place until the entry's next bind, and
+	// counting those makes the figure disagree with the users list, which resolves
+	// each row against its policy.
+	lockedNow := c.lockedNowFilter()
+	lockedFilter := fmt.Sprintf("(&%s%s)", userFilter, lockedNow)
 	if overview.Users.Locked, err = required(lockedFilter); err != nil {
 		return nil, fmt.Errorf("count locked accounts: %w", err)
 	}
@@ -123,8 +128,8 @@ func (c *Client) GetOverview() (*Overview, error) {
 			fmt.Sprintf("(&%s(%s<=%s))", userFilter, expiryAttr, nowFilter)); err != nil {
 			return nil, fmt.Errorf("count expired accounts: %w", err)
 		}
-		inactiveFilter = fmt.Sprintf("(&%s(|(%s=*)(%s<=%s)))",
-			userFilter, lockAttr, expiryAttr, nowFilter)
+		inactiveFilter = fmt.Sprintf("(&%s(|%s(%s<=%s)))",
+			userFilter, lockedNow, expiryAttr, nowFilter)
 	}
 
 	// Active is the complement of the union, not total minus the two counts: an
@@ -227,18 +232,24 @@ var generalizedTimeLayouts = []string{
 	"2006010215Z",   // hour granularity
 }
 
+// parseGeneralizedTime reads a generalizedTime in any of the forms above,
+// reporting false for a value none of them accept.
+func parseGeneralizedTime(value string) (time.Time, bool) {
+	if value == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range generalizedTimeLayouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
 // expiresAt returns the instant the directory will start refusing this account,
 // from pwdEndTime. A value none of the layouts accept is reported as "no expiry"
 // rather than guessed at — slapd itself treats an unparseable value as locked, and
 // that shows up as the lock state instead.
 func (u UserListItem) expiresAt() (time.Time, bool) {
-	if u.PwdEndTime == "" {
-		return time.Time{}, false
-	}
-	for _, layout := range generalizedTimeLayouts {
-		if t, err := time.Parse(layout, u.PwdEndTime); err == nil {
-			return t, true
-		}
-	}
-	return time.Time{}, false
+	return parseGeneralizedTime(u.PwdEndTime)
 }

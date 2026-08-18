@@ -56,17 +56,20 @@ type RedisConfigResponse struct {
 }
 
 type LDAPConfigResponse struct {
-	URL           ConfigValue `json:"url"`
-	BaseDN        ConfigValue `json:"baseDn"`
-	BindDN        ConfigValue `json:"bindDn"`
-	UserOU        ConfigValue `json:"userOu"`
-	GroupOU       ConfigValue `json:"groupOu"`
-	SudoersOU     ConfigValue `json:"sudoersOu"`
-	PpolicyOU     ConfigValue `json:"ppolicyOu"`
-	MinUID        ConfigValue `json:"minUid"`
-	MinGID        ConfigValue `json:"minGid"`
-	TLSMode       ConfigValue `json:"tlsMode"`
-	TLSSkipVerify ConfigValue `json:"tlsSkipVerify"`
+	URL       ConfigValue `json:"url"`
+	BaseDN    ConfigValue `json:"baseDn"`
+	BindDN    ConfigValue `json:"bindDn"`
+	UserOU    ConfigValue `json:"userOu"`
+	GroupOU   ConfigValue `json:"groupOu"`
+	SudoersOU ConfigValue `json:"sudoersOu"`
+	PpolicyOU ConfigValue `json:"ppolicyOu"`
+	// DefaultPolicyDN is what olcPPolicyDefault is set to, told to the app rather
+	// than read from cn=config, which the bind identity normally cannot see.
+	DefaultPolicyDN ConfigValue `json:"defaultPolicyDn"`
+	MinUID          ConfigValue `json:"minUid"`
+	MinGID          ConfigValue `json:"minGid"`
+	TLSMode         ConfigValue `json:"tlsMode"`
+	TLSSkipVerify   ConfigValue `json:"tlsSkipVerify"`
 }
 
 type SessionConfigResponse struct {
@@ -114,17 +117,18 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			URL: getConfigValueMasked("REDIS_URL", cfg.Redis.URL, "redis://localhost:6379"),
 		},
 		LDAP: LDAPConfigResponse{
-			URL:           getConfigValue("LDAP_URL", cfg.LDAP.URL, "ldap://localhost:389"),
-			BaseDN:        getConfigValue("LDAP_BASE_DN", cfg.LDAP.BaseDN, "dc=example,dc=org"),
-			BindDN:        getConfigValue("LDAP_BIND_DN", cfg.LDAP.BindDN, "cn=admin,dc=example,dc=org"),
-			UserOU:        getConfigValue("LDAP_USER_OU", cfg.LDAP.UserOU, "ou=People"),
-			GroupOU:       getConfigValue("LDAP_GROUP_OU", cfg.LDAP.GroupOU, "ou=Groups"),
-			SudoersOU:     getConfigValue("LDAP_SUDOERS_OU", cfg.LDAP.SudoersOU, "ou=sudoers"),
-			PpolicyOU:     getConfigValue("LDAP_PPOLICY_OU", cfg.LDAP.PpolicyOU, "ou=policies"),
-			MinUID:        getConfigValue("LDAP_MIN_UID", cfg.LDAP.MinUID, 1000),
-			MinGID:        getConfigValue("LDAP_MIN_GID", cfg.LDAP.MinGID, 1000),
-			TLSMode:       getConfigValue("LDAP_TLS_MODE", cfg.LDAP.TLSMode, "none"),
-			TLSSkipVerify: getConfigValue("LDAP_TLS_SKIP_VERIFY", cfg.LDAP.TLSSkipVerify, false),
+			URL:             getConfigValue("LDAP_URL", cfg.LDAP.URL, "ldap://localhost:389"),
+			BaseDN:          getConfigValue("LDAP_BASE_DN", cfg.LDAP.BaseDN, "dc=example,dc=org"),
+			BindDN:          getConfigValue("LDAP_BIND_DN", cfg.LDAP.BindDN, "cn=admin,dc=example,dc=org"),
+			UserOU:          getConfigValue("LDAP_USER_OU", cfg.LDAP.UserOU, "ou=People"),
+			GroupOU:         getConfigValue("LDAP_GROUP_OU", cfg.LDAP.GroupOU, "ou=Groups"),
+			SudoersOU:       getConfigValue("LDAP_SUDOERS_OU", cfg.LDAP.SudoersOU, "ou=sudoers"),
+			PpolicyOU:       getConfigValue("LDAP_PPOLICY_OU", cfg.LDAP.PpolicyOU, "ou=policies"),
+			DefaultPolicyDN: getConfigValue("LDAP_DEFAULT_POLICY_DN", cfg.LDAP.DefaultPolicyDN, ""),
+			MinUID:          getConfigValue("LDAP_MIN_UID", cfg.LDAP.MinUID, 1000),
+			MinGID:          getConfigValue("LDAP_MIN_GID", cfg.LDAP.MinGID, 1000),
+			TLSMode:         getConfigValue("LDAP_TLS_MODE", cfg.LDAP.TLSMode, "none"),
+			TLSSkipVerify:   getConfigValue("LDAP_TLS_SKIP_VERIFY", cfg.LDAP.TLSSkipVerify, false),
 		},
 		Session: SessionConfigResponse{
 			TTL: getConfigValue("SESSION_TTL", cfg.Session.TTL.String(), "24h0m0s"),

@@ -183,6 +183,7 @@ LDAP Warden is configured via environment variables:
 | `LDAP_GROUP_OU` | Organizational Unit for groups | `ou=Groups` |
 | `LDAP_SUDOERS_OU` | Organizational Unit for sudo roles | `ou=sudoers` |
 | `LDAP_PPOLICY_OU` | Organizational Unit for password policies | `ou=policies` |
+| `LDAP_DEFAULT_POLICY_DN` | The policy in the overlay's `olcPPolicyDefault`, which applies to entries with no `pwdPolicySubentry`. `cn=config` is not readable with an ordinary bind identity, so set this to tell a lockout still in force from one `pwdLockoutDuration` has lifted | *(none)* |
 | `LDAP_MIN_UID` | Minimum UID for new users | `1000` |
 | `LDAP_MIN_GID` | Minimum GID for new groups | `1000` |
 | `LDAP_SEARCH_SIZE_LIMIT` | Max entries returned by UI list/search endpoints (0 = no limit) | `500` |

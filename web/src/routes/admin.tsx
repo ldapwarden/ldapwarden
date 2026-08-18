@@ -221,6 +221,11 @@ function AdminPage() {
                 description="Organizational Unit for password policies"
               />
             </div>
+            <ConfigField
+              label="Default Policy DN"
+              config={config!.ldap.defaultPolicyDn}
+              description="The policy in olcPPolicyDefault, which applies to entries with no pwdPolicySubentry. Not readable from cn=config, so it has to be declared here — without it a ppolicy lockout cannot be told from one that has already expired."
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <ConfigField
                 label="Min UID"

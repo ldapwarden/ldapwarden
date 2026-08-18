@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { api, userPhotoUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, expiryInstantTitle, formatExpiryDate, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
+import { hasLapsedLock, isLocked, lockoutLiftsAt } from '@/lib/account'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
 
@@ -174,7 +175,7 @@ function UserDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{user?.displayName || user?.cn}</h1>
-            {user?.accountLocked && (
+            {user && isLocked(user) && (
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-destructive/10 text-destructive">
                 <Lock className="h-3 w-3 mr-1" />
                 Locked
@@ -1958,6 +1959,32 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
   const hasFutureExpiration = user?.pwdEndTime && isLdapTimestampInFuture(user.pwdEndTime)
   const hasPastExpiration = user?.pwdEndTime && !isLdapTimestampInFuture(user.pwdEndTime)
 
+  // A lock has three questions behind it, and pwdAccountLockedTime answers only
+  // the first: is a value there (hasLockFlag), is it still refusing binds
+  // (lockedNow), and when does the policy lift it (liftsAt). ppolicy leaves a
+  // lapsed lockout in the entry until the next bind on it, so the first two
+  // answers differ for as long as nobody tries to log in.
+  const hasLockFlag = Boolean(user?.pwdAccountLockedTime)
+  const lockedNow = user ? isLocked(user) : false
+  const lapsedLock = user ? hasLapsedLock(user) : false
+  const liftsAt = user ? lockoutLiftsAt(user) : null
+  const lockDetail = ((): string | null => {
+    switch (user?.lockout?.state) {
+      case 'manual':
+        return 'Locked by an administrator, so it does not expire on its own: it holds until someone unlocks it here.'
+      case 'active':
+        return liftsAt
+          ? `Locked by the password policy. The directory stops refusing this account at ${liftsAt.toLocaleString()}.`
+          : 'Locked by the password policy, whose lockout duration is 0 — it never lifts on its own.'
+      case 'lifted':
+        return `The policy lifted this lockout${liftsAt ? ` at ${liftsAt.toLocaleString()}` : ''}. The attribute is still on the entry: the directory drops it at the next login attempt, and Unlock clears it now.`
+      case 'unknown':
+        return 'Whether this lockout has already expired cannot be told from here, because the policy that applies to the entry is not known. Set LDAP_DEFAULT_POLICY_DN to the DN in olcPPolicyDefault, or give this entry a policy of its own below.'
+      default:
+        return null
+    }
+  })()
+
   const [expirationDate, setExpirationDate] = useState(
     user?.pwdEndTime && hasFutureExpiration
       ? ldapTimestampToDateString(user.pwdEndTime)
@@ -1974,10 +2001,16 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
     enabled: showPoliciesModule,
   })
 
+  // With no pwdPolicySubentry of its own, an entry follows the directory's
+  // default policy — LDAP_DEFAULT_POLICY_DN, since olcPPolicyDefault itself is
+  // not readable. Naming it here is the difference between "Default (none)" as
+  // "no policy at all" and as "the one every other entry uses".
+  const defaultPolicyDn = user?.pwdPolicySubentry ? undefined : user?.lockout?.policyDn
+
   const policyOptions = useMemo(() => {
     const listed = passwordPolicies?.data ?? []
     const options = [
-      { value: '', label: 'Default (none)' },
+      { value: '', label: defaultPolicyDn ? `Default (${extractCN(defaultPolicyDn)})` : 'Default (none)' },
       ...listed.map((policy) => ({
         value: policy.dn,
         label: policy.cn + (policy.description ? ` - ${policy.description}` : ''),
@@ -1990,7 +2023,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
       options.push({ value: applied, label: extractCN(applied) })
     }
     return options
-  }, [passwordPolicies?.data, user?.pwdPolicySubentry])
+  }, [passwordPolicies?.data, user?.pwdPolicySubentry, defaultPolicyDn])
 
   const policiesNotShown = Math.max(
     0,
@@ -2250,8 +2283,8 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4 p-4 rounded-lg border">
-            <div className={`p-3 rounded-full ${user?.accountLocked || hasPastExpiration ? 'bg-destructive/10' : hasFutureExpiration ? 'bg-warning/15' : 'bg-success/15'}`}>
-              {user?.accountLocked ? (
+            <div className={`p-3 rounded-full ${lockedNow || hasPastExpiration ? 'bg-destructive/10' : hasFutureExpiration ? 'bg-warning/15' : 'bg-success/15'}`}>
+              {lockedNow ? (
                 <Lock className="h-6 w-6 text-destructive" />
               ) : hasFutureExpiration ? (
                 <CalendarClock className="h-6 w-6 text-warning" />
@@ -2261,27 +2294,34 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
             </div>
             <div className="flex-1">
               <p className="font-medium">
-                {user?.accountLocked
+                {lockedNow
                   ? 'Account Locked'
                   : hasPastExpiration
                     ? 'Account Expired'
-                    : hasFutureExpiration
-                      ? 'Account Active (Expires Soon)'
-                      : 'Account Active'}
+                    : lapsedLock
+                      ? 'Account Active (Lockout Expired)'
+                      : hasFutureExpiration
+                        ? 'Account Active (Expires Soon)'
+                        : 'Account Active'}
               </p>
               <p className="text-sm text-muted-foreground">
-                {user?.accountLocked
+                {lockedNow
                   ? 'User cannot log in until the account is unlocked'
                   : hasPastExpiration
                     ? 'The directory refuses this account: its expiry has passed'
-                    : hasFutureExpiration
-                      ? 'The directory will refuse this account from the expiry date'
-                      : 'User can log in normally'}
+                    : lapsedLock
+                      ? 'The lockout has run its course, so the user can log in again'
+                      : hasFutureExpiration
+                        ? 'The directory will refuse this account from the expiry date'
+                        : 'User can log in normally'}
               </p>
-              {user?.accountLocked && (
+              {hasLockFlag && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Locked on: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
+                  {lapsedLock ? 'Was locked on' : 'Locked on'}: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
                 </p>
+              )}
+              {lockDetail && (
+                <p className="text-xs text-muted-foreground mt-1">{lockDetail}</p>
               )}
               {(hasFutureExpiration || hasPastExpiration) && (
                 <p className="text-xs text-warning mt-1" title={expiryInstantTitle(user.pwdEndTime!)}>
@@ -2291,15 +2331,15 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
             </div>
           </div>
 
-          {canWrite && isSelf && !user?.accountLocked && (
+          {canWrite && isSelf && !hasLockFlag && (
             <Callout variant="info">
               This is the account you are signed in with, so it cannot be locked here.
             </Callout>
           )}
 
-          {canWrite && !(isSelf && !user?.accountLocked) && (
+          {canWrite && !(isSelf && !hasLockFlag) && (
             <div className="flex gap-2 flex-wrap">
-              {user?.accountLocked ? (
+              {hasLockFlag ? (
                 <Button
                   variant="default"
                   onClick={() => unlockMutation.mutate()}
@@ -2464,13 +2504,37 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
               </div>
             )}
 
-            {user?.accountLocked && (
+            {hasLockFlag && lockedNow && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
                 <Lock className="h-5 w-5 text-destructive shrink-0" />
                 <div>
-                  <p className="font-medium text-destructive">Policy Locked</p>
+                  <p className="font-medium text-destructive">
+                    {user?.lockout?.state === 'manual'
+                      ? 'Locked by an Administrator'
+                      : user?.lockout?.state === 'unknown'
+                        ? 'Locked, Duration Unknown'
+                        : 'Policy Locked'}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     Locked at: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
+                    {liftsAt && ` — lifts at ${liftsAt.toLocaleString()}`}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* A lockout the policy has already lifted. It is not a lock any more,
+                so it is not shown as one — but the attribute is still there, and
+                anything reading the entry directly will report the account as
+                locked until the next bind clears it. */}
+            {lapsedLock && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                <Unlock className="h-5 w-5 text-warning shrink-0" />
+                <div>
+                  <p className="font-medium text-warning">Lockout Expired</p>
+                  <p className="text-sm text-muted-foreground">
+                    Locked at: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
+                    {liftsAt && `, lifted at ${liftsAt.toLocaleString()}`}
                   </p>
                 </div>
               </div>

@@ -176,6 +176,10 @@ attribute blocks; fetch a single user for those.
 - `hasPhoto` — whether the user has a `jpegPhoto`; fetch it from
   `GET /api/users/{dn}/photo`.
 - `groupsCount` — number of groups listing the user in `memberUid`.
+- `lockout` — what the entry's `pwdAccountLockedTime` means right now, resolved
+  against the policy that governs the entry. `accountLocked` only reports that the
+  attribute is set, which a lapsed ppolicy lockout also does; `status=active` /
+  `status=inactive` filter on `lockout` instead. See *Account Expiry and Locking*.
 
 **curl example:**
 ```bash
@@ -196,7 +200,8 @@ curl "http://localhost:8000/api/users?search=doe&sort=uid&limit=25&offset=0" \
       "employeeType": "staff",
       "hasPhoto": false,
       "groupsCount": 1,
-      "accountLocked": false
+      "accountLocked": false,
+      "lockout": { "state": "none", "durationSeconds": 0 }
     }
   ],
   "total": 1,
@@ -326,6 +331,13 @@ curl -X POST http://localhost:8000/api/users \
   "homeDirectory": "/home/jsmith",
   "loginShell": "/bin/bash",
   "accountLocked": false,
+  "lockout": {
+    "state": "lifted",
+    "lockedAt": "20260817173435Z",
+    "liftsAt": "2026-08-17T17:49:35Z",
+    "durationSeconds": 900,
+    "policyDn": "cn=default,ou=policies,dc=example,dc=org"
+  },
   "objectClasses": ["inetOrgPerson", "posixAccount", "shadowAccount"]
 }
 ```
@@ -1098,8 +1110,11 @@ wrong — though the saving narrows as the directory grows, since only the old
 version was bounded. The filters name `pwdAccountLockedTime` and `pwdEndTime`,
 which are unindexed by default; index them if the dashboard gets slow.
 
-- `users.total` / `locked` / `expired` / `active` — an account is locked when it
-  carries `pwdAccountLockedTime`, and expired when its `pwdEndTime` has passed.
+- `users.total` / `locked` / `expired` / `active` — an account is locked when a
+  lock is *still refusing binds* (see *Account Expiry and Locking*: a ppolicy
+  lockout past its `pwdLockoutDuration` is not counted, and needs
+  `LDAP_DEFAULT_POLICY_DN` to be recognised for entries with no
+  `pwdPolicySubentry`), and expired when its `pwdEndTime` has passed.
   The two are independent, so **`locked` + `expired` can exceed
   `total` − `active`**: an account that is both appears in each and is excluded
   from `active` once. `active` is the complement of the union, so
@@ -1436,6 +1451,31 @@ A user's `accountLocked` (any `pwdAccountLockedTime`) and `pwdEndTime` are
 independent: an account can be locked, expired, both, or neither. `shadowExpire`
 is not consulted — slapd ignores it, so it cannot describe whether the account
 still works.
+
+#### Reading a lock: the `lockout` object
+
+`accountLocked` answers "is the attribute there", which is not the same question
+as "is this account locked". ppolicy has no timer: it re-reads
+`pwdAccountLockedTime` when the entry is next bound to, and deletes it there once
+`pwdLockoutDuration` has elapsed. A lockout posted after a run of failed binds
+therefore sits in the entry long after it stopped refusing anything — a night, a
+weekend, however long until someone tries to log in.
+
+So every user payload carries `lockout`, resolved server-side:
+
+| `state` | Meaning |
+|---------|---------|
+| `none` | No `pwdAccountLockedTime`. |
+| `manual` | The permanent-lock value `000001010000Z`, written by `POST /lock`. ppolicy never lifts it. |
+| `active` | A timestamped lockout still in force. `liftsAt` says when it ends; a `durationSeconds` of 0 means it never does. |
+| `lifted` | A timestamped lockout past its duration. The account authenticates; the attribute is stale and the directory drops it at the next bind — or `POST /unlock` clears it now. |
+| `unknown` | A timestamped lockout whose policy could not be read, so neither answer can be given. Treated as locked. |
+
+`policyDn` is the policy the duration came from: the entry's own
+`pwdPolicySubentry`, or `LDAP_DEFAULT_POLICY_DN`. That variable exists because
+`olcPPolicyDefault` lives in `cn=config`, which an ordinary bind identity cannot
+read — leave it unset and every lockout on an entry without its own policy
+resolves to `unknown`.
 
 ### Protecting the signed-in account
 

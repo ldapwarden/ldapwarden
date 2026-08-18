@@ -31,10 +31,11 @@ The default run migrates only the accounts that are broken right now — a
 alone, because migrating them would start refusing accounts that currently work:
 
 - **Lock timestamps in the past.** ppolicy lifted them once `pwdLockoutDuration`
-  elapsed, so those accounts authenticate today. Until the account's next
-  successful bind — which makes ppolicy clear the attribute itself — the UI shows
-  them as locked. Unlock them from the UI, or pass `-include-past-locks` if the
-  dates were meant as expiries.
+  elapsed, so those accounts authenticate today, and the attribute stays on the
+  entry until their next successful bind makes ppolicy clear it. With
+  `LDAP_DEFAULT_POLICY_DN` set (see below) the UI reports these as *lockout
+  expired* rather than as locked. Unlock them from the UI to clear the attribute
+  now, or pass `-include-past-locks` if the dates were meant as expiries.
 - **`shadowExpire`.** slapd never read it; only PAM/SSSD on your hosts do. Pass
   `-include-shadow-expire` to move enforcement to the directory, which also means
   taking it away from the hosts.
@@ -63,6 +64,14 @@ PostgreSQL, Redis and the directory rather than only that the process answers.
 and adds `capabilities.policyEnforcement`; `DELETE /api/users/{dn}` now returns
 `{message, warnings}`. Both are consumed only by the bundled frontend.
 
+**5. Set `LDAP_DEFAULT_POLICY_DN`** to whatever `olcPPolicyDefault` names on the
+ppolicy overlay — for the bundled stack,
+`cn=default,ou=policies,dc=example,dc=org`. Without it, ldapwarden cannot know how
+long a lockout lasts for entries that carry no `pwdPolicySubentry`, and reports
+every lock on them as `unknown`, i.e. still locked. `cn=config` is not readable
+with an ordinary bind identity, which is why this has to be told rather than
+discovered.
+
 **Prerequisite, unchanged but easy to miss:** ppolicy enforces neither locking nor
 expiry unless a policy applies to the entry (`olcPPolicyDefault` on the overlay,
 or `pwdPolicySubentry` on the entry) — and the attributes stay writable either
@@ -87,6 +96,16 @@ authenticate. The admin page now says what it knows, and
   `POST /api/admin/policy-selftest`, which creates a throwaway entry, locks it,
   tries to authenticate as it and removes it — the only definitive answer
   (`f79f44c`).
+- **Lock states, instead of "the attribute is there"**: every user payload carries
+  a `lockout` object resolving `pwdAccountLockedTime` against the policy that
+  governs the entry — `none` / `manual` / `active` (with the instant it lifts) /
+  `lifted` / `unknown`. ppolicy has no timer: it clears a lapsed lockout when the
+  entry is next bound to, so the attribute outlived the lock and the UI reported an
+  account as locked for as long as nobody tried to log in. The user page, the list
+  status column, the `status=active` filter and the dashboard's `locked` figure all
+  answer from the resolved state now, and a lapsed lockout says so instead of
+  reading as a lock. Needs the new `LDAP_DEFAULT_POLICY_DN` for entries without
+  their own policy — see Upgrading.
 - **`GET /api/groups/{dn}/members`**, resolving `memberUid` to names server-side
   (`69ecea2`).
 - **`GET /healthz` and `GET /readyz`**, the Kubernetes names, split the way the
