@@ -29,7 +29,7 @@ lint: lint-go lint-frontend
 
 # Lint Go code
 lint-go:
-	golangci-lint run ./...
+	golangci-lint run --build-tags=integration ./...
 
 # Lint frontend code
 lint-frontend:
@@ -44,7 +44,7 @@ test:
 # healthcheck, and the directory's is the same ldapsearch this used to run.
 test-integration:
 	@docker compose up -d --wait postgres redis openldap
-	LDAPWARDEN_TEST_INTEGRATION=1 go test -tags integration -count=1 -v ./...
+	LDAPWARDEN_TEST_INTEGRATION=1 go test -tags integration -race -count=1 -v ./...
 
 # Clean build artifacts
 clean:
