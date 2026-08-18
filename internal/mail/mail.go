@@ -638,9 +638,9 @@ func (m *Mailer) buildMessage(to, subject, htmlBody string) ([]byte, error) {
 		fromHeader = (&mail.Address{Name: m.config.FromName, Address: m.config.From}).String()
 	}
 	var msg bytes.Buffer
-	msg.WriteString(fmt.Sprintf("From: %s\r\n", fromHeader))
-	msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	fmt.Fprintf(&msg, "From: %s\r\n", fromHeader)
+	fmt.Fprintf(&msg, "To: %s\r\n", to)
+	fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
 	msg.WriteString("MIME-Version: 1.0\r\n")
 	msg.WriteString("Content-Type: text/html; charset=\"utf-8\"\r\n")
 	msg.WriteString("\r\n")

@@ -159,6 +159,9 @@ func ldapErrorResponse(err error) (string, int, bool) {
 func (s *Server) invalidateSessions(r *http.Request, dn, reason string) {
 	if err := s.authService.InvalidateUserSessions(r.Context(), dn); err != nil {
 		reqID := middleware.GetReqID(r.Context())
+		//nolint:gosec // G706: the DN is attacker-influenced but printed with %q,
+		// which escapes newlines and control characters, so it cannot forge a log
+		// line.
 		log.Printf("session revocation FAILED (sessions may survive): reason=%q dn=%q requestId=%s err=%v",
 			reason, dn, reqID, err)
 	}

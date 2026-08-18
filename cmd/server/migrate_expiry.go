@@ -28,7 +28,7 @@ func runExpiryMigration(args []string) error {
 	includeShadow := fs.Bool("include-shadow-expire", false,
 		"also migrate shadowExpire — moves enforcement from the hosts' PAM/SSSD to the directory")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), `Usage: ldapwarden migrate-account-expiry [flags]
+		_, _ = fmt.Fprintf(fs.Output(), `Usage: ldapwarden migrate-account-expiry [flags]
 
 Moves account expirations from pwdAccountLockedTime (and optionally shadowExpire)
 to pwdEndTime, the attribute the directory enforces as a validity limit.

@@ -67,6 +67,9 @@ func TestIntegration_Users_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("lock: status=%d", resp.StatusCode)
 	}
 	resp, body = doJSON(t, env, http.MethodGet, userPath(user.DN), nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get after lock: status=%d", resp.StatusCode)
+	}
 	if err := json.Unmarshal(body, &got); err != nil {
 		t.Fatalf("unmarshal locked: %v", err)
 	}
@@ -86,6 +89,9 @@ func TestIntegration_Users_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("unlock: status=%d", resp.StatusCode)
 	}
 	resp, body = doJSON(t, env, http.MethodGet, userPath(user.DN), nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get after unlock: status=%d", resp.StatusCode)
+	}
 	if err := json.Unmarshal(body, &got); err != nil {
 		t.Fatalf("unmarshal unlocked: %v", err)
 	}

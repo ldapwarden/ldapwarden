@@ -104,11 +104,10 @@ func (c *Client) MigrateAccountExpiry(opts ExpiryMigrationOptions) (*ExpiryMigra
 				continue
 			}
 			item.From, item.Value, item.To = lockAttr, lock, lock
-			if parsed.After(now) {
+			switch {
+			case parsed.After(now), opts.IncludePastLocks:
 				item.Action = "migrate"
-			} else if opts.IncludePastLocks {
-				item.Action = "migrate"
-			} else {
+			default:
 				item.Action = "skip"
 				item.Reason = "lock timestamp is in the past: it may be a real lock, and migrating it would refuse an account that currently works (--include-past-locks)"
 			}

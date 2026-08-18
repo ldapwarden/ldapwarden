@@ -86,7 +86,9 @@ func TestDumpPreview(t *testing.T) {
 		}
 		html += "<hr style='margin:32px 0'>" + body
 	}
-	if err := os.WriteFile(out, []byte(html), 0o644); err != nil {
+	//nolint:gosec // G703: the path is LDAPWARDEN_MAIL_PREVIEW, set by whoever runs
+	// this test to dump the rendered mails somewhere they can open them.
+	if err := os.WriteFile(out, []byte(html), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	t.Logf("preview written to %s", out)

@@ -67,5 +67,7 @@ func TestIntegration_Audit_RefusesMutationWhenLogFails(t *testing.T) {
 	// Ensure the entry struct field name we assert on does exist on the
 	// shared User type (defensive: this test breaks loudly if the struct
 	// is renamed).
+	//nolint:staticcheck // QF1011: the explicit type is the point — this is a
+	// compile-time assertion that the decoded payload still satisfies ldap.User.
 	var _ ldap.User = *got
 }

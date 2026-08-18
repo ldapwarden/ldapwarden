@@ -95,6 +95,7 @@ func TestCSRFOriginCheck_SameOrigin(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, tc.target, nil)
+			//nolint:gosec // G124: an inbound request fixture; cookie attributes are a response concern.
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "abcd"})
 			if tc.origin != "" {
 				req.Header.Set("Origin", tc.origin)
@@ -152,6 +153,7 @@ func TestCSRFOriginCheck(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.method, "https://app.example.com/api/users", nil)
 			if tc.cookie {
+				//nolint:gosec // G124: an inbound request fixture; cookie attributes are a response concern.
 				req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "abcd"})
 			}
 			if tc.origin != "" {

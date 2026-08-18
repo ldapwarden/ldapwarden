@@ -18,6 +18,9 @@ const sessionCookieName = "ldapwarden_session"
 // dev mode so the bundled compose stack on plain http:// still works;
 // real deployments are expected to terminate TLS in front of the app.
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string) {
+	//nolint:gosec // G124: HttpOnly, SameSite and Secure are all set below. Secure
+	// is a non-literal (dev mode serves the bundled stack over plain http://),
+	// which gosec cannot evaluate, so it reports the attribute as missing.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    token,
@@ -33,6 +36,7 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string) {
 // the logout handler so the browser drops the value even though the
 // underlying token has already been invalidated server-side.
 func (s *Server) clearSessionCookie(w http.ResponseWriter) {
+	//nolint:gosec // G124: see setSessionCookie — Secure is conditional on dev mode.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
