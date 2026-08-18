@@ -14,15 +14,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
@@ -31,6 +29,7 @@ import (
 	"github.com/ldapwarden/ldapwarden/internal/config"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 	"github.com/ldapwarden/ldapwarden/internal/mail"
+	"github.com/ldapwarden/ldapwarden/internal/migrations"
 	"github.com/ldapwarden/ldapwarden/internal/passwordreset"
 	"github.com/ldapwarden/ldapwarden/internal/rbac"
 	"github.com/ldapwarden/ldapwarden/internal/scheduler"
@@ -130,17 +129,18 @@ func setupTestServer(t *testing.T) *testEnv {
 	}
 }
 
-// runMigrations applies the SQL migrations under db/migrations using the same
+// runMigrations applies the schema migrations embedded in internal/migrations —
+// the very files the binary carries, not a second copy on disk — using the same
 // golang-migrate package the production binary uses, so reruns are idempotent
-// and ERROR-free.
+// and ERROR-free. Sharing the embed is the point: the tests can no longer pass
+// against a schema the binary would not create.
 func runMigrations(t *testing.T, dbURL string) error {
 	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return errors.New("cannot locate test file path")
+	src, err := iofs.New(migrations.FS, migrations.Dir)
+	if err != nil {
+		return err
 	}
-	src := "file://" + filepath.Join(filepath.Dir(thisFile), "..", "..", "db", "migrations")
-	m, err := migrate.New(src, dbURL)
+	m, err := migrate.NewWithSourceInstance("iofs", src, dbURL)
 	if err != nil {
 		return err
 	}

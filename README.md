@@ -517,9 +517,9 @@ ldapwarden/
 │   ├── auth/            # Authentication & sessions
 │   ├── rbac/            # Permission checks
 │   ├── audit/           # Audit logging
-│   └── config/          # Configuration
+│   ├── config/          # Configuration
+│   └── migrations/      # SQL migrations (embedded in the binary)
 ├── db/
-│   ├── migrations/      # SQL migrations
 │   └── queries/         # sqlc queries
 ├── web/                 # React frontend
 │   ├── src/routes/      # TanStack Router pages

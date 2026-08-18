@@ -2,7 +2,9 @@ version: "2"
 sql:
   - engine: "postgresql"
     queries: "queries/"
-    schema: "migrations/"
+    # The migrations are the schema, and they live in the package the binary
+    # embeds (internal/migrations) so there is only ever one copy of them.
+    schema: "../internal/migrations"
     gen:
       go:
         package: "db"

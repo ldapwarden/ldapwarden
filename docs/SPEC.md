@@ -65,8 +65,8 @@ internal/
   auth/             # Authentication logic
   rbac/             # Permission checks
   schema/           # LDAP schema parsing
+  migrations/       # SQL migrations (embedded in the binary)
 db/
-  migrations/       # SQL migrations
   queries/          # sqlc query files
 web/                # React app
 ```

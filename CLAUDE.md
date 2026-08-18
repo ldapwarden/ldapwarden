@@ -42,8 +42,9 @@ internal/
   rbac/              # Permission checks
   audit/             # Audit logging
   config/            # Configuration
+  migrations/        # SQL migrations, embedded in the binary and applied
+                     # by the integration tests from that same embed
 db/
-  migrations/        # SQL migrations
   queries/           # sqlc queries
 web/                 # React frontend
   src/routes/        # TanStack Router pages

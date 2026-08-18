@@ -12,7 +12,6 @@ RUN go mod download
 # Copy source code
 COPY cmd/ cmd/
 COPY internal/ internal/
-COPY db/ db/
 
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /ldapwarden ./cmd/server
@@ -47,8 +46,6 @@ COPY --from=backend-builder /ldapwarden /app/ldapwarden
 # Copy the frontend build from frontend builder
 COPY --from=frontend-builder /app/dist /app/web/dist
 
-# Copy database migrations
-COPY db/migrations /app/db/migrations
 
 # Create non-root user with a fixed UID/GID so volume mounts and
 # read-only rootfs policies are predictable across rebuilds. 10001 is

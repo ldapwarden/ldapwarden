@@ -66,16 +66,3 @@ jobs:
 
       - name: Typecheck and build
         run: cd web && pnpm build
-
-  # The embedded migrations (cmd/server/migrations, applied at startup) and the
-  # ones the integration tests apply (db/migrations) are two copies of the same
-  # files. Nothing but this check stops them from drifting — and a drift means
-  # the tests pass against a schema the binary never creates.
-  migrations:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Embedded and test migrations are identical
-        run: diff -r db/migrations cmd/server/migrations

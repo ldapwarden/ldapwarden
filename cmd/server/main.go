@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,13 +22,11 @@ import (
 	"github.com/ldapwarden/ldapwarden/internal/config"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 	"github.com/ldapwarden/ldapwarden/internal/mail"
+	"github.com/ldapwarden/ldapwarden/internal/migrations"
 	"github.com/ldapwarden/ldapwarden/internal/passwordreset"
 	"github.com/ldapwarden/ldapwarden/internal/rbac"
 	"github.com/ldapwarden/ldapwarden/internal/scheduler"
 )
-
-//go:embed migrations/*.sql
-var migrationsFS embed.FS
 
 func main() {
 	// One-shot maintenance commands live behind a subcommand so the default
@@ -147,7 +144,7 @@ func run() error {
 }
 
 func runMigrations(databaseURL string) error {
-	d, err := iofs.New(migrationsFS, "migrations")
+	d, err := iofs.New(migrations.FS, migrations.Dir)
 	if err != nil {
 		return fmt.Errorf("create migration source: %w", err)
 	}
