@@ -71,6 +71,7 @@ parameters the list endpoints accept.
 - `GET/POST/PUT/DELETE /api/groups` - Group CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
 - `GET /api/groups/:dn/members` - Membership resolved to names
 - `POST /api/admin/policy-selftest` - Prove whether ppolicy is enforced (writes a throwaway entry)
+- `POST /api/admin/scheduled-tasks/lockout-scan/trigger` - Run the lockout scan now
 - `POST/DELETE /api/groups/:dn/members` - Group membership
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
@@ -119,6 +120,14 @@ MVP implemented with:
   attribute. Which policy applies needs `LDAP_DEFAULT_POLICY_DN` for entries
   without a `pwdPolicySubentry`, since `olcPPolicyDefault` lives in the unreadable
   `cn=config` — unset, such a lockout resolves to `unknown` and counts as locked.
+- **The evidence of a lockout is perishable.** `pwdFailureTime` is
+  NO-USER-MODIFICATION — slapd refuses it even from the rootdn, so tests have to
+  produce real failed binds — and ppolicy prunes it to `pwdFailureCountInterval`,
+  then deletes it with the lock at the account's next bind. The `lockouts_scan`
+  task (`internal/scheduler/lockout_scan.go`) copies the timestamps into a
+  `user.lockout` audit row while they exist; nothing else in the app records them.
+  Its interval must stay shorter than the shortest `pwdLockoutDuration`, or
+  lockouts start and expire between two runs.
 - **`memberUid` and `sudoUser` store a plain uid, not a DN**, so the directory
   cannot follow them: any operation on a user that changes or removes its uid has
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,

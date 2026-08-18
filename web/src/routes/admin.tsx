@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Callout } from '@/components/ui/callout'
-import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock, ShieldCheck, ShieldAlert, ShieldQuestion } from 'lucide-react'
+import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock, ShieldCheck, ShieldAlert, ShieldQuestion, Lock } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useState } from 'react'
 import type { PolicySelfTest } from '@/lib/api'
@@ -91,6 +91,24 @@ function AdminPage() {
     onSuccess: (result) => {
       refetchTaskRuns()
       toast.success(`Password expiration check completed: ${result.usersChecked} users checked, ${result.notificationsSent} notifications sent`)
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const triggerLockoutScanMutation = useMutation({
+    mutationFn: api.admin.scheduledTasks.triggerLockoutScan,
+    onSuccess: (result) => {
+      refetchTaskRuns()
+      // "Locked accounts seen" rather than "users checked": the scan only reads the
+      // locked ones, and a run that examined 0 accounts is the healthy outcome.
+      toast.success(
+        `Lockout scan completed: ${result.usersChecked} locked account${result.usersChecked === 1 ? '' : 's'} seen, ${result.notificationsSent} notification${result.notificationsSent === 1 ? '' : 's'} sent`,
+      )
+      if (result.errors?.length) {
+        toast.warning(result.errors.join('; '), { duration: 12000 })
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message)
@@ -366,7 +384,7 @@ function AdminPage() {
               <CalendarClock className="h-5 w-5" />
               Scheduled Tasks
             </CardTitle>
-            <CardDescription>Expiration notification tasks</CardDescription>
+            <CardDescription>Expiration notifications and lockout detection</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
@@ -418,6 +436,36 @@ function AdminPage() {
                   disabled={triggerPasswordsMutation.isPending || !scheduledTasksConfig?.passwordsExpiration.value}
                 >
                   {triggerPasswordsMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-2" />
+                  )}
+                  Run Now
+                </Button>
+              </div>
+
+              {/* Lockout Scan */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Lockout Scan</span>
+                  </div>
+                  <Badge variant={scheduledTasksConfig?.lockoutScan.value ? 'default' : 'secondary'}>
+                    {scheduledTasksConfig?.lockoutScan.value || 'Disabled'}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Reports accounts the directory locked by itself after failed sign-ins. Runs
+                  frequently on purpose: the directory erases the failed-attempt timestamps at the
+                  account's next sign-in.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => triggerLockoutScanMutation.mutate()}
+                  disabled={triggerLockoutScanMutation.isPending || !scheduledTasksConfig?.lockoutScan.value}
+                >
+                  {triggerLockoutScanMutation.isPending ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Play className="h-4 w-4 mr-2" />

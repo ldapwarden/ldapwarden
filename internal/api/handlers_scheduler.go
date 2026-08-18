@@ -39,6 +39,7 @@ type TaskRunsResponse struct {
 type ScheduledTasksConfigResponse struct {
 	UsersExpiration     ConfigValue `json:"usersExpiration"`
 	PasswordsExpiration ConfigValue `json:"passwordsExpiration"`
+	LockoutScan         ConfigValue `json:"lockoutScan"`
 }
 
 func (s *Server) handleTriggerAccountExpirationTask(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +74,28 @@ func (s *Server) handleTriggerPasswordExpirationTask(w http.ResponseWriter, r *h
 	}
 
 	result, err := s.scheduler.TriggerPasswordExpiration(r.Context(), triggeredBy)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, TriggerTaskResponse{
+		RunID:             result.RunID.String(),
+		TaskName:          result.TaskName,
+		UsersChecked:      result.UsersChecked,
+		NotificationsSent: result.NotificationsSent,
+		Errors:            result.Errors,
+	})
+}
+
+func (s *Server) handleTriggerLockoutScanTask(w http.ResponseWriter, r *http.Request) {
+	session := s.getSession(r)
+	triggeredBy := "unknown"
+	if session != nil {
+		triggeredBy = session.UserUID
+	}
+
+	result, err := s.scheduler.TriggerLockoutScan(r.Context(), triggeredBy)
 	if err != nil {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
@@ -128,6 +151,7 @@ func (s *Server) handleGetScheduledTasksConfig(w http.ResponseWriter, r *http.Re
 	response := ScheduledTasksConfigResponse{
 		UsersExpiration:     getConfigValue("LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION", cfg.UsersExpiration, "42 3 * * *"),
 		PasswordsExpiration: getConfigValue("LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION", cfg.PasswordsExpiration, "42 3 * * *"),
+		LockoutScan:         getConfigValue("LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN", cfg.LockoutScan, "*/5 * * * *"),
 	}
 	writeJSON(w, http.StatusOK, response)
 }

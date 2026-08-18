@@ -48,6 +48,9 @@ const ACTION_OPTIONS = [
   { value: 'user.rename', label: 'user.rename' },
   { value: 'user.lock', label: 'user.lock' },
   { value: 'user.unlock', label: 'user.unlock' },
+  // The directory locking an account by itself, found by the lockout scan — as
+  // opposed to user.lock, which is an administrator doing it here.
+  { value: 'user.lockout', label: 'user.lockout' },
   { value: 'group.create', label: 'group.create' },
   { value: 'group.update', label: 'group.update' },
   { value: 'group.delete', label: 'group.delete' },

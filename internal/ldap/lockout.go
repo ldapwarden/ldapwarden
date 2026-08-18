@@ -2,6 +2,7 @@ package ldap
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -265,4 +266,126 @@ func sameDN(a, b string) bool {
 		return false
 	}
 	return parsedA.EqualFold(parsedB)
+}
+
+// LockedAccount is an entry the directory currently refuses because of a lock,
+// with the evidence that goes with it.
+//
+// The evidence is the point: pwdFailureTime is a rolling window that ppolicy
+// prunes to pwdFailureCountInterval and wipes entirely on the next successful
+// bind — along with the lock itself. Whatever is not read out and stored while
+// the lock is up is gone.
+type LockedAccount struct {
+	DN          string
+	UID         string
+	DisplayName string
+	Mail        string
+	Lockout     *Lockout
+	// LockedAt is the lock instant, parsed. Zero when the stored value is in no
+	// form this can read — which also makes it useless as an event identity, so
+	// callers that need one have to say so rather than substitute now().
+	LockedAt time.Time
+	// MaxFailure is the applicable policy's pwdMaxFailure, or 0 when unknown. It
+	// says how many attempts the lock took, which tells a caller whether a shorter
+	// FailureTimes list means fewer attempts or an older one already trimmed.
+	MaxFailure int
+	// FailureTimes are the failed binds still recorded on the entry, oldest
+	// first. Fewer than pwdMaxFailure means the older ones aged out of
+	// pwdFailureCountInterval, not that there were fewer attempts.
+	FailureTimes []time.Time
+}
+
+// SelfLockedAccounts returns the accounts ppolicy has locked on its own — the
+// lockouts nobody was told about, as opposed to a lock an administrator applied
+// through the app, which is audited and notified where it happens.
+//
+// The search asks for every lock and drops the manual ones here rather than
+// excluding them with a filter on permanentLockValue. An ordering assertion
+// against a year-0000 value is the kind of thing a server may evaluate as
+// Undefined, and the failure mode of a filter that quietly matches nothing is a
+// lockout nobody hears about — the one outcome this whole feature exists to
+// prevent. Locked entries are few, so reading them all costs nothing.
+func (c *Client) SelfLockedAccounts() ([]LockedAccount, bool, error) {
+	filter := fmt.Sprintf("(&(objectClass=inetOrgPerson)(%s=*))", lockAttr)
+	entries, truncated, err := c.SearchLimited(c.UserBaseDN(), filter, []string{
+		"dn", "uid", "cn", "displayName", "mail",
+		lockAttr, "pwdFailureTime", "pwdPolicySubentry",
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("search locked accounts: %w", err)
+	}
+
+	resolver := c.newLockoutResolver()
+	accounts := make([]LockedAccount, 0, len(entries))
+	for _, entry := range entries {
+		lockedAt := entry.GetAttributeValue(lockAttr)
+		lockout := resolver.resolve(lockedAt, entry.GetAttributeValue("pwdPolicySubentry"))
+		if lockout.State == LockStateManual || lockout.State == LockStateNone {
+			continue
+		}
+
+		displayName := entry.GetAttributeValue("displayName")
+		if displayName == "" {
+			displayName = entry.GetAttributeValue("cn")
+		}
+
+		account := LockedAccount{
+			DN:           entry.DN,
+			UID:          entry.GetAttributeValue("uid"),
+			DisplayName:  displayName,
+			Mail:         entry.GetAttributeValue("mail"),
+			Lockout:      lockout,
+			FailureTimes: parseFailureTimes(entry.GetAttributeValues("pwdFailureTime")),
+		}
+		if instant, ok := parseGeneralizedTime(lockedAt); ok {
+			account.LockedAt = instant
+		}
+		if policy := resolver.policy(lockout.PolicyDN); policy != nil {
+			account.MaxFailure = policy.PwdMaxFailure
+		}
+		accounts = append(accounts, account)
+	}
+	return accounts, truncated, nil
+}
+
+// parseFailureTimes reads pwdFailureTime values into instants, oldest first.
+// Values no layout accepts are dropped: they cannot be placed on a timeline, and
+// the lock instant is reported separately anyway.
+func parseFailureTimes(values []string) []time.Time {
+	times := make([]time.Time, 0, len(values))
+	for _, value := range values {
+		if t, ok := parseGeneralizedTime(value); ok {
+			times = append(times, t)
+		}
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	return times
+}
+
+// MinLockoutDuration returns the shortest pwdLockoutDuration any policy states.
+//
+// It bounds how long a lockout stays visible in the directory, and therefore how
+// often the scan has to run: ppolicy deletes the attributes at the first bind
+// after the duration elapses, so a scan slower than this can miss a lockout
+// entirely. Reports false when no policy sets a duration, i.e. when locks never
+// lift on their own and any cadence sees them.
+func (c *Client) MinLockoutDuration() (time.Duration, bool) {
+	policies, err := c.ListPasswordPolicies()
+	if err != nil {
+		return 0, false
+	}
+
+	shortest := 0
+	for _, policy := range policies {
+		if policy.PwdLockoutDuration <= 0 {
+			continue
+		}
+		if shortest == 0 || policy.PwdLockoutDuration < shortest {
+			shortest = policy.PwdLockoutDuration
+		}
+	}
+	if shortest == 0 {
+		return 0, false
+	}
+	return time.Duration(shortest) * time.Second, true
 }

@@ -255,3 +255,68 @@ func TestRenderAuditFieldList(t *testing.T) {
 		t.Errorf("field list must not render diff arrows")
 	}
 }
+
+// TestRenderLockoutDigest covers what the email exists to carry: the attempt
+// timestamps and the window the account is refused in. ppolicy erases both at the
+// account's next sign-in, so a digest that drops them loses them for good.
+func TestRenderLockoutDigest(t *testing.T) {
+	m := NewMailer(&config.MailConfig{}, "Example", "https://ldap.example.org")
+	data := lockoutDigestData{
+		Organization: "Example",
+		Subject:      "Account locked by the directory: rbesson",
+		Events: []LockoutEvent{{
+			UID:         "rbesson",
+			DisplayName: "Romain Besson",
+			LockedAt:    "2026-08-17 17:34:35 UTC",
+			LiftsAt:     "2026-08-17 17:49:35 UTC",
+			Attempts: []string{
+				"2026-08-17 17:33:42 UTC",
+				"2026-08-17 17:34:35 UTC",
+			},
+			Spread: "53s",
+		}},
+		Timestamp: "2026-08-17 17:35:00 UTC",
+	}
+
+	body, err := m.renderTemplate(lockoutDigestTemplate, data)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		"Romain Besson", "rbesson",
+		"2026-08-17 17:34:35 UTC", // locked at
+		"2026-08-17 17:49:35 UTC", // lifts at
+		"2026-08-17 17:33:42 UTC", // first attempt
+		"2 recorded", "over 53s",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("rendered body missing %q\n%s", want, body)
+		}
+	}
+}
+
+// TestRenderLockoutDigestNoLift covers pwdLockoutDuration 0: there is no instant
+// to report, and saying nothing would read as "it will sort itself out".
+func TestRenderLockoutDigestNoLift(t *testing.T) {
+	m := NewMailer(&config.MailConfig{}, "Example", "")
+	data := lockoutDigestData{
+		Organization: "Example",
+		Subject:      "Account locked by the directory: rbesson",
+		Multiple:     true,
+		Events:       []LockoutEvent{{UID: "rbesson", LockedAt: "2026-08-17 17:34:35 UTC"}},
+		Hidden:       3,
+	}
+
+	body, err := m.renderTemplate(lockoutDigestTemplate, data)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(body, "will not lift on its own") {
+		t.Errorf("a lockout with no lift instant does not say so\n%s", body)
+	}
+	// The accounts the cap left out have to be counted, or the list reads as
+	// exhaustive.
+	if !strings.Contains(body, "3 further account") {
+		t.Errorf("capped-out lockouts are not mentioned\n%s", body)
+	}
+}

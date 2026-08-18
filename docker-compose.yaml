@@ -39,6 +39,10 @@ services:
       MAIL_PASSWORD: ""
       MAIL_FROM: "noreply@example.org"
       MAIL_FROM_NAME: ""
+      # Every five minutes, and deliberately so: a lockout is only visible for
+      # pwdLockoutDuration (1800s in ldap/seed.ldif) and the directory erases the
+      # failed-attempt timestamps at the account's next sign-in.
+      LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN: "*/5 * * * *"
       # Bundled stack only: bypasses the production-secrets refusal so the
       # well-known SESSION_SECRET / LDAP_BIND_PASS above keep working. Do NOT
       # set this in a real deployment.

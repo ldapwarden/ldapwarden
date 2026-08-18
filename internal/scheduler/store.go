@@ -95,6 +95,83 @@ func (s *Store) RecordNotification(ctx context.Context, notifType, userDN, userU
 	return err
 }
 
+// RecordLockoutSeen registers a lockout and reports whether this call is the one
+// that discovered it.
+//
+// The insert is the test: only the run that actually created the row gets true, so
+// two overlapping runs cannot both audit the same lockout, and a race is settled
+// by the database rather than by a read-then-write window.
+func (s *Store) RecordLockoutSeen(ctx context.Context, userDN, userUID string, lockedAt time.Time, runID uuid.UUID) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `
+		INSERT INTO lockout_events (user_dn, user_uid, locked_at, task_run_id)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_dn, locked_at) DO NOTHING
+	`, userDN, userUID, lockedAt, runID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// PendingLockoutNotifications returns the lockouts that have been recorded but not
+// yet emailed — this run's discoveries plus anything an earlier run could not send,
+// which is what makes a mail outage a delay rather than a loss.
+//
+// Keyed the way the caller matches them: "<dn>\x00<RFC3339 instant>".
+func (s *Store) PendingLockoutNotifications(ctx context.Context) (map[string]bool, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT user_dn, locked_at FROM lockout_events
+		WHERE notified_at IS NULL
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	pending := make(map[string]bool)
+	for rows.Next() {
+		var dn string
+		var lockedAt time.Time
+		if err := rows.Scan(&dn, &lockedAt); err != nil {
+			return nil, err
+		}
+		pending[LockoutKey(dn, lockedAt)] = true
+	}
+	return pending, rows.Err()
+}
+
+// LockoutKey identifies one lockout event, for matching directory entries against
+// stored rows.
+func LockoutKey(dn string, lockedAt time.Time) string {
+	return dn + "\x00" + lockedAt.UTC().Format(time.RFC3339)
+}
+
+// MarkLockoutNotified records that the digest went out, and to whom.
+func (s *Store) MarkLockoutNotified(ctx context.Context, userDN string, lockedAt time.Time, recipients []string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE lockout_events
+		SET notified_at = NOW(), recipients = $3
+		WHERE user_dn = $1 AND locked_at = $2
+	`, userDN, lockedAt, recipients)
+	return err
+}
+
+// PruneLockoutEvents drops the rows for lockouts the directory no longer holds,
+// keeping exactly the ones listed. Empty lists mean nothing is locked anywhere, so
+// nothing has to be remembered.
+func (s *Store) PruneLockoutEvents(ctx context.Context, dns []string, lockedAt []time.Time) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+		DELETE FROM lockout_events
+		WHERE (user_dn, locked_at) NOT IN (
+			SELECT * FROM unnest($1::text[], $2::timestamptz[])
+		)
+	`, dns, lockedAt)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // GetTaskRuns returns recent task execution history
 func (s *Store) GetTaskRuns(ctx context.Context, taskName string, limit int) ([]TaskRun, error) {
 	rows, err := s.pool.Query(ctx, `

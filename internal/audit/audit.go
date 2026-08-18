@@ -107,13 +107,19 @@ const (
 	ActionSudoRoleCreate   Action = "sudorole.create"
 	ActionSudoRoleUpdate   Action = "sudorole.update"
 	ActionSudoRoleDelete   Action = "sudorole.delete"
-	ActionSudoRoleUserAdd   Action = "sudorole.user.add"
-	ActionSudoRoleUserDel   Action = "sudorole.user.remove"
-	ActionSudoRoleGroupAdd  Action = "sudorole.group.add"
-	ActionSudoRoleGroupDel  Action = "sudorole.group.remove"
+	ActionSudoRoleUserAdd  Action = "sudorole.user.add"
+	ActionSudoRoleUserDel  Action = "sudorole.user.remove"
+	ActionSudoRoleGroupAdd Action = "sudorole.group.add"
+	ActionSudoRoleGroupDel Action = "sudorole.group.remove"
 	ActionPwdPolicyCreate  Action = "pwdpolicy.create"
 	ActionPwdPolicyUpdate  Action = "pwdpolicy.update"
 	ActionPwdPolicyDelete  Action = "pwdpolicy.delete"
+	// ActionUserLockout is the directory locking an account by itself, after
+	// pwdMaxFailure failed binds — as opposed to ActionUserLock, which is an
+	// administrator doing it through the app. Recorded by the lockout scan, with
+	// the failed-bind timestamps in the details: ppolicy erases them at the next
+	// bind, so the audit row is the only lasting record of them.
+	ActionUserLockout                    Action = "user.lockout"
 	ActionPolicySelfTest                 Action = "policy.selftest"
 	ActionAccountExpirationNotification  Action = "notification.account_expiration"
 	ActionPasswordExpirationNotification Action = "notification.password_expiration"
@@ -210,9 +216,9 @@ const selectColumns = `SELECT id, actor_dn, actor_uid, action, resource_type, re
 	          FROM audit_logs WHERE 1=1`
 
 type Logger struct {
-	pool              *pgxpool.Pool
-	notifier          Notifier
-	notifyRecipients  []string
+	pool             *pgxpool.Pool
+	notifier         Notifier
+	notifyRecipients []string
 }
 
 // Ping reports whether the audit database is reachable, for the readiness probe.
@@ -234,6 +240,10 @@ func NewLogger(pool *pgxpool.Pool, notifier Notifier, notifyRecipients []string)
 // LDAPWARDEN_AUDIT_NOTIFY_EMAILS is configured. Login/logout, schema refresh
 // and scheduler-driven notifications are intentionally excluded — only UI
 // modifications to LDAP state are forwarded.
+//
+// ActionUserLockout is excluded for a different reason: it is emailed, but as one
+// digest per scan rather than one message per account, because a password spray
+// produces a dozen at once. Adding it here would send both.
 var notifiableActions = map[Action]struct{}{
 	ActionUserCreate:       {},
 	ActionUserUpdate:       {},

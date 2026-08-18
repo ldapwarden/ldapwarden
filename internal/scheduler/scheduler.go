@@ -110,6 +110,23 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		log.Printf("Scheduled password-reset tokens cleanup: %s", s.config.ScheduledTasks.TokensCleanup)
 	}
 
+	// Register the lockout scan. Unlike the expiration tasks this one is looking
+	// for something the directory forgets: see runLockoutScanTask.
+	if s.config.ScheduledTasks.LockoutScan != "" {
+		_, err := s.cron.AddFunc(s.config.ScheduledTasks.LockoutScan, func() {
+			log.Println("Cron triggered: lockouts_scan")
+			if _, err := s.runLockoutScanTask(context.Background(), "scheduler"); err != nil {
+				log.Printf("Lockout scan task error: %v", err)
+			}
+		})
+		if err != nil {
+			return fmt.Errorf("add lockout scan task: %w", err)
+		}
+		log.Printf("Scheduled lockout scan task: %s", s.config.ScheduledTasks.LockoutScan)
+	} else {
+		log.Println("Lockout scan task disabled (empty schedule)")
+	}
+
 	s.cron.Start()
 	// Log next scheduled run times
 	for _, entry := range s.cron.Entries() {
@@ -133,6 +150,11 @@ func (s *Scheduler) TriggerAccountExpiration(ctx context.Context, triggeredBy st
 // TriggerPasswordExpiration manually triggers the password expiration check
 func (s *Scheduler) TriggerPasswordExpiration(ctx context.Context, triggeredBy string) (*TaskRunResult, error) {
 	return s.runPasswordExpirationTask(ctx, "manual:"+triggeredBy)
+}
+
+// TriggerLockoutScan manually triggers the lockout scan
+func (s *Scheduler) TriggerLockoutScan(ctx context.Context, triggeredBy string) (*TaskRunResult, error) {
+	return s.runLockoutScanTask(ctx, "manual:"+triggeredBy)
 }
 
 // GetTaskRuns returns recent task execution history

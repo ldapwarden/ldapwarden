@@ -201,6 +201,7 @@ func (s *Server) setupRoutes() chi.Router {
 					r.With(s.requirePermission(rbac.PermSettingsRead)).Get("/runs", s.handleGetTaskRuns)
 					r.With(s.requirePermission(rbac.PermSettingsWrite)).Post("/users-expiration/trigger", s.handleTriggerAccountExpirationTask)
 					r.With(s.requirePermission(rbac.PermSettingsWrite)).Post("/passwords-expiration/trigger", s.handleTriggerPasswordExpirationTask)
+					r.With(s.requirePermission(rbac.PermSettingsWrite)).Post("/lockout-scan/trigger", s.handleTriggerLockoutScanTask)
 				})
 			})
 		})

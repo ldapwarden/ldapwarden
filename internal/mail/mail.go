@@ -35,7 +35,6 @@ func validateHeaderValue(s string) error {
 	return nil
 }
 
-
 type Mailer struct {
 	config       *config.MailConfig
 	organization string
@@ -248,6 +247,84 @@ func (m *Mailer) SendBulkImportSummary(recipients []string, actor, kind string, 
 		}
 	}
 	return nil
+}
+
+// LockoutEvent is one account the directory locked by itself, as the digest
+// renders it.
+//
+// Times are already formatted by the caller: the scheduler knows the directory's
+// values and this package should not be re-deriving instants from them. Empty
+// strings are omitted from the message rather than printed as blanks.
+type LockoutEvent struct {
+	UID         string
+	DisplayName string
+	// LockedAt and LiftsAt bound the lockout: from when to when the directory
+	// refuses this account. LiftsAt is empty when the applicable policy never
+	// lifts it (pwdLockoutDuration 0) or is unknown.
+	LockedAt string
+	LiftsAt  string
+	// Lifted marks a lockout whose window has already closed by the time the scan
+	// saw it — worth saying, since the account works again and the alert is a
+	// record rather than a call to action.
+	Lifted bool
+	// Attempts are the failed binds still recorded on the entry, oldest first,
+	// and Spread is how long they took. Five attempts over four minutes is someone
+	// mistyping a password; five in under a second is a script.
+	Attempts []string
+	Spread   string
+	// Partial marks an attempt list ppolicy had already trimmed to
+	// pwdFailureCountInterval, so it is a lower bound on what happened.
+	Partial bool
+}
+
+// SendLockoutDigest reports the account lockouts a scan found, as one message
+// per recipient covering every account.
+//
+// One digest rather than one email per account: a password-spraying run locks a
+// dozen accounts inside a minute, and a dozen separate alerts is the shape of
+// notification people mute.
+// hidden is how many further lockouts the caller's cap left out of events; they
+// are counted in the message so the reader knows the list is not the whole story.
+func (m *Mailer) SendLockoutDigest(recipients []string, events []LockoutEvent, hidden int, scannedAt time.Time) error {
+	if len(recipients) == 0 || len(events) == 0 {
+		return nil
+	}
+
+	total := len(events) + hidden
+	subject := fmt.Sprintf("Account locked by the directory: %s", events[0].UID)
+	if total > 1 {
+		subject = fmt.Sprintf("%d accounts locked by the directory", total)
+	}
+
+	data := lockoutDigestData{
+		Organization: m.organization,
+		Subject:      subject,
+		Multiple:     total > 1,
+		Events:       events,
+		Hidden:       hidden,
+		Timestamp:    scannedAt.UTC().Format("2006-01-02 15:04:05 MST"),
+	}
+	body, err := m.renderTemplate(lockoutDigestTemplate, data)
+	if err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	for _, recipient := range recipients {
+		if err := m.sendEmail(recipient, subject, body); err != nil {
+			return fmt.Errorf("send to %s: %w", recipient, err)
+		}
+	}
+	return nil
+}
+
+// lockoutDigestData is the template model for the lockout digest.
+type lockoutDigestData struct {
+	Organization string
+	Subject      string
+	Multiple     bool
+	Events       []LockoutEvent
+	Hidden       int
+	Timestamp    string
 }
 
 func toChangeViews(changes []map[string]string) []auditChangeView {
@@ -1019,6 +1096,88 @@ const bulkImportSummaryTemplate = `<!DOCTYPE html>
         </table>
         <div class="footer">
             <p>This is an automated audit notification from {{.Organization}}. Individual entries are recorded in the audit log. Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>`
+
+const lockoutDigestTemplate = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #222; max-width: 640px; margin: 0 auto; padding: 20px; }
+        .header { background: #1a1a2e; color: white; padding: 18px 22px; border-radius: 8px 8px 0 0; border-top: 5px solid #d97706; }
+        .header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+        .header .sub { margin: 4px 0 0; font-size: 13px; color: #b9bdd4; }
+        .content { background: #f8f9fa; padding: 22px; border-radius: 0 0 8px 8px; }
+        .summary { font-size: 15px; margin: 0 0 18px; }
+        .account { background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; margin: 0 0 12px; }
+        .account h2 { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
+        .account .uid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #6b7280; }
+        .window { margin: 10px 0 0; font-size: 13px; }
+        .window .lifted { color: #6b7280; }
+        table.meta { width: 100%; border-collapse: collapse; margin: 8px 0 0; }
+        table.meta td { padding: 5px 8px; border-top: 1px solid #e5e7eb; vertical-align: top; font-size: 12px; color: #6b7280; }
+        table.meta td.k { width: 130px; font-weight: 600; }
+        table.meta td.v { word-break: break-word; }
+        ol.attempts { margin: 6px 0 0; padding-left: 22px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #374151; }
+        .footer { margin-top: 18px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{.Subject}}</h1>
+        <p class="sub">Password policy lockout{{if .Organization}} &middot; {{.Organization}}{{end}}</p>
+    </div>
+    <div class="content">
+        <p class="summary">
+            The directory locked {{if .Multiple}}these accounts{{else}}this account{{end}} after too many failed
+            sign-in attempts. No administrator did this.
+        </p>
+
+        {{range .Events}}
+        <div class="account">
+            <h2>{{if .DisplayName}}{{.DisplayName}}{{else}}{{.UID}}{{end}}</h2>
+            <p class="uid">{{.UID}}</p>
+            <p class="window">
+                Locked <strong>{{.LockedAt}}</strong>
+                {{if .LiftsAt}}
+                    {{if .Lifted}}
+                        &rarr; <span class="lifted">lifted {{.LiftsAt}}, so the account works again</span>
+                    {{else}}
+                        &rarr; lifts <strong>{{.LiftsAt}}</strong>
+                    {{end}}
+                {{else}}
+                    &mdash; it will not lift on its own; an administrator has to unlock it
+                {{end}}
+            </p>
+            {{if .Attempts}}
+            <table class="meta">
+                <tr>
+                    <td class="k">Failed attempts</td>
+                    <td class="v">
+                        {{len .Attempts}} recorded{{if .Spread}} over {{.Spread}}{{end}}{{if .Partial}}, and older ones had already aged out of the policy's counting window{{end}}
+                        <ol class="attempts">{{range .Attempts}}<li>{{.}}</li>{{end}}</ol>
+                    </td>
+                </tr>
+            </table>
+            {{end}}
+        </div>
+        {{end}}
+
+        {{if .Hidden}}
+        <p class="summary">
+            And {{.Hidden}} further account(s), not listed here to keep this message readable.
+            All of them are in the audit log, filtered on <code>user.lockout</code>.
+        </p>
+        {{end}}
+
+        <table class="meta">
+            <tr><td class="k">Detected</td><td class="v">{{.Timestamp}}</td></tr>
+        </table>
+        <div class="footer">
+            <p>The directory erases the failed-attempt timestamps at the account's next sign-in, so they are kept in the audit log — this email and that record are the only lasting copies. Automated notification from {{.Organization}}; please do not reply.</p>
         </div>
     </div>
 </body>

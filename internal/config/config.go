@@ -33,6 +33,12 @@ type ScheduledTasksConfig struct {
 	UsersExpiration     string // Cron format, empty = disabled
 	PasswordsExpiration string // Cron format, empty = disabled
 	TokensCleanup       string // Cron format, empty = disabled. Purges expired password_reset_tokens rows.
+	// LockoutScan looks for accounts the directory locked by itself. Its interval
+	// is a correctness property, not a preference: ppolicy keeps a lockout visible
+	// for pwdLockoutDuration and then erases it, so a slower scan misses lockouts
+	// (the task reports the mismatch when it sees one). Cron format, empty =
+	// disabled.
+	LockoutScan string
 }
 
 type AppConfig struct {
@@ -159,6 +165,7 @@ func Load() *Config {
 			UsersExpiration:     getEnv("LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION", "42 3 * * *"),
 			PasswordsExpiration: getEnv("LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION", "42 3 * * *"),
 			TokensCleanup:       getEnv("LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP", "17 * * * *"),
+			LockoutScan:         getEnv("LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN", "*/5 * * * *"),
 		},
 	}
 }

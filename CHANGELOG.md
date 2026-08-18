@@ -72,6 +72,14 @@ every lock on them as `unknown`, i.e. still locked. `cn=config` is not readable
 with an ordinary bind identity, which is why this has to be told rather than
 discovered.
 
+**6. The lockout scan starts by itself.** `lockouts_scan` defaults to
+`*/5 * * * *`, so after upgrading, the accounts your directory locks will start
+producing `user.lockout` audit entries and digest emails — to
+`LDAPWARDEN_AUDIT_NOTIFY_EMAILS`, or to the admin group when that is unset. Set
+`LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN=""` to keep it off, and check the cadence
+against your shortest `pwdLockoutDuration`: slower than that, and lockouts start and
+expire between two runs.
+
 **Prerequisite, unchanged but easy to miss:** ppolicy enforces neither locking nor
 expiry unless a policy applies to the entry (`olcPPolicyDefault` on the overlay,
 or `pwdPolicySubentry` on the entry) — and the attributes stay writable either
@@ -106,6 +114,19 @@ authenticate. The admin page now says what it knows, and
   answer from the resolved state now, and a lapsed lockout says so instead of
   reading as a lock. Needs the new `LDAP_DEFAULT_POLICY_DN` for entries without
   their own policy — see Upgrading.
+- **Lockout notifications** (`lockouts_scan`, every 5 minutes by default): the
+  accounts the *directory* locked after too many failed sign-ins now get reported,
+  where previously only administrator actions did. Each one produces a
+  `user.lockout` audit entry **carrying the failed-bind timestamps and their
+  spread** — ppolicy prunes `pwdFailureTime` to `pwdFailureCountInterval` and
+  deletes it at the account's next sign-in, so that row is the lasting record —
+  plus one digest email per run, listing each account with the window it is locked
+  in. Recipients are `LDAPWARDEN_AUDIT_NOTIFY_EMAILS`, or the admin group when that
+  is unset. Recorded and emailed are tracked separately, so an unreachable mail
+  server delays an alert rather than losing it or repeating the audit entry. The
+  schedule is a correctness setting, not a preference: a lockout is only visible for
+  `pwdLockoutDuration`, and the run says so when the cadence is slower than the
+  shortest policy's.
 - **`GET /api/groups/{dn}/members`**, resolving `memberUid` to names server-side
   (`69ecea2`).
 - **`GET /healthz` and `GET /readyz`**, the Kubernetes names, split the way the

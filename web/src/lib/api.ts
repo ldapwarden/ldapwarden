@@ -661,6 +661,9 @@ export const TriggerTaskResponseSchema = z.object({
 export const ScheduledTasksConfigSchema = z.object({
   usersExpiration: ConfigValueSchema,
   passwordsExpiration: ConfigValueSchema,
+  // The lockout scan runs far more often than the expiration tasks: it looks for
+  // something the directory erases at the account's next sign-in.
+  lockoutScan: ConfigValueSchema,
 })
 
 export type TaskRun = z.infer<typeof TaskRunSchema>
@@ -1126,6 +1129,9 @@ export const api = {
 
       triggerPasswordsExpiration: () =>
         fetchApi('/admin/scheduled-tasks/passwords-expiration/trigger', { method: 'POST' }, TriggerTaskResponseSchema),
+
+      triggerLockoutScan: () =>
+        fetchApi('/admin/scheduled-tasks/lockout-scan/trigger', { method: 'POST' }, TriggerTaskResponseSchema),
     },
   },
 

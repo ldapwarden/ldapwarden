@@ -385,15 +385,16 @@ issue in a single startup failure.
 |----------|-------------|---------|
 | `LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION` | Cron schedule for account expiration checks | `42 3 * * *` |
 | `LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION` | Cron schedule for password expiration checks | `42 3 * * *` |
+| `LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN` | Cron schedule for the lockout scan. Must be more frequent than the shortest `pwdLockoutDuration`, or lockouts start and expire between two runs | `*/5 * * * *` |
 
 Set a variable to an empty string to disable that task.
 
 #### How Background Tasks Work
 
-LDAP Warden uses a cron-based scheduler (via [robfig/cron](https://github.com/robfig/cron)) to run periodic background tasks. Two tasks are available:
+LDAP Warden uses a cron-based scheduler (via [robfig/cron](https://github.com/robfig/cron)) to run periodic background tasks. Three tasks are available:
 
 **Account Expiration (`users_expiration`)**
-- Checks all users for upcoming account expiration (via `shadowExpire` or `pwdAccountLockedTime`)
+- Checks all users for upcoming account expiration (via `pwdEndTime`, the only attribute slapd enforces as a validity limit)
 - Sends email notifications to **administrators** (members of `LDAPWARDEN_ADMIN_GROUP`)
 - Useful for reminding admins to extend or disable accounts before they lock out
 
@@ -402,15 +403,32 @@ LDAP Warden uses a cron-based scheduler (via [robfig/cron](https://github.com/ro
 - Sends email notifications directly to **each user** (requires `mail` attribute)
 - Helps users proactively change their passwords before expiration
 
-Both tasks send notifications at these intervals before expiration:
+**Lockout Scan (`lockouts_scan`)**
+- Finds accounts the *directory* locked after too many failed sign-ins — not the ones
+  an administrator locked here, which are audited and emailed where that happens
+- Records each lockout in the audit log as `user.lockout`, **with the failed-bind
+  timestamps**: ppolicy prunes `pwdFailureTime` to `pwdFailureCountInterval` and
+  wipes it at the account's next sign-in, so the audit row is where that evidence
+  survives
+- Emails one digest per run — an account that locks a dozen accounts in a minute
+  should not produce a dozen alerts — to `LDAPWARDEN_AUDIT_NOTIFY_EMAILS`, or to the
+  admin group when that is not set
+- Runs often by design. A lockout is visible for `pwdLockoutDuration` and no longer,
+  so a slower schedule misses them; the run says so when the two disagree
+
+The two expiration tasks send notifications at these intervals before expiration:
 - 3 weeks before
 - 1 week before
 - 1 day before
 - On expiration
 
-Notifications are tracked in PostgreSQL to prevent duplicate emails for the same interval.
+Notifications are tracked in PostgreSQL to prevent duplicate emails for the same
+interval — and, for lockouts, for the same lockout. "Recorded" and "emailed" are
+tracked separately there, so an unreachable mail server delays a lockout alert
+instead of either losing it or re-recording it on every run.
 
-Tasks can also be triggered manually via the Administration UI or API (`POST /api/scheduler/:task/trigger`).
+Tasks can also be triggered manually from the Administration UI, or via
+`POST /api/admin/scheduled-tasks/{users-expiration,passwords-expiration,lockout-scan}/trigger`.
 
 ## Development
 

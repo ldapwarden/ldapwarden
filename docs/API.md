@@ -1206,6 +1206,9 @@ curl "http://localhost:8000/api/audit-logs?limit=10&from=2026-01-01&search=jdoe"
 **Action types:**
 - `login`, `login.failed`, `logout`
 - `user.create`, `user.update`, `user.delete`, `user.rename`, `user.lock`, `user.unlock`
+- `user.lockout` — the *directory* locked the account after too many failed binds,
+  found by the lockout scan (actor `system`); `user.lock` is an administrator doing
+  it through the API
 - `group.create`, `group.update`, `group.delete`
 - `group.member.add`, `group.member.remove`
 - `sudorole.create`, `sudorole.update`, `sudorole.delete`
@@ -1218,6 +1221,13 @@ curl "http://localhost:8000/api/audit-logs?limit=10&from=2026-01-01&search=jdoe"
 For update actions, `details.changes` holds the structured diff: one entry per
 attribute with `field`, `old` and `new`. A `masked: true` entry (passwords)
 records that the field changed without either value.
+
+For `user.lockout`, `details` carries the evidence the directory does not keep:
+`failedBinds` (the `pwdFailureTime` values as RFC 3339 instants), `attemptsCount`,
+`attemptSpread`, `lockedAt`, `liftsAt`, `lockState` and `policyDn`. ppolicy prunes
+`pwdFailureTime` to `pwdFailureCountInterval` and deletes it, with the lock, at the
+account's next sign-in — so these rows are the lasting record of the attempts, and
+`attemptsCount` is a lower bound whenever older attempts had already aged out.
 
 ### List Audit Actors
 
@@ -1476,6 +1486,39 @@ So every user payload carries `lockout`, resolved server-side:
 `olcPPolicyDefault` lives in `cn=config`, which an ordinary bind identity cannot
 read — leave it unset and every lockout on an entry without its own policy
 resolves to `unknown`.
+
+### Scheduled Tasks
+
+```http
+GET  /api/admin/scheduled-tasks/config
+GET  /api/admin/scheduled-tasks/runs?taskName=lockouts_scan
+POST /api/admin/scheduled-tasks/users-expiration/trigger
+POST /api/admin/scheduled-tasks/passwords-expiration/trigger
+POST /api/admin/scheduled-tasks/lockout-scan/trigger
+```
+
+**Required permission:** `settings:read` for the first two, `settings:write` to
+trigger. A trigger answers `409` when that task is already running.
+
+`lockout-scan` reports the accounts the directory locked by itself, which nothing
+else in the app can see happening: ppolicy writes `pwdAccountLockedTime` during a
+failed bind and deletes it, along with `pwdFailureTime`, at the first bind after
+`pwdLockoutDuration` elapses. So a lockout is visible for that duration and no
+longer — which makes the schedule
+(`LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN`, default `*/5 * * * *`) a correctness
+setting: run it less often than the shortest `pwdLockoutDuration` and lockouts pass
+between two runs. The run reports that mismatch in `errors` rather than going quiet.
+
+Each new lockout produces one `user.lockout` audit entry carrying the failed-bind
+timestamps, and one digest email per run to `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` (or the
+admin group when unset). Locks an administrator applied through
+`POST /api/users/{dn}/lock` are excluded: they are already audited and notified
+where they happen.
+
+`usersChecked` in the response counts the locked accounts examined, not the whole
+directory — 0 is the healthy answer. `errors` is also where a run says that the mail
+server was unreachable; the audit entries are written first and unconditionally, and
+an unsent digest is retried by the next run rather than dropped.
 
 ### Protecting the signed-in account
 
