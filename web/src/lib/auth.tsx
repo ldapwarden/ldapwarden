@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, setOnAuthError, type Session, ApiError } from './api'
 
@@ -6,6 +6,13 @@ interface AuthContextType {
   session: Session | null
   isLoading: boolean
   isAuthenticated: boolean
+  /**
+   * True when a live session was lost to a 401 rather than to a deliberate
+   * logout. Without it the app could only bounce the user to a login screen
+   * that gave no hint why they were suddenly there, or that their half-filled
+   * form was gone.
+   */
+  sessionExpired: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
@@ -15,6 +22,10 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
+  // Read by the 401 handler, whose callback is registered once and would
+  // otherwise close over a stale `session`.
+  const hadSession = useRef(false)
   // Always probe /me on mount — the session token now lives in an HttpOnly
   // cookie that JavaScript cannot read, so the only way to know if the
   // browser has a live session is to ask the server.
@@ -36,9 +47,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    if (session) hadSession.current = true
+  }, [session])
+
   // Register a callback so the API layer can clear auth state on 401
   useEffect(() => {
     setOnAuthError(() => {
+      // Only an expiry if there was a live session to lose: a 401 on the
+      // initial /me probe just means nobody is signed in.
+      if (hadSession.current) setSessionExpired(true)
+      hadSession.current = false
       setSession(null)
       queryClient.clear()
     })
@@ -46,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   const login = useCallback(async (username: string, password: string) => {
+    setSessionExpired(false)
     const response = await api.auth.login(username, password)
     // The session token is delivered as an HttpOnly cookie; the JSON
     // response.token is ignored client-side and will be removed in a
@@ -61,6 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error
       }
     } finally {
+      // A logout whose session had already lapsed server-side answers 401 and
+      // trips the handler above; signing out on purpose is not an expiry.
+      setSessionExpired(false)
+      hadSession.current = false
       setSession(null)
       queryClient.clear()
     }
@@ -74,10 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     isLoading,
     isAuthenticated: !!session,
+    sessionExpired,
     login,
     logout,
     hasPermission,
-  }), [session, isLoading, login, logout, hasPermission])
+  }), [session, isLoading, sessionExpired, login, logout, hasPermission])
 
   return (
     <AuthContext.Provider value={value}>

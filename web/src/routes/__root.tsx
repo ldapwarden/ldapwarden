@@ -42,6 +42,7 @@ import { CommandPalette } from '@/components/command-palette'
 import { useCommandHotkey } from '@/lib/use-hotkey'
 import { RouteError } from '@/components/route-error'
 import { LoadingScreen } from '@/components/loading-screen'
+import { SessionExpiryNotice } from '@/components/session-expiry-notice'
 import { useCallback, useState, useMemo, useEffect } from 'react'
 
 interface RouterContext {
@@ -74,7 +75,7 @@ function pageTitle(pathname: string): string {
 }
 
 function RootComponent() {
-  const { isAuthenticated, session, logout, isLoading } = useAuth()
+  const { isAuthenticated, session, logout, isLoading, sessionExpired } = useAuth()
   const { theme } = useTheme()
   const router = useRouter()
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
@@ -152,9 +153,15 @@ function RootComponent() {
   // them explicitly, preserving where they were so login can send them back.
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublicRoute) {
-      router.navigate({ to: '/login', search: { redirect: pathname } })
+      // Carry the reason across: landing on a bare sign-in form gave no clue
+      // whether the session had ended, a click had gone wrong, or the app had
+      // broken — and the work in the abandoned form was gone either way.
+      router.navigate({
+        to: '/login',
+        search: { redirect: pathname, ...(sessionExpired ? { reason: 'expired' as const } : {}) },
+      })
     }
-  }, [isLoading, isAuthenticated, isPublicRoute, pathname, router])
+  }, [isLoading, isAuthenticated, isPublicRoute, pathname, router, sessionExpired])
 
   // Keep the browser tab title in sync with the current section. Centralised
   // here (keyed off the path) so individual route files don't each have to
@@ -365,7 +372,8 @@ function RootComponent() {
           </div>
         </div>
       </nav>
-      <main className="container mx-auto px-4 py-6">
+      <main id="main" tabIndex={-1} className="container mx-auto px-4 py-6">
+        <SessionExpiryNotice />
         <Outlet />
       </main>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />

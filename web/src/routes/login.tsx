@@ -9,8 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/
 import { Callout } from '@/components/ui/callout'
 
 export const Route = createFileRoute('/login')({
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { redirect?: string; reason?: 'expired' } => ({
     redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
+    reason: search.reason === 'expired' ? 'expired' : undefined,
   }),
   component: LoginPage,
 })
@@ -27,7 +28,7 @@ function safeRedirect(target: string | undefined): string {
 function LoginPage() {
   const { login, isAuthenticated } = useAuth()
   const router = useRouter()
-  const { redirect } = Route.useSearch()
+  const { redirect, reason } = Route.useSearch()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -151,11 +152,15 @@ function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+            {error ? (
               <Callout variant="error">
                 {error}
               </Callout>
-            )}
+            ) : reason === 'expired' ? (
+              <Callout variant="warning">
+                Your session expired. Sign in to continue{redirect ? ' where you left off' : ''}.
+              </Callout>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="username">Username or email</Label>
               <Input
