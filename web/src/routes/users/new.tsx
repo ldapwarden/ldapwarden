@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FieldRow } from '@/components/ui/field-row'
 import { PasswordInput } from '@/components/ui/password-input'
 import { PasswordStrength } from '@/components/ui/password-strength'
 import { Label } from '@/components/ui/label'
@@ -197,7 +198,7 @@ function NewUserPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="givenName">First Name *</Label>
                 <Input
@@ -216,9 +217,9 @@ function NewUserPage() {
                   required
                 />
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="cn">Common Name (CN)</Label>
                 <Input
@@ -237,9 +238,9 @@ function NewUserPage() {
                   placeholder="Auto-generated if empty"
                 />
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="uidNumber">UID Number *</Label>
                 <div className="flex gap-2">
@@ -286,9 +287,9 @@ function NewUserPage() {
                   </p>
                 )}
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="mail">Email</Label>
                 <Input
@@ -306,9 +307,9 @@ function NewUserPage() {
                   onChange={(e) => setFormData({ ...formData, telephoneNumber: e.target.value })}
                 />
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-4 gap-4">
+            <FieldRow cols={4}>
               <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
                 <Input
@@ -341,9 +342,9 @@ function NewUserPage() {
                   onChange={(e) => setFormData({ ...formData, employeeType: e.target.value })}
                 />
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="homeDirectory">Home Directory</Label>
                 <Input
@@ -361,7 +362,7 @@ function NewUserPage() {
                   onChange={(e) => setFormData({ ...formData, loginShell: e.target.value })}
                 />
               </div>
-            </div>
+            </FieldRow>
 
             <div className="space-y-2">
               <Label htmlFor="password">Initial password</Label>
