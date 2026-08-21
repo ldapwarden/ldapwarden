@@ -38,6 +38,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Callout } from '@/components/ui/callout'
 import { PasswordStrength } from '@/components/ui/password-strength'
+import { PasswordRequirements } from '@/components/ui/password-requirements'
 import { PasswordInput } from '@/components/ui/password-input'
 import { useState, useRef, useMemo } from 'react'
 
@@ -2033,6 +2034,29 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
     return options
   }, [passwordPolicies?.data, user?.pwdPolicySubentry, defaultPolicyDn])
 
+  // The policy in force: the entry's own subentry, or the directory default the
+  // lockout resolver reports. Looked up in the page already fetched for the
+  // dropdown below; when the applied policy falls outside it, the requirements
+  // panel stays silent rather than showing another policy's rules.
+  const appliedPolicyDn = user?.pwdPolicySubentry || user?.lockout?.policyDn
+  const appliedPolicy = useMemo(
+    () => passwordPolicies?.data.find((policy) => sameDn(policy.dn, appliedPolicyDn)),
+    [passwordPolicies?.data, appliedPolicyDn],
+  )
+
+  // Held locally so the change is confirmed, and re-adopted whenever the server
+  // value moves under us (another admin, or the refetch after applying).
+  // Adjusting state during render is how the rest of the app follows an external
+  // value; an effect would cost a render showing the stale choice.
+  const serverPolicy = user?.pwdPolicySubentry || ''
+  const [policyChoice, setPolicyChoice] = useState(serverPolicy)
+  const [lastServerPolicy, setLastServerPolicy] = useState(serverPolicy)
+  if (serverPolicy !== lastServerPolicy) {
+    setLastServerPolicy(serverPolicy)
+    setPolicyChoice(serverPolicy)
+  }
+  const policyDirty = policyChoice !== serverPolicy
+
   const policiesNotShown = Math.max(
     0,
     (passwordPolicies?.total ?? 0) - (passwordPolicies?.data.length ?? 0),
@@ -2172,6 +2196,9 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                 autoComplete="new-password"
               />
               <PasswordStrength password={password} />
+              {/* The meter above is this app's heuristic; these are the rules
+                  the directory will actually enforce. */}
+              <PasswordRequirements policy={appliedPolicy} password={password} />
             </div>
 
             <div className="space-y-2">
@@ -2570,16 +2597,39 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
               <div>
                 <Label className="text-muted-foreground">Applied Policy</Label>
                 {canWrite ? (
-                  <Select
-                    value={user?.pwdPolicySubentry || ''}
-                    onChange={(e) => {
-                      const newPolicy = e.target.value
-                      updatePolicyMutation.mutate(newPolicy || undefined)
-                    }}
-                    options={policyOptions}
-                    className="mt-1"
-                    disabled={updatePolicyMutation.isPending}
-                  />
+                  <>
+                    <Select
+                      value={policyChoice}
+                      onChange={(e) => setPolicyChoice(e.target.value)}
+                      options={policyOptions}
+                      className="mt-1"
+                      disabled={updatePolicyMutation.isPending}
+                    />
+                    {/* Confirmed rather than written on `change`: every other
+                        field on this page needs an explicit save, and on a
+                        closed native select an arrow key is enough to move the
+                        selection — which would silently rewrite the policy that
+                        governs the account. */}
+                    {policyDirty && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => updatePolicyMutation.mutate(policyChoice || undefined)}
+                          disabled={updatePolicyMutation.isPending}
+                        >
+                          {updatePolicyMutation.isPending ? 'Applying...' : 'Apply policy'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setPolicyChoice(serverPolicy)}
+                          disabled={updatePolicyMutation.isPending}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p className="font-medium font-mono text-xs mt-1">
                     {user?.pwdPolicySubentry ? extractCN(user.pwdPolicySubentry) : 'Default'}
