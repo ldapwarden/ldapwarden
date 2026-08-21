@@ -9,6 +9,12 @@ interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   // caches only the rows on screen instead of every photo arriving inside the
   // list payload. Ignored when `src` is set.
   url?: string | null
+  /**
+   * Alt text. Defaults to empty — decorative — because an avatar almost always
+   * sits beside the name it depicts, and repeating it made a screen reader
+   * announce every list row twice. Pass one only where the picture is the sole
+   * identification.
+   */
   alt?: string
   fallback?: string
   size?: "sm" | "md" | "lg"
@@ -56,7 +62,7 @@ export function Avatar({
       {imageSrc && !hasError ? (
         <img
           src={imageSrc}
-          alt={alt || fallback || "Avatar"}
+          alt={alt ?? ""}
           loading="lazy"
           className="aspect-square h-full w-full object-cover"
           onError={() => setHasError(true)}
