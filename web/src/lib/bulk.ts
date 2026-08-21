@@ -8,6 +8,19 @@ export interface BulkResult<T> {
   failed: BulkFailure<T>[]
 }
 
+export interface BulkOptions {
+  /** Requests in flight at once. */
+  concurrency?: number
+  /**
+   * Called after each item settles, with how many of `total` are done.
+   *
+   * A bulk run is N sequential-ish requests, so a hundred-row page takes real
+   * time; without this the UI could only grey the buttons out and leave the
+   * operator watching nothing happen.
+   */
+  onProgress?: (done: number, total: number) => void
+}
+
 /**
  * Runs an async `worker` over `items` with a bounded number of concurrent
  * calls, collecting per-item failures instead of aborting on the first error.
@@ -17,10 +30,11 @@ export interface BulkResult<T> {
 export async function runBulk<T>(
   items: T[],
   worker: (item: T) => Promise<unknown>,
-  concurrency = 5,
+  { concurrency = 5, onProgress }: BulkOptions = {},
 ): Promise<BulkResult<T>> {
   let index = 0
   let succeeded = 0
+  let settled = 0
   const failed: BulkFailure<T>[] = []
 
   async function next(): Promise<void> {
@@ -32,6 +46,8 @@ export async function runBulk<T>(
     } catch (e) {
       failed.push({ item: items[i], error: e instanceof Error ? e.message : String(e) })
     }
+    settled++
+    onProgress?.(settled, items.length)
     return next()
   }
 

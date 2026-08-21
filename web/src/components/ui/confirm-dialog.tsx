@@ -21,6 +21,13 @@ interface ConfirmDialogProps {
   confirmLabel?: string
   pendingLabel?: string
   cancelLabel?: string
+  /**
+   * Emphasis of the confirm button. Destructive by default — this dialog grew
+   * out of the delete flows — but a reversible bulk action (unlocking a page of
+   * accounts) still deserves a confirmation without a red button implying
+   * something is about to be destroyed.
+   */
+  confirmVariant?: 'destructive' | 'default'
   /** Error message shown inside the dialog (e.g. a failed mutation). */
   error?: string | null
   isPending?: boolean
@@ -41,6 +48,7 @@ export function ConfirmDialog({
   confirmLabel = 'Delete',
   pendingLabel = 'Deleting...',
   cancelLabel = 'Cancel',
+  confirmVariant = 'destructive',
   error,
   isPending = false,
   onConfirm,
@@ -62,7 +70,7 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange?.(false)}>
             {cancelLabel}
           </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={isPending}>
+          <Button variant={confirmVariant} onClick={onConfirm} disabled={isPending}>
             {isPending ? pendingLabel : confirmLabel}
           </Button>
         </DialogFooter>

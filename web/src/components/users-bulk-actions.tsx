@@ -7,6 +7,7 @@ import { BulkResultDialog, type BulkOutcome } from '@/components/bulk-result-dia
 import { BulkActionBar } from '@/components/bulk-action-bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
@@ -48,7 +49,14 @@ export function UsersBulkActions({
 }) {
   const queryClient = useQueryClient()
   const [running, setRunning] = useState(false)
+  // How far a run has got, so the toolbar can say so rather than just greying
+  // its buttons out for the length of N requests.
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Locking a page of accounts turns them away from every service the directory
+  // backs, and "Unlock" is not an undo: the pwdFailureTime evidence ppolicy
+  // pruned does not come back. So both ask first, as delete already did.
+  const [lockMode, setLockMode] = useState<'lock' | 'unlock' | null>(null)
   const [groupMode, setGroupMode] = useState<'add' | 'remove' | null>(null)
   const [expirationOpen, setExpirationOpen] = useState(false)
   // Set when a run had failures, so they can be listed rather than summarised.
@@ -65,8 +73,11 @@ export function UsersBulkActions({
     opts: { touchesGroups?: boolean; touchesSudo?: boolean } = {},
   ) {
     setRunning(true)
+    setProgress({ done: 0, total: selected.length })
     try {
-      const result = await runBulk(selected, worker)
+      const result = await runBulk(selected, worker, {
+        onProgress: (done, total) => setProgress({ done, total }),
+      })
       invalidateUsers()
       if (opts.touchesGroups) invalidateGroups()
       if (opts.touchesSudo) invalidateSudo()
@@ -81,6 +92,7 @@ export function UsersBulkActions({
       onClear()
     } finally {
       setRunning(false)
+      setProgress(null)
     }
   }
 
@@ -91,12 +103,12 @@ export function UsersBulkActions({
         label={(user) => `${user.displayName || user.cn} (${user.uid})`}
         onClose={() => setOutcome(null)}
       />
-      <BulkActionBar count={selected.length} onClear={onClear}>
-        <Button variant="outline" size="sm" disabled={running} onClick={() => run('Locked', (u) => api.users.lock(u.dn))}>
+      <BulkActionBar count={selected.length} onClear={onClear} progress={progress}>
+        <Button variant="outline" size="sm" disabled={running} onClick={() => setLockMode('lock')}>
           <Lock className="h-4 w-4 mr-1" />
           Lock
         </Button>
-        <Button variant="outline" size="sm" disabled={running} onClick={() => run('Unlocked', (u) => api.users.unlock(u.dn))}>
+        <Button variant="outline" size="sm" disabled={running} onClick={() => setLockMode('unlock')}>
           <Unlock className="h-4 w-4 mr-1" />
           Unlock
         </Button>
@@ -117,6 +129,30 @@ export function UsersBulkActions({
           Delete
         </Button>
       </BulkActionBar>
+
+      <ConfirmDialog
+        open={lockMode !== null}
+        onOpenChange={(open) => { if (!open) setLockMode(null) }}
+        title={lockMode === 'unlock' ? 'Unlock users' : 'Lock users'}
+        description={
+          lockMode === 'unlock'
+            ? `Unlock ${selected.length} selected user${selected.length === 1 ? '' : 's'}? Any lockout the password policy applied after failed sign-ins is cleared too, along with the record of those attempts.`
+            : `Lock ${selected.length} selected user${selected.length === 1 ? '' : 's'}? They will be refused by every service that authenticates against this directory until someone unlocks them.`
+        }
+        confirmLabel={`${lockMode === 'unlock' ? 'Unlock' : 'Lock'} ${selected.length}`}
+        pendingLabel={lockMode === 'unlock' ? 'Unlocking...' : 'Locking...'}
+        confirmVariant={lockMode === 'unlock' ? 'default' : 'destructive'}
+        isPending={running}
+        onConfirm={async () => {
+          const mode = lockMode
+          if (mode === 'unlock') {
+            await run('Unlocked', (u) => api.users.unlock(u.dn))
+          } else {
+            await run('Locked', (u) => api.users.lock(u.dn))
+          }
+          setLockMode(null)
+        }}
+      />
 
       <ConfirmDialog
         open={deleteOpen}
@@ -309,7 +345,18 @@ function ExpirationDialog({
         </DialogHeader>
         <div className="space-y-2">
           <Label htmlFor="bulk-expiration">Expiration date</Label>
-          <Input id="bulk-expiration" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          {/* DatePicker, like every other date in the app: it carries the
+              calendar affordance and the `min` the per-user form already had, so
+              a bulk edit can no longer set a date that a single edit refuses. */}
+          <DatePicker
+            id="bulk-expiration"
+            value={date}
+            onChange={setDate}
+            min={new Date().toISOString().split('T')[0]}
+          />
+          <p className="text-xs text-muted-foreground">
+            The accounts stop working at the end of this day, UTC.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
