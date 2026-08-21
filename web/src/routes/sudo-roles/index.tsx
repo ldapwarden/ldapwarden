@@ -146,6 +146,7 @@ function SudoRolesPage() {
         <div className="relative min-w-48 flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
+            ref={searchRef}
             placeholder="Search sudo roles..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
