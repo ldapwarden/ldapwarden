@@ -59,6 +59,12 @@ func setupTestServer(t *testing.T) *testEnv {
 	setEnvIfUnset(t, "LDAP_URL", "ldap://localhost:389")
 	// Tests rely on the bundled compose credentials; bypass ValidateSecrets.
 	setEnvIfUnset(t, "LDAPWARDEN_DEV_MODE", "1")
+	// The bundled stack declares this and several behaviours depend on it: a
+	// ppolicy lockout cannot be told from an expired one without it, and the
+	// policy an entry follows when it carries no pwdPolicySubentry is exactly
+	// what it names. Leaving it unset made the tests exercise a configuration
+	// the compose file never runs.
+	setEnvIfUnset(t, "LDAP_DEFAULT_POLICY_DN", "cn=default,ou=policies,dc=example,dc=org")
 
 	cfg := config.Load()
 

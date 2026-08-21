@@ -190,7 +190,7 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 	// Change password in LDAP. The token is already spent at this point; if this
 	// fails the user must request a fresh reset (the fail-closed direction).
 	if err := s.ldapClient.ChangePassword(tokenInfo.UserDN, req.Password); err != nil {
-		writeServerError(w, r, "change password", err)
+		s.writePasswordError(w, r, "change password", tokenInfo.UserDN, err)
 		return
 	}
 

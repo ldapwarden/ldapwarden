@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
+	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
 // auditRequestInfoMiddleware attaches the caller's IP address and User-Agent
@@ -147,6 +149,69 @@ func ldapErrorResponse(err error) (string, int, bool) {
 		return "The directory rejected this value as violating a constraint (for example a uniqueness or value rule).", http.StatusUnprocessableEntity, true
 	default:
 		return "", 0, false
+	}
+}
+
+// writePasswordError is writeServerError for a password write.
+//
+// ppolicy refuses a password that breaks the policy with constraintViolation —
+// the same result code the directory uses for a uniqueness or a syntax rule — so
+// the generic mapping answered "violating a constraint (for example a uniqueness
+// or value rule)". True, and useless: the operator learns neither the minimum
+// length, nor the history depth, nor the minimum age, and can only guess at a
+// value that will be accepted. Name the applicable policy's rules instead.
+func (s *Server) writePasswordError(w http.ResponseWriter, r *http.Request, action, dn string, err error) {
+	var ldapErr *ldaplib.Error
+	if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldaplib.LDAPResultConstraintViolation {
+		msg := "The directory refused this password: it breaks the password policy that applies to this account."
+		if rules := passwordRules(s.ldapClient.EffectivePasswordPolicy(dn)); rules != "" {
+			msg += " " + rules
+		}
+		writeError(w, http.StatusUnprocessableEntity, msg)
+		return
+	}
+	writeServerError(w, r, action, err)
+}
+
+// passwordRules renders the parts of a policy an operator can act on, as one
+// sentence. Empty when there is no policy to read or it sets none of them.
+func passwordRules(policy *ldap.PasswordPolicy) string {
+	if policy == nil {
+		return ""
+	}
+
+	var rules []string
+	if policy.PwdMinLength > 0 {
+		rules = append(rules, fmt.Sprintf("at least %d characters", policy.PwdMinLength))
+	}
+	if policy.PwdInHistory > 0 {
+		rules = append(rules, fmt.Sprintf("not one of the last %d passwords used", policy.PwdInHistory))
+	}
+	if policy.PwdCheckQuality > 0 {
+		// The directory decides what "quality" means (pwdCheckModule, or slapd's
+		// own check), so describe the requirement rather than inventing rules.
+		rules = append(rules, "complex enough for the directory's quality check")
+	}
+	if len(rules) == 0 {
+		return ""
+	}
+	// A colon rather than "requires": the clauses are fragments, and only a
+	// colon reads correctly for every combination of them.
+	return "Policy " + policy.CN + ": " + joinClauses(rules) + "."
+}
+
+// joinClauses renders a list as prose: "a", "a and b", "a, b and c". The "and"
+// belongs to the join, not to any one clause — hardcoding it onto the last rule
+// produced "requires and complex enough…" whenever that rule was the only one
+// the policy set.
+func joinClauses(clauses []string) string {
+	switch len(clauses) {
+	case 0:
+		return ""
+	case 1:
+		return clauses[0]
+	default:
+		return strings.Join(clauses[:len(clauses)-1], ", ") + " and " + clauses[len(clauses)-1]
 	}
 }
 

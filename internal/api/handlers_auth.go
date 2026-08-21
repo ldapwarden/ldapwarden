@@ -120,7 +120,7 @@ func (s *Server) handleChangeMyPassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := s.ldapClient.ChangePassword(session.UserDN, req.Password); err != nil {
-		writeServerError(w, r, "change password", err)
+		s.writePasswordError(w, r, "change password", session.UserDN, err)
 		return
 	}
 

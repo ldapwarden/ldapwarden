@@ -345,3 +345,30 @@ func entryToPasswordPolicy(entry *ldap.Entry) PasswordPolicy {
 func parseLDAPBool(val string) bool {
 	return val == "TRUE" || val == "true" || val == "1"
 }
+
+// EffectivePasswordPolicy returns the policy that governs dn: the entry's own
+// pwdPolicySubentry, or LDAP_DEFAULT_POLICY_DN standing in for the unreadable
+// olcPPolicyDefault. It returns nil whenever the answer is not knowable — no
+// subentry and no configured default, an unreadable policy, a missing entry —
+// because every caller uses it to *explain* a directory decision, and a wrong
+// explanation is worse than none.
+func (c *Client) EffectivePasswordPolicy(dn string) *PasswordPolicy {
+	entry, err := c.GetEntry(dn, []string{"pwdPolicySubentry"})
+	if err != nil {
+		return nil
+	}
+
+	policyDN := entry.GetAttributeValue("pwdPolicySubentry")
+	if policyDN == "" {
+		policyDN = c.config.DefaultPolicyDN
+	}
+	if policyDN == "" {
+		return nil
+	}
+
+	policy, err := c.GetPasswordPolicy(policyDN)
+	if err != nil {
+		return nil
+	}
+	return policy
+}
