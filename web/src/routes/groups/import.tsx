@@ -6,10 +6,10 @@ const RDN = /^[a-zA-Z0-9._-]+$/
 const RDN_HINT = "must contain only letters, digits, '.', '_' or '-'"
 
 const GROUP_FIELDS: ImportField[] = [
-  { key: 'cn', label: 'Name (cn)', type: 'string', required: true, pattern: RDN, patternHint: RDN_HINT, aliases: ['name', 'groupname'] },
-  { key: 'gidNumber', label: 'GID number', type: 'number', required: true, aliases: ['gidnumber', 'gid'] },
-  { key: 'description', label: 'Description', type: 'string' },
-  { key: 'memberUid', label: 'Members (uids)', type: 'stringArray', aliases: ['members', 'memberuid'] },
+  { key: 'cn', label: 'Name (cn)', type: 'string', required: true, pattern: RDN, patternHint: RDN_HINT, aliases: ['name', 'groupname'], example: 'developers' },
+  { key: 'gidNumber', label: 'GID number', type: 'number', required: true, aliases: ['gidnumber', 'gid'], example: '20001' },
+  { key: 'description', label: 'Description', type: 'string', example: 'Application developers' },
+  { key: 'memberUid', label: 'Members (uids)', type: 'stringArray', aliases: ['members', 'memberuid'], example: 'jdoe;asmith' },
 ]
 
 export const Route = createFileRoute('/groups/import')({

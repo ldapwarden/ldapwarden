@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import Papa from 'papaparse'
 import { toast } from 'sonner'
 import type { ImportResult, ImportRow } from '@/lib/api'
@@ -14,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Upload, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, Upload, CheckCircle2, XCircle, Download } from 'lucide-react'
 
 export type FieldType = 'string' | 'number' | 'stringArray'
 
@@ -28,6 +29,8 @@ export interface ImportField {
   /** Optional charset check applied client-side (e.g. RDN keys). */
   pattern?: RegExp
   patternHint?: string
+  /** Sample value for the downloadable template. */
+  example?: string
 }
 
 const IGNORE = '__ignore__'
@@ -60,6 +63,7 @@ export function CsvImport({
   submit: (rows: ImportRow[]) => Promise<ImportResult>
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [headers, setHeaders] = useState<string[]>([])
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([])
@@ -107,6 +111,10 @@ export function CsvImport({
       const res = await submit(validRows.map((r) => r.row))
       setResult(res)
       setStep('result')
+      // An import creates entries wholesale — users, and the groups a user row
+      // can name — so nothing cached describes the directory any more. Without
+      // this, "Done" returned to a list that still showed the old contents.
+      queryClient.invalidateQueries()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Import failed')
     } finally {
@@ -123,6 +131,8 @@ export function CsvImport({
         <h1 className="text-2xl font-bold">{title}</h1>
       </div>
 
+      <Steps current={step} />
+
       {step === 'upload' && (
         <Card>
           <CardHeader>
@@ -132,12 +142,26 @@ export function CsvImport({
               Multi-value cells (e.g. groups) are separated by "{MULTI_SEP}".
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
-            <Button onClick={() => fileRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-1" />
-              Select CSV file
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => fileRef.current?.click()}>
+                <Upload className="h-4 w-4 mr-1" />
+                Select CSV file
+              </Button>
+              {/* The column names, the required ones and the ';' convention were
+                  only discoverable by uploading something first and reading the
+                  mapping screen. A template states them up front. */}
+              <Button variant="outline" onClick={() => downloadTemplate(fields, noun)}>
+                <Download className="h-4 w-4 mr-1" />
+                Download template
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Required column{fields.filter((f) => f.required).length === 1 ? '' : 's'}:{' '}
+              {fields.filter((f) => f.required).map((f) => f.label).join(', ')}. Any other column is
+              optional, and columns your file does not have can be left unmapped.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -217,9 +241,14 @@ export function CsvImport({
                         {pr.errors.length === 0 ? (
                           <span className="text-success">OK</span>
                         ) : (
-                          <span className="text-destructive" title={pr.errors.join('; ')}>
-                            {pr.errors[0]}
-                          </span>
+                          // All of them: the rest used to live in a `title`,
+                          // where a row with three problems looked like a row
+                          // with one and took three round trips to fix.
+                          <ul className="space-y-0.5 text-destructive">
+                            {pr.errors.map((error) => (
+                              <li key={error}>{error}</li>
+                            ))}
+                          </ul>
                         )}
                       </TableCell>
                     </TableRow>
@@ -292,6 +321,62 @@ export function CsvImport({
   )
 }
 
+const STEPS = [
+  { key: 'upload', label: 'Choose file' },
+  { key: 'map', label: 'Map columns' },
+  { key: 'preview', label: 'Check' },
+  { key: 'result', label: 'Import' },
+] as const
+
+/**
+ * Where you are in the import.
+ *
+ * The four stages already existed as state; nothing showed them, so the screen
+ * changed under the operator with no sense of how many steps were left or that
+ * the mapping they were about to confirm was not the import itself. Numbered
+ * because this genuinely is a sequence — the order carries meaning.
+ */
+function Steps({ current }: { current: (typeof STEPS)[number]['key'] }) {
+  const currentIndex = STEPS.findIndex((s) => s.key === current)
+  return (
+    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      {STEPS.map((step, index) => {
+        const done = index < currentIndex
+        const active = index === currentIndex
+        return (
+          <li key={step.key} className="flex items-center gap-2">
+            {index > 0 && <span className="text-muted-foreground" aria-hidden="true">→</span>}
+            <span
+              className={
+                active
+                  ? 'font-medium text-foreground'
+                  : done
+                    ? 'text-muted-foreground'
+                    : 'text-muted-foreground/60'
+              }
+              aria-current={active ? 'step' : undefined}
+            >
+              <span className="tabular-nums">{index + 1}.</span> {step.label}
+            </span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/**
+ * A CSV with the canonical column names, and a sample row where a field
+ * declares one. Required columns are marked in the header so the file is
+ * self-describing once it leaves the app.
+ */
+function downloadTemplate(fields: ImportField[], noun: string) {
+  const header = fields.map((f) => f.key)
+  const sample = fields.map((f) => f.example ?? '')
+  const csv = Papa.unparse([header, sample])
+  downloadCsv(csv, `${noun}-import-template.csv`)
+}
+
 /** Auto-match target fields to CSV headers by key/label/alias, case-insensitive. */
 function autoMap(fields: ImportField[], headers: string[]): Record<string, string> {
   const byLower = new Map(headers.map((h) => [h.toLowerCase(), h]))
@@ -353,11 +438,15 @@ function downloadReport(result: ImportResult, noun: string) {
   const csv = Papa.unparse(
     result.results.map((r) => ({ row: r.index + 1, key: r.key, status: r.status, error: r.error ?? '' })),
   )
+  downloadCsv(csv, `${noun}-import-report.csv`)
+}
+
+function downloadCsv(csv: string, filename: string) {
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${noun}-import-report.csv`
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
 }
