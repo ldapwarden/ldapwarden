@@ -18,6 +18,29 @@ export function setOnAuthError(callback: (() => void) | null) {
 
 const FETCH_TIMEOUT_MS = 30_000
 
+/**
+ * Validates a response, or fails with a message worth showing.
+ *
+ * `schema.parse` throws a ZodError whose `.message` is a JSON dump of every
+ * issue — and the UI shows `error.message` verbatim in a toast or a Callout, so
+ * a backend that drifted by one field produced "Failed to load users:
+ * [{"code":"invalid_type","expected":"string"…". Unreadable, and it looks like
+ * the app is broken rather than out of step with the server. The detail still
+ * matters, so it goes to the console where a developer will find it.
+ */
+function parseResponse<T>(schema: z.ZodType<T>, data: unknown, endpoint: string): T {
+  const result = schema.safeParse(data)
+  if (result.success) {
+    return result.data
+  }
+  console.error(`Unexpected response shape from ${endpoint}`, result.error.issues, data)
+  throw new ApiError(
+    0,
+    'The server sent something this version of the app does not understand. ' +
+      'It may have been updated — reload the page, and report it if it persists.',
+  )
+}
+
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -68,7 +91,7 @@ async function fetchApi<T>(
     const data = await response.json()
 
     if (schema) {
-      return schema.parse(data)
+      return parseResponse(schema, data, endpoint)
     }
 
     return data as T
@@ -134,7 +157,7 @@ async function fetchApiPublic<T>(
     const data = await response.json()
 
     if (schema) {
-      return schema.parse(data)
+      return parseResponse(schema, data, endpoint)
     }
 
     return data as T
