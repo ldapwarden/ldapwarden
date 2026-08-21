@@ -14,6 +14,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { BulkDeleteActions } from '@/components/bulk-delete-actions'
 import { Badge } from '@/components/ui/badge'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
@@ -24,6 +26,7 @@ import { useCallback, useState, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import { useSearchHotkey } from '@/lib/use-hotkey'
+import { useRowSelection } from '@/lib/use-row-selection'
 import {
   listSearchValidator,
   listSearchValues,
@@ -102,8 +105,23 @@ function PasswordPoliciesPage() {
 
   const canWrite = hasPermission('settings:write')
 
+  const sortedPolicies = data?.data ?? []
+  const totalFiltered = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize))
+
+  const {
+    selected,
+    selectedRows,
+    allSelected,
+    someSelected,
+    toggleOne,
+    toggleAll,
+    clear: clearSelection,
+  } = useRowSelection(sortedPolicies)
+
   const handleSort = (field: SortField) => {
     patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
+    clearSelection()
   }
 
   const formatSeconds = (seconds: number | undefined) => {
@@ -114,18 +132,16 @@ function PasswordPoliciesPage() {
     return `${Math.floor(seconds / 86400)}d`
   }
 
-  const sortedPolicies = data?.data ?? []
-  const totalFiltered = data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize))
-
   const handlePageChange = (page: number) => {
     // Paging is the one move worth a history entry, so Back returns to the
     // previous page instead of leaving the list entirely.
     patchSearch({ page: page > 1 ? page : undefined }, false)
+    clearSelection()
   }
 
   const handlePageSizeChange = (size: number) => {
     patchSearch({ size, page: undefined })
+    clearSelection()
   }
 
   if (error) {
@@ -162,7 +178,7 @@ function PasswordPoliciesPage() {
           />
         </div>
         <span className="text-sm text-muted-foreground">
-          {totalFiltered} policies
+          {totalFiltered} polic{totalFiltered !== 1 ? 'ies' : 'y'}
         </span>
       </div>
 
@@ -172,6 +188,17 @@ function PasswordPoliciesPage() {
         </Callout>
       )}
 
+      {canWrite && (
+        <BulkDeleteActions
+          selected={selectedRows}
+          onClear={clearSelection}
+          noun="password policy"
+          label={(policy) => policy.cn}
+          remove={(policy) => api.passwordPolicies.delete(policy.dn)}
+          invalidateKey={['password-policies']}
+        />
+      )}
+
       {/* Dim the table while a refetch is in flight: keepPreviousData leaves the
           old rows on screen, which would otherwise look like nothing happened
           after a sort or page change. */}
@@ -179,6 +206,16 @@ function PasswordPoliciesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              {canWrite && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Select all password policies"
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onCheckedChange={toggleAll}
+                  />
+                </TableHead>
+              )}
               <SortableHeader
                 field="cn"
                 activeField={sortField}
@@ -210,11 +247,20 @@ function PasswordPoliciesPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={6} />
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canWrite ? 7 : 6} />
             ) : (
               <>
                 {sortedPolicies.map((policy) => (
-              <TableRow key={policy.dn}>
+              <TableRow key={policy.dn} data-state={selected.has(policy.dn) ? 'selected' : undefined}>
+                {canWrite && (
+                  <TableCell className="w-10">
+                    <Checkbox
+                      aria-label={`Select ${policy.cn}`}
+                      checked={selected.has(policy.dn)}
+                      onCheckedChange={() => toggleOne(policy.dn)}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <Link
                     to="/password-policies/$dn"
@@ -272,7 +318,7 @@ function PasswordPoliciesPage() {
             {sortedPolicies.length === 0 && (
               q ? (
                 <TableEmptyState
-                  colSpan={6}
+                  colSpan={canWrite ? 7 : 6}
                   icon={Search}
                   title={`No policies match \u201c${q}\u201d`}
                   description="Search matches the policy name and description."
@@ -283,7 +329,7 @@ function PasswordPoliciesPage() {
                 </TableEmptyState>
               ) : (
                 <TableEmptyState
-                  colSpan={6}
+                  colSpan={canWrite ? 7 : 6}
                   icon={KeyRound}
                   title="No password policies yet"
                   description={

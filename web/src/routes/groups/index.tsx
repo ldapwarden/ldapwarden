@@ -1,16 +1,12 @@
 import { TableSkeletonRows } from '@/components/ui/skeleton'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { useQuery, keepPreviousData, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { runBulk, bulkSummary } from '@/lib/bulk'
-import { BulkResultDialog, type BulkOutcome } from '@/components/bulk-result-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { BulkActionBar } from '@/components/bulk-action-bar'
+import { BulkDeleteActions } from '@/components/bulk-delete-actions'
 import {
   Table,
   TableBody,
@@ -20,14 +16,15 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, Users, Trash2, Upload } from 'lucide-react'
+import { Plus, Search, Users, Upload } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { TableEmptyState } from '@/components/ui/empty-state'
-import { useCallback, useMemo, useState, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import { useSearchHotkey } from '@/lib/use-hotkey'
+import { useRowSelection } from '@/lib/use-row-selection'
 import {
   listSearchValidator,
   listSearchValues,
@@ -50,17 +47,10 @@ export const Route = createFileRoute('/groups/')({
 
 function GroupsPage() {
   const { hasPermission } = useAuth()
-  const queryClient = useQueryClient()
   const searchParams = Route.useSearch()
   const navigate = Route.useNavigate()
   const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
     listSearchValues<SortField>(searchParams, 'cn')
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  // Set when a bulk delete had failures, so they can be listed individually.
-  const [outcome, setOutcome] = useState<BulkOutcome<{ dn: string; cn: string }> | null>(null)
-
 
   const patchSearch = useCallback(
     (patch: Partial<ListSearch<SortField>>, replace = true) => {
@@ -104,49 +94,19 @@ function GroupsPage() {
 
   const canWrite = hasPermission('groups:write')
 
+  const {
+    selected,
+    selectedRows: selectedGroups,
+    allSelected,
+    someSelected,
+    toggleOne,
+    toggleAll,
+    clear: clearSelection,
+  } = useRowSelection(groups)
+
   const handleSort = (field: SortField) => {
     patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
     clearSelection()
-  }
-
-  // Selection only spans the visible page: with paging done server-side the
-  // rest of the result set is not in memory, and a bulk delete must never
-  // reach rows the operator has not seen.
-  const selectedGroups = useMemo(() => groups.filter((g) => selected.has(g.dn)), [groups, selected])
-  const allSelected = groups.length > 0 && groups.every((g) => selected.has(g.dn))
-  const someSelected = selected.size > 0 && !allSelected
-
-  const toggleOne = (dn: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(dn)) next.delete(dn)
-      else next.add(dn)
-      return next
-    })
-  }
-  const toggleAll = () => {
-    setSelected((prev) => (groups.every((g) => prev.has(g.dn)) ? new Set() : new Set(groups.map((g) => g.dn))))
-  }
-  const clearSelection = () => setSelected(new Set())
-
-  const bulkDelete = async () => {
-    setDeleting(true)
-    try {
-      const result = await runBulk(selectedGroups, (g) => api.groups.delete(g.dn))
-      queryClient.invalidateQueries({ queryKey: ['groups'] })
-      const summary = bulkSummary('Deleted', 'group', result)
-      if (result.failed.length === 0) {
-        toast.success(summary)
-      } else {
-        // The toast reports the shape; the dialog says which groups failed and why.
-        toast.error(summary)
-        setOutcome({ verb: 'Deleted', noun: 'group', succeeded: result.succeeded, failed: result.failed })
-      }
-      clearSelection()
-      setDeleteOpen(false)
-    } finally {
-      setDeleting(false)
-    }
   }
 
   // Any change to the query resets paging and selection: page 3 of the old
@@ -217,30 +177,15 @@ function GroupsPage() {
       )}
 
       {canWrite && (
-        <BulkActionBar count={selectedGroups.length} onClear={clearSelection}>
-          <Button variant="destructive" size="sm" disabled={deleting} onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-1" />
-            Delete
-          </Button>
-        </BulkActionBar>
+        <BulkDeleteActions
+          selected={selectedGroups}
+          onClear={clearSelection}
+          noun="group"
+          label={(group) => group.cn}
+          remove={(group) => api.groups.delete(group.dn)}
+          invalidateKey={['groups']}
+        />
       )}
-
-      <BulkResultDialog
-        outcome={outcome}
-        label={(group) => group.cn}
-        onClose={() => setOutcome(null)}
-      />
-
-      <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={(open) => { if (!open) setDeleteOpen(false) }}
-        title="Delete groups"
-        description={`Delete ${selectedGroups.length} selected group${selectedGroups.length === 1 ? '' : 's'}? This permanently removes them from the directory and cannot be undone.`}
-        confirmLabel={`Delete ${selectedGroups.length}`}
-        pendingLabel="Deleting..."
-        isPending={deleting}
-        onConfirm={bulkDelete}
-      />
 
       {/* Dim the table while a refetch is in flight: keepPreviousData leaves the
           old rows on screen, which would otherwise look like nothing happened

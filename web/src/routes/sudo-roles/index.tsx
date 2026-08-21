@@ -14,6 +14,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { BulkDeleteActions } from '@/components/bulk-delete-actions'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, Pencil, Trash2, Search, ShieldCheck } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
@@ -23,6 +25,7 @@ import { useCallback, useState, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import { useSearchHotkey } from '@/lib/use-hotkey'
+import { useRowSelection } from '@/lib/use-row-selection'
 import {
   listSearchValidator,
   listSearchValues,
@@ -99,25 +102,41 @@ function SudoRolesPage() {
     },
   })
 
+  // users:*, not a sudo-specific permission: see the /sudo-roles route block in
+  // internal/api/routes.go for why. Matching the server exactly matters here —
+  // showing a button the API will refuse is worse than not showing it.
   const canWrite = hasPermission('users:write')
   const canDelete = hasPermission('users:delete')
-
-  const handleSort = (field: SortField) => {
-    patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
-  }
 
   const sortedRoles = data?.data ?? []
   const totalFiltered = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize))
 
+  const {
+    selected,
+    selectedRows,
+    allSelected,
+    someSelected,
+    toggleOne,
+    toggleAll,
+    clear: clearSelection,
+  } = useRowSelection(sortedRoles)
+
+  const handleSort = (field: SortField) => {
+    patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
+    clearSelection()
+  }
+
   const handlePageChange = (page: number) => {
     // Paging is the one move worth a history entry, so Back returns to the
     // previous page instead of leaving the list entirely.
     patchSearch({ page: page > 1 ? page : undefined }, false)
+    clearSelection()
   }
 
   const handlePageSizeChange = (size: number) => {
     patchSearch({ size, page: undefined })
+    clearSelection()
   }
 
   if (error) {
@@ -154,7 +173,7 @@ function SudoRolesPage() {
           />
         </div>
         <span className="text-sm text-muted-foreground">
-          {totalFiltered} sudo roles
+          {totalFiltered} sudo role{totalFiltered !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -164,6 +183,17 @@ function SudoRolesPage() {
         </Callout>
       )}
 
+      {canDelete && (
+        <BulkDeleteActions
+          selected={selectedRows}
+          onClear={clearSelection}
+          noun="sudo role"
+          label={(role) => role.cn}
+          remove={(role) => api.sudoRoles.delete(role.dn)}
+          invalidateKey={['sudo-roles']}
+        />
+      )}
+
       {/* Dim the table while a refetch is in flight: keepPreviousData leaves the
           old rows on screen, which would otherwise look like nothing happened
           after a sort or page change. */}
@@ -171,6 +201,16 @@ function SudoRolesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              {canDelete && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Select all sudo roles"
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onCheckedChange={toggleAll}
+                  />
+                </TableHead>
+              )}
               <SortableHeader
                 field="cn"
                 activeField={sortField}
@@ -195,11 +235,20 @@ function SudoRolesPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={6} />
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canDelete ? 7 : 6} />
             ) : (
               <>
                 {sortedRoles.map((role) => (
-              <TableRow key={role.dn}>
+              <TableRow key={role.dn} data-state={selected.has(role.dn) ? 'selected' : undefined}>
+                {canDelete && (
+                  <TableCell className="w-10">
+                    <Checkbox
+                      aria-label={`Select ${role.cn}`}
+                      checked={selected.has(role.dn)}
+                      onCheckedChange={() => toggleOne(role.dn)}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <Link
                     to="/sudo-roles/$dn"
@@ -253,7 +302,7 @@ function SudoRolesPage() {
             {sortedRoles.length === 0 && (
               q ? (
                 <TableEmptyState
-                  colSpan={6}
+                  colSpan={canDelete ? 7 : 6}
                   icon={Search}
                   title={`No sudo roles match \u201c${q}\u201d`}
                   description="Search matches the role name and description."
@@ -264,7 +313,7 @@ function SudoRolesPage() {
                 </TableEmptyState>
               ) : (
                 <TableEmptyState
-                  colSpan={6}
+                  colSpan={canDelete ? 7 : 6}
                   icon={ShieldCheck}
                   title="No sudo roles yet"
                   description={
