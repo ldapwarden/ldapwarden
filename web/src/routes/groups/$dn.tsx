@@ -5,12 +5,14 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
+import { useSyncedForm } from '@/lib/form-sync'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
 import { userPhotoUrl, type GroupMember } from '@/lib/api'
 import { decodeDN } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FieldRow } from '@/components/ui/field-row'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
@@ -324,14 +326,20 @@ function InformationTab({
   updateMutation: ReturnType<typeof useMutation<unknown, Error, string>>
   onSubmit: (e: React.FormEvent, description: string) => void
 }) {
-  const [description, setDescription] = useState(group.description || '')
+  const [form, setForm] = useState(() => ({ description: group.description || '' }))
+  // Adopts the server's copy on refetch while untouched. Comparing against the
+  // value captured at mount instead left the field stale after a background
+  // refetch, and claiming unsaved changes that were really someone else's edit.
+  const isDirty = useSyncedForm({ description: group.description || '' }, form, setForm)
+  const description = form.description
+  const setDescription = (value: string) => setForm({ description: value })
 
   return (
     <form onSubmit={(e) => onSubmit(e, description)} className="space-y-4">
       {/* The guard lives here rather than on the page: this is where the edited
           value is held, and the tab unmounts when you switch away — which is
           exactly the navigation worth intercepting. */}
-      <UnsavedChangesGuard when={description !== (group.description || '')} />
+      <UnsavedChangesGuard when={isDirty} />
       {!canWrite && <ReadOnlyNotice />}
       <Card>
         <CardHeader>
@@ -680,7 +688,7 @@ function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<
             <p className="text-xs text-muted-foreground">Samba Security Identifier for this group</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="sambaGroupType">Group Type</Label>
               <Input
@@ -703,7 +711,7 @@ function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<
               />
               <p className="text-xs text-muted-foreground">Windows display name</p>
             </div>
-          </div>
+          </FieldRow>
 
           {canWrite && (
             <div className="flex justify-end gap-2 pt-4">

@@ -2,7 +2,7 @@ import { DetailSkeleton } from '@/components/ui/skeleton'
 import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { api, userPhotoUrl } from '@/lib/api'
+import { api, userPhotoUrl, type User as UserDetail } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, expiryInstantTitle, formatExpiryDate, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
 import { hasLapsedLock, isLocked, lockoutLiftsAt } from '@/lib/account'
@@ -13,9 +13,11 @@ import { usePickerSearch } from '@/lib/use-picker-search'
 // enough that no real directory reaches it, small enough to stay a dropdown.
 const POLICY_OPTIONS_LIMIT = 200
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
+import { useSyncedForm } from '@/lib/form-sync'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FieldRow } from '@/components/ui/field-row'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
@@ -292,6 +294,71 @@ function UserDetailPage() {
   )
 }
 
+// The editable inetOrgPerson fields, normalised so an absent attribute and an
+// empty field compare equal. Both the dirty check and the save diff read it.
+function identityForm(user: UserDetail) {
+  return {
+    givenName: user.givenName || '',
+    sn: user.sn || '',
+    cn: user.cn || '',
+    displayName: user.displayName || '',
+    mail: user.mail || '',
+    telephoneNumber: user.telephoneNumber || '',
+    title: user.title || '',
+    departmentNumber: user.departmentNumber || '',
+    o: user.o || '',
+    employeeNumber: user.employeeNumber || '',
+    employeeType: user.employeeType || '',
+    initials: user.initials || '',
+    manager: user.manager || '',
+    description: user.description || '',
+  }
+}
+
+function posixForm(user: UserDetail) {
+  return {
+    homeDirectory: user.homeDirectory || '',
+    loginShell: user.loginShell || '',
+    gecos: user.gecos || '',
+  }
+}
+
+function sambaForm(user: UserDetail) {
+  return {
+    sambaSID: user.sambaSID || '',
+    sambaPrimaryGroupSID: user.sambaPrimaryGroupSID || '',
+    sambaAcctFlags: user.sambaAcctFlags || '',
+    sambaHomePath: user.sambaHomePath || '',
+    sambaHomeDrive: user.sambaHomeDrive || '',
+    sambaLogonScript: user.sambaLogonScript || '',
+    sambaProfilePath: user.sambaProfilePath || '',
+    sambaDomainName: user.sambaDomainName || '',
+  }
+}
+
+// Shadow attributes are integers in the directory but strings in the form, so
+// an emptied field stays distinguishable from a zero.
+function shadowForm(user: UserDetail) {
+  return {
+    shadowLastChange: user.shadowLastChange?.toString() || '',
+    shadowMin: user.shadowMin?.toString() || '',
+    shadowMax: user.shadowMax?.toString() || '',
+    shadowWarning: user.shadowWarning?.toString() || '',
+    shadowInactive: user.shadowInactive?.toString() || '',
+    shadowExpire: user.shadowExpire?.toString() || '',
+    shadowFlag: user.shadowFlag?.toString() || '',
+  }
+}
+
+/** The fields of `form` that differ from `server`, for a partial update. */
+function changedFields<T extends Record<string, string>>(form: T, server: T): Partial<T> {
+  const changed: Partial<T> = {}
+  for (const key of Object.keys(form) as Array<keyof T>) {
+    if (form[key] !== server[key]) changed[key] = form[key]
+  }
+  return changed
+}
+
 // Identity Tab (inetOrgPerson)
 function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, groups: Array<{ dn: string; cn: string; gidNumber: number }> }) {
   const queryClient = useQueryClient()
@@ -361,43 +428,21 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
     },
   })
 
-  const [formData, setFormData] = useState({
-    givenName: user.givenName || '',
-    sn: user.sn || '',
-    cn: user.cn || '',
-    displayName: user.displayName || '',
-    mail: user.mail || '',
-    telephoneNumber: user.telephoneNumber || '',
-    title: user.title || '',
-    departmentNumber: user.departmentNumber || '',
-    o: user.o || '',
-    employeeNumber: user.employeeNumber || '',
-    employeeType: user.employeeType || '',
-    initials: user.initials || '',
-    manager: user.manager || '',
-    description: user.description || '',
-    jpegPhoto: user.jpegPhoto || '',
-  })
+  // The photo is held apart from the synced form on purpose: useSyncedForm
+  // compares by JSON, and a multi-MB base64 has no business being stringified
+  // on every render. `photoChanged` carries its dirty state instead.
+  const [photo, setPhoto] = useState(user.jpegPhoto || '')
   const [photoChanged, setPhotoChanged] = useState(false)
 
-  // Warn before navigating away with unsaved identity edits. The photo is
-  // tracked separately via photoChanged so we don't stringify a multi-MB base64
-  // on every render for the dirty check.
-  const textFieldsDirty =
-    formData.givenName !== (user.givenName || '') ||
-    formData.sn !== (user.sn || '') ||
-    formData.cn !== (user.cn || '') ||
-    formData.displayName !== (user.displayName || '') ||
-    formData.mail !== (user.mail || '') ||
-    formData.telephoneNumber !== (user.telephoneNumber || '') ||
-    formData.title !== (user.title || '') ||
-    formData.departmentNumber !== (user.departmentNumber || '') ||
-    formData.o !== (user.o || '') ||
-    formData.employeeNumber !== (user.employeeNumber || '') ||
-    formData.employeeType !== (user.employeeType || '') ||
-    formData.initials !== (user.initials || '') ||
-    formData.manager !== (user.manager || '') ||
-    formData.description !== (user.description || '')
+  const [formData, setFormData] = useState(() => identityForm(user))
+
+  // Adopt the server's copy on refetch while the form is untouched, and report
+  // unsaved edits. Comparing against a snapshot by hand (which is what this
+  // replaced) left the form pinned to whatever the entry looked like when the
+  // tab mounted: after a refetch — window focus is enough — it kept stale
+  // values, claimed unsaved changes the operator had never made, and would
+  // write the old copy back over the new one on save.
+  const textFieldsDirty = useSyncedForm(identityForm(user), formData, setFormData)
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -426,7 +471,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
         toast.error('Could not read the selected image.')
         return
       }
-      setFormData({ ...formData, jpegPhoto: base64 })
+      setPhoto(base64)
       setPhotoChanged(true)
     }
     reader.onerror = () => toast.error('Could not read the selected image.')
@@ -434,28 +479,22 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   }
 
   const handlePhotoRemove = () => {
-    setFormData({ ...formData, jpegPhoto: '' })
+    setPhoto('')
     setPhotoChanged(true)
   }
 
   const updateMutation = useMutation({
     mutationFn: () => {
-      const updateData: Record<string, string | undefined> = {}
-      if (formData.givenName !== user?.givenName) updateData.givenName = formData.givenName
-      if (formData.sn !== user?.sn) updateData.sn = formData.sn
-      if (formData.cn !== user?.cn) updateData.cn = formData.cn
-      if (formData.displayName !== user?.displayName) updateData.displayName = formData.displayName
-      if (formData.mail !== user?.mail) updateData.mail = formData.mail
-      if (formData.telephoneNumber !== user?.telephoneNumber) updateData.telephoneNumber = formData.telephoneNumber
-      if (formData.title !== user?.title) updateData.title = formData.title
-      if (formData.departmentNumber !== user?.departmentNumber) updateData.departmentNumber = formData.departmentNumber
-      if (formData.o !== (user?.o || '')) updateData.o = formData.o
-      if (formData.employeeNumber !== (user?.employeeNumber || '')) updateData.employeeNumber = formData.employeeNumber
-      if (formData.employeeType !== (user?.employeeType || '')) updateData.employeeType = formData.employeeType
-      if (formData.initials !== (user?.initials || '')) updateData.initials = formData.initials
-      if (formData.manager !== (user?.manager || '')) updateData.manager = formData.manager
-      if (formData.description !== user?.description) updateData.description = formData.description
-      if (photoChanged) updateData.jpegPhoto = formData.jpegPhoto
+      // Diffed against the same projection the dirty check uses, so "the form
+      // is unchanged" and "there is nothing to send" can no longer disagree.
+      // Hand-written per-field comparisons had drifted: half tested against
+      // `user.x` and half against `user.x || ''`, so an unset attribute made
+      // the field look edited and got written back on every save.
+      const updateData: Record<string, string | undefined> = changedFields(
+        formData,
+        identityForm(user),
+      )
+      if (photoChanged) updateData.jpegPhoto = photo
       return api.users.update(dn, updateData)
     },
     onSuccess: () => {
@@ -490,7 +529,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                 <Label>Photo</Label>
                 <div className="flex items-center gap-4">
                   <Avatar
-                    src={formData.jpegPhoto}
+                    src={photo}
                     fallback={user?.displayName || user?.cn}
                     size="lg"
                   />
@@ -511,7 +550,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                       <Camera className="h-4 w-4 mr-1" />
                       Upload
                     </Button>
-                    {formData.jpegPhoto && (
+                    {photo && (
                       <Button
                         type="button"
                         variant="outline"
@@ -527,7 +566,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="uid">Username (UID)</Label>
                 <Input id="uid" value={user?.uid || ''} disabled />
@@ -542,9 +581,9 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                   disabled={!canWrite}
                 />
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="givenName">First Name</Label>
                 <Input
@@ -563,7 +602,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                   disabled={!canWrite}
                 />
               </div>
-            </div>
+            </FieldRow>
 
             <div className="space-y-2">
               <Label htmlFor="displayName">Display Name</Label>
@@ -575,7 +614,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="mail">Email</Label>
                 <Input
@@ -595,9 +634,9 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                   disabled={!canWrite}
                 />
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
                 <Input
@@ -616,7 +655,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                   disabled={!canWrite}
                 />
               </div>
-            </div>
+            </FieldRow>
 
             <div className="space-y-2">
               <Label htmlFor="o">Organization</Label>
@@ -628,7 +667,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="employeeNumber">Employee Number</Label>
                 <Input
@@ -647,9 +686,9 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                   disabled={!canWrite}
                 />
               </div>
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="initials">Initials</Label>
                 <Input
@@ -762,7 +801,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                   </DialogContent>
                 </Dialog>
               </div>
-            </div>
+            </FieldRow>
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
@@ -950,20 +989,11 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
 function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean }) {
   const queryClient = useQueryClient()
 
-  const [formData, setFormData] = useState({
-    homeDirectory: user.homeDirectory || '',
-    loginShell: user.loginShell || '',
-    gecos: user.gecos || '',
-  })
+  const [formData, setFormData] = useState(() => posixForm(user))
+  const isDirty = useSyncedForm(posixForm(user), formData, setFormData)
 
   const updateMutation = useMutation({
-    mutationFn: () => {
-      const updateData: Record<string, string | undefined> = {}
-      if (formData.homeDirectory !== (user?.homeDirectory || '')) updateData.homeDirectory = formData.homeDirectory
-      if (formData.loginShell !== (user?.loginShell || '')) updateData.loginShell = formData.loginShell
-      if (formData.gecos !== (user?.gecos || '')) updateData.gecos = formData.gecos
-      return api.users.update(dn, updateData)
-    },
+    mutationFn: () => api.users.update(dn, changedFields(formData, posixForm(user))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['user', dn] })
@@ -981,13 +1011,14 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
 
   return (
     <form onSubmit={handleSubmit}>
+      <UnsavedChangesGuard when={isDirty} />
       <Card>
         <CardHeader>
           <CardTitle>POSIX Account</CardTitle>
           <CardDescription>posixAccount attributes for Unix/Linux systems</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="uidNumber">UID Number</Label>
               <Input
@@ -1010,7 +1041,7 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
               />
               <p className="text-xs text-muted-foreground">Primary group ID (read-only)</p>
             </div>
-          </div>
+          </FieldRow>
 
           <div className="space-y-2">
             <Label htmlFor="homeDirectory">Home Directory</Label>
@@ -1212,16 +1243,15 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
   const queryClient = useQueryClient()
   const [isAddingObjectClass, setIsAddingObjectClass] = useState(false)
 
-  const [formData, setFormData] = useState({
-    sambaSID: user.sambaSID || '',
-    sambaPrimaryGroupSID: user.sambaPrimaryGroupSID || '',
-    sambaAcctFlags: user.sambaAcctFlags || '',
-    sambaHomePath: user.sambaHomePath || '',
-    sambaHomeDrive: user.sambaHomeDrive || '',
-    sambaLogonScript: user.sambaLogonScript || '',
-    sambaProfilePath: user.sambaProfilePath || '',
-    sambaDomainName: user.sambaDomainName || '',
-  })
+  const [formData, setFormData] = useState(() => sambaForm(user))
+  // Only synced once the entry actually carries the object class: while the
+  // "Add Samba Account" form is open, the server copy is all empty strings and
+  // adopting it would wipe the defaults just filled in.
+  const isDirty = useSyncedForm(
+    hasObjectClass && !isAddingObjectClass ? sambaForm(user) : undefined,
+    formData,
+    setFormData,
+  )
 
   // Initialize form with default values when entering add mode
   const handleAddSambaAccount = () => {
@@ -1239,18 +1269,7 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
   }
 
   const updateMutation = useMutation({
-    mutationFn: () => {
-      const updateData: Record<string, string | undefined> = {}
-      if (formData.sambaSID !== (user?.sambaSID || '')) updateData.sambaSID = formData.sambaSID
-      if (formData.sambaPrimaryGroupSID !== (user?.sambaPrimaryGroupSID || '')) updateData.sambaPrimaryGroupSID = formData.sambaPrimaryGroupSID
-      if (formData.sambaAcctFlags !== (user?.sambaAcctFlags || '')) updateData.sambaAcctFlags = formData.sambaAcctFlags
-      if (formData.sambaHomePath !== (user?.sambaHomePath || '')) updateData.sambaHomePath = formData.sambaHomePath
-      if (formData.sambaHomeDrive !== (user?.sambaHomeDrive || '')) updateData.sambaHomeDrive = formData.sambaHomeDrive
-      if (formData.sambaLogonScript !== (user?.sambaLogonScript || '')) updateData.sambaLogonScript = formData.sambaLogonScript
-      if (formData.sambaProfilePath !== (user?.sambaProfilePath || '')) updateData.sambaProfilePath = formData.sambaProfilePath
-      if (formData.sambaDomainName !== (user?.sambaDomainName || '')) updateData.sambaDomainName = formData.sambaDomainName
-      return api.users.updateSamba(dn, updateData)
-    },
+    mutationFn: () => api.users.updateSamba(dn, changedFields(formData, sambaForm(user))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['user', dn] })
@@ -1308,6 +1327,7 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
 
   return (
     <form onSubmit={handleSubmit}>
+      <UnsavedChangesGuard when={isDirty} />
       <Card>
         <CardHeader>
           <CardTitle>{isAddingObjectClass ? 'Add Samba Account' : 'Samba Account'}</CardTitle>
@@ -1336,7 +1356,7 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
             <p className="text-xs text-muted-foreground">Samba Security Identifier (required for Samba)</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="sambaPrimaryGroupSID">Primary Group SID</Label>
               <Input
@@ -1359,9 +1379,9 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
               />
               <p className="text-xs text-muted-foreground">Account flags (e.g., [U] for user)</p>
             </div>
-          </div>
+          </FieldRow>
 
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="sambaHomePath">Home Path</Label>
               <Input
@@ -1384,9 +1404,9 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
               />
               <p className="text-xs text-muted-foreground">Drive letter for home</p>
             </div>
-          </div>
+          </FieldRow>
 
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="sambaLogonScript">Logon Script</Label>
               <Input
@@ -1409,7 +1429,7 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
               />
               <p className="text-xs text-muted-foreground">Roaming profile path</p>
             </div>
-          </div>
+          </FieldRow>
 
           <div className="space-y-2">
             <Label htmlFor="sambaDomainName">Domain Name</Label>
@@ -1457,15 +1477,14 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
   const queryClient = useQueryClient()
   const [isAddingObjectClass, setIsAddingObjectClass] = useState(false)
 
-  const [formData, setFormData] = useState({
-    shadowLastChange: user.shadowLastChange?.toString() || '',
-    shadowMin: user.shadowMin?.toString() || '',
-    shadowMax: user.shadowMax?.toString() || '',
-    shadowWarning: user.shadowWarning?.toString() || '',
-    shadowInactive: user.shadowInactive?.toString() || '',
-    shadowExpire: user.shadowExpire?.toString() || '',
-    shadowFlag: user.shadowFlag?.toString() || '',
-  })
+  const [formData, setFormData] = useState(() => shadowForm(user))
+  // As with Samba: not synced while the add-object-class form is open, whose
+  // prefilled defaults are not on the server yet.
+  const isDirty = useSyncedForm(
+    hasObjectClass && !isAddingObjectClass ? shadowForm(user) : undefined,
+    formData,
+    setFormData,
+  )
 
   // Initialize form with default values when entering add mode
   const handleAddShadowAccount = () => {
@@ -1485,23 +1504,11 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
 
   const updateMutation = useMutation({
     mutationFn: () => {
+      const changed = changedFields(formData, shadowForm(user))
       const updateData: Record<string, number | undefined> = {}
-      const parseIntOrUndefined = (val: string) => val !== '' ? parseInt(val, 10) : undefined
-
-      if (formData.shadowLastChange !== (user?.shadowLastChange?.toString() || ''))
-        updateData.shadowLastChange = parseIntOrUndefined(formData.shadowLastChange)
-      if (formData.shadowMin !== (user?.shadowMin?.toString() || ''))
-        updateData.shadowMin = parseIntOrUndefined(formData.shadowMin)
-      if (formData.shadowMax !== (user?.shadowMax?.toString() || ''))
-        updateData.shadowMax = parseIntOrUndefined(formData.shadowMax)
-      if (formData.shadowWarning !== (user?.shadowWarning?.toString() || ''))
-        updateData.shadowWarning = parseIntOrUndefined(formData.shadowWarning)
-      if (formData.shadowInactive !== (user?.shadowInactive?.toString() || ''))
-        updateData.shadowInactive = parseIntOrUndefined(formData.shadowInactive)
-      if (formData.shadowExpire !== (user?.shadowExpire?.toString() || ''))
-        updateData.shadowExpire = parseIntOrUndefined(formData.shadowExpire)
-      if (formData.shadowFlag !== (user?.shadowFlag?.toString() || ''))
-        updateData.shadowFlag = parseIntOrUndefined(formData.shadowFlag)
+      for (const [key, value] of Object.entries(changed)) {
+        updateData[key] = value === '' ? undefined : parseInt(value, 10)
+      }
       return api.users.updateShadow(dn, updateData)
     },
     onSuccess: () => {
@@ -1567,6 +1574,7 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
 
   return (
     <form onSubmit={handleSubmit}>
+      <UnsavedChangesGuard when={isDirty} />
       <Card>
         <CardHeader>
           <CardTitle>{isAddingObjectClass ? 'Add Shadow Account' : 'Shadow Account'}</CardTitle>
@@ -1599,7 +1607,7 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="shadowMin">Minimum Age</Label>
               <Input
@@ -1624,9 +1632,9 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
               />
               <p className="text-xs text-muted-foreground">Maximum days before password must be changed</p>
             </div>
-          </div>
+          </FieldRow>
 
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="shadowWarning">Warning Period</Label>
               <Input
@@ -1651,9 +1659,9 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
               />
               <p className="text-xs text-muted-foreground">Days after expiry before account disabled</p>
             </div>
-          </div>
+          </FieldRow>
 
-          <div className="grid grid-cols-2 gap-4">
+          <FieldRow>
             <div className="space-y-2">
               <Label htmlFor="shadowExpire">Account Expiration</Label>
               <Input
@@ -1683,7 +1691,7 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
               />
               <p className="text-xs text-muted-foreground">Reserved field (usually 0)</p>
             </div>
-          </div>
+          </FieldRow>
 
           {canWrite && (
             <div className="flex justify-end gap-2 pt-4">
@@ -2552,7 +2560,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <FieldRow className="text-sm">
               <div>
                 <p className="text-muted-foreground">Password Changed</p>
                 <p className="font-medium">
@@ -2584,7 +2592,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                   </p>
                 )}
               </div>
-            </div>
+            </FieldRow>
 
             {user?.pwdFailureTime && user.pwdFailureTime.length > 0 && (
               <div className="space-y-2">

@@ -27,12 +27,17 @@ export function useSyncedForm<T>(
 
   useEffect(() => {
     if (serverForm === undefined || serverJSON === null) return
-    const pristine =
-      lastSynced.current === null || JSON.stringify(form) === lastSynced.current
-    if (serverJSON !== lastSynced.current && pristine) {
-      setForm(serverForm)
-      lastSynced.current = serverJSON
-    }
+    if (serverJSON === lastSynced.current) return
+    const formJSON = JSON.stringify(form)
+    // Adopt the server's copy while the form is unchanged since the last sync —
+    // and also right after a save, when the form already *is* what the server
+    // now holds. Without that second case `lastSynced` stayed pinned to the
+    // pre-save data forever, so the first save quietly ended the form's ability
+    // to pick up any later change: every subsequent refetch found the form
+    // "not pristine" and skipped it.
+    if (formJSON !== lastSynced.current && formJSON !== serverJSON) return
+    if (formJSON !== serverJSON) setForm(serverForm)
+    lastSynced.current = serverJSON
     // Intentionally keyed on serverJSON only: we react to server changes, and
     // read the current form via closure. Including `form` would re-run on every
     // keystroke (harmless, but pointless).
