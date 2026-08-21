@@ -8,6 +8,7 @@ import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FieldRow } from '@/components/ui/field-row'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -186,7 +187,7 @@ function PasswordPolicyDetailPage() {
             <CardDescription>Requirements for password strength</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="pwdMinLength">Minimum Length</Label>
                 <Input
@@ -213,7 +214,7 @@ function PasswordPolicyDetailPage() {
                   0=disabled, 1=check if module, 2=always check
                 </p>
               </div>
-            </div>
+            </FieldRow>
             <div className="space-y-2">
               <Label htmlFor="pwdCheckModule">Check Module</Label>
               <Input
@@ -236,7 +237,7 @@ function PasswordPolicyDetailPage() {
             <CardDescription>Settings for password aging (values in seconds)</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="pwdMinAge">Minimum Age (seconds)</Label>
                 <Input
@@ -265,8 +266,8 @@ function PasswordPolicyDetailPage() {
                   Password expiration time (0 = never expires)
                 </p>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+            </FieldRow>
+            <FieldRow>
               <div className="space-y-2">
                 <Label htmlFor="pwdExpireWarning">Expire Warning (seconds)</Label>
                 <Input
@@ -295,7 +296,7 @@ function PasswordPolicyDetailPage() {
                   Allowed logins after password expires
                 </p>
               </div>
-            </div>
+            </FieldRow>
           </CardContent>
         </Card>
 
@@ -328,21 +329,15 @@ function PasswordPolicyDetailPage() {
             <CardDescription>Lock accounts after failed login attempts</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Enable Lockout</Label>
-                <p className="text-xs text-muted-foreground">
-                  Lock account after too many failed attempts
-                </p>
-              </div>
-              <Switch
-                checked={formData.pwdLockout}
-                onCheckedChange={(checked) => setFormData({ ...formData, pwdLockout: checked })}
-                disabled={!canWrite}
-              />
-            </div>
+            <Switch
+              label="Enable Lockout"
+              description="Lock account after too many failed attempts"
+              checked={formData.pwdLockout}
+              onCheckedChange={(checked) => setFormData({ ...formData, pwdLockout: checked })}
+              disabled={!canWrite}
+            />
             {formData.pwdLockout && (
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+              <FieldRow cols={3} className="pt-4 border-t">
                 <div className="space-y-2">
                   <Label htmlFor="pwdMaxFailure">Max Failures</Label>
                   <Input
@@ -382,7 +377,7 @@ function PasswordPolicyDetailPage() {
                     Time to reset failure count
                   </p>
                 </div>
-              </div>
+              </FieldRow>
             )}
           </CardContent>
         </Card>
@@ -393,45 +388,27 @@ function PasswordPolicyDetailPage() {
             <CardDescription>Control user password change behavior</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Must Change on Reset</Label>
-                <p className="text-xs text-muted-foreground">
-                  Require password change after admin reset
-                </p>
-              </div>
-              <Switch
-                checked={formData.pwdMustChange}
-                onCheckedChange={(checked) => setFormData({ ...formData, pwdMustChange: checked })}
-                disabled={!canWrite}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Allow User Change</Label>
-                <p className="text-xs text-muted-foreground">
-                  Allow users to change their own password
-                </p>
-              </div>
-              <Switch
-                checked={formData.pwdAllowUserChange}
-                onCheckedChange={(checked) => setFormData({ ...formData, pwdAllowUserChange: checked })}
-                disabled={!canWrite}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Safe Modify</Label>
-                <p className="text-xs text-muted-foreground">
-                  Require current password when changing
-                </p>
-              </div>
-              <Switch
-                checked={formData.pwdSafeModify}
-                onCheckedChange={(checked) => setFormData({ ...formData, pwdSafeModify: checked })}
-                disabled={!canWrite}
-              />
-            </div>
+            <Switch
+              label="Must Change on Reset"
+              description="Require password change after admin reset"
+              checked={formData.pwdMustChange}
+              onCheckedChange={(checked) => setFormData({ ...formData, pwdMustChange: checked })}
+              disabled={!canWrite}
+            />
+            <Switch
+              label="Allow User Change"
+              description="Allow users to change their own password"
+              checked={formData.pwdAllowUserChange}
+              onCheckedChange={(checked) => setFormData({ ...formData, pwdAllowUserChange: checked })}
+              disabled={!canWrite}
+            />
+            <Switch
+              label="Safe Modify"
+              description="Require current password when changing"
+              checked={formData.pwdSafeModify}
+              onCheckedChange={(checked) => setFormData({ ...formData, pwdSafeModify: checked })}
+              disabled={!canWrite}
+            />
           </CardContent>
         </Card>
       </div>

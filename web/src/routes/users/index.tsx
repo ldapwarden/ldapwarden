@@ -204,15 +204,19 @@ function UsersPage() {
             className="pl-8"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <Switch checked={showInactive} onCheckedChange={handleShowInactiveChange} />
-          <span className="text-muted-foreground">
-            Show inactive
-            {inactiveCount > 0 && (
-              <span className="ml-1 text-xs">({inactiveCount})</span>
-            )}
-          </span>
-        </label>
+        <Switch
+          checked={showInactive}
+          onCheckedChange={handleShowInactiveChange}
+          labelPosition="end"
+          labelClassName="font-normal text-muted-foreground"
+          label={
+            <>
+              Show inactive
+              {inactiveCount > 0 && <span className="ml-1 text-xs">({inactiveCount})</span>}
+            </>
+          }
+          className="select-none"
+        />
         <span className="text-sm text-muted-foreground">
           {total} user{total !== 1 ? 's' : ''}
         </span>
