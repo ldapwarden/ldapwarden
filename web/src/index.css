@@ -150,6 +150,32 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /*
+    Honour the OS setting. The sign-in page runs four infinite keyframe
+    animations (the aurora veils) and the app has spinners, dialog transitions
+    and skeleton shimmer on top; none of it carried a guard. Motion that only
+    decorates is dropped outright, and anything that signals progress is left
+    running but slowed to a step so it still reads as "busy".
+  */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    /* Spinners and the skeleton shimmer are status, not decoration: keep them
+       animating, at a pace that does not sweep. */
+    .animate-spin,
+    .animate-pulse {
+      animation-duration: 1.5s !important;
+      animation-iteration-count: infinite !important;
+    }
+  }
 }
 
 @layer components {
