@@ -822,6 +822,14 @@ GET /api/groups/{dn}/sudo-roles
 
 ## Sudo Roles
 
+Sudo roles are governed by the **`users:*`** permissions, not by a permission of
+their own: granting sudo is granting a user privileges, so the right to do it
+follows the right to manage that user. The one exception is a role's *group*
+grants (`%group` entries in `sudoUser`), which take `groups:write` because they
+change what a group confers. This is deliberate — an operator who can edit sudo
+rules but not the accounts they apply to could grant root to an account they
+cannot see.
+
 ### List Sudo Roles
 
 ```http

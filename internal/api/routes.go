@@ -129,6 +129,13 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Put("/{dn}/shadow", s.handleUpdateUserShadow)
 			})
 
+			// Governed by the users:* permissions rather than a permission of
+			// their own: granting sudo is granting a user privileges, so the
+			// right to do it follows the right to manage that user. Only the
+			// %group grants take groups:write, since they change what a group
+			// confers. Deliberate, not an oversight — an operator who could edit
+			// sudo rules without seeing the accounts they apply to could grant
+			// root to an account invisible to them.
 			r.Route("/sudo-roles", func(r chi.Router) {
 				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/", s.handleListSudoRoles)
