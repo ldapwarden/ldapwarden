@@ -202,6 +202,15 @@ function RootComponent() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Hidden until focused. Without it the keyboard traverses the whole nav —
+          up to five section links, the search button, the theme menu and the
+          account menu — before reaching the table, on every page. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-ring"
+      >
+        Skip to content
+      </a>
       <nav className="border-b bg-card">
         <div className="container mx-auto px-4">
           <div className="flex h-14 items-center justify-between">
