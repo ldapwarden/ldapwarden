@@ -8,6 +8,7 @@ import { Callout } from '@/components/ui/callout'
 import { Skeleton } from '@/components/ui/skeleton'
 import { encodeDN } from '@/lib/utils'
 import { actionTone, toneStyle, type Tone } from '@/lib/tones'
+import { taskCheckedLabel, taskLabel, taskNotifiedLabel } from '@/lib/scheduled-tasks'
 import {
   CalendarClock,
   CheckCircle2,
@@ -261,7 +262,8 @@ function DashboardPage() {
               Scheduled tasks
             </CardTitle>
             <CardDescription>
-              Expiration notifications — a task that stops running is a silent failure
+              Expiration notifications and lockout detection — a task that stops running is a
+              silent failure
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -289,11 +291,11 @@ function DashboardPage() {
                       ) : (
                         <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
                       )}
-                      {run.taskName === 'users_expiration' ? 'Account' : 'Password'} expiration
+                      {taskLabel(run.taskName)}
                     </span>
                     <span className="flex flex-wrap items-center gap-x-4 text-muted-foreground">
-                      <span>{run.usersChecked} checked</span>
-                      <span>{run.notificationsSent} notified</span>
+                      <span>{taskCheckedLabel(run.taskName, run.usersChecked)}</span>
+                      <span>{taskNotifiedLabel(run.notificationsSent)}</span>
                       <span>{relativeTime(run.startedAt)}</span>
                     </span>
                   </li>

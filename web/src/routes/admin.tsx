@@ -12,8 +12,9 @@ import { Callout } from '@/components/ui/callout'
 import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock, ShieldCheck, ShieldAlert, ShieldQuestion, Lock } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useState } from 'react'
-import type { PolicySelfTest } from '@/lib/api'
+import type { PolicySelfTest, TriggerTaskResponse } from '@/lib/api'
 import { toast } from 'sonner'
+import { taskCheckedLabel, taskLabel, taskNotifiedLabel } from '@/lib/scheduled-tasks'
 
 export const Route = createFileRoute('/admin')({
   beforeLoad: ({ context }) => {
@@ -75,12 +76,24 @@ function AdminPage() {
     enabled: hasPermission('settings:read'),
   })
 
+  // All three toasts read their wording from the same table as the run list, so
+  // a task can never be described one way when triggered and another when
+  // listed. Each counts something different: "users checked" would misdescribe
+  // the lockout scan, which only reads the accounts already locked.
+  const reportRun = (taskName: string) => (result: TriggerTaskResponse) => {
+    refetchTaskRuns()
+    toast.success(
+      `${taskLabel(taskName)} completed: ${taskCheckedLabel(taskName, result.usersChecked)}, ` +
+        taskNotifiedLabel(result.notificationsSent),
+    )
+    if (result.errors?.length) {
+      toast.warning(result.errors.join('; '), { duration: 12000 })
+    }
+  }
+
   const triggerUsersMutation = useMutation({
     mutationFn: api.admin.scheduledTasks.triggerUsersExpiration,
-    onSuccess: (result) => {
-      refetchTaskRuns()
-      toast.success(`Account expiration check completed: ${result.usersChecked} users checked, ${result.notificationsSent} notifications sent`)
-    },
+    onSuccess: reportRun('users_expiration'),
     onError: (error: Error) => {
       toast.error(error.message)
     },
@@ -88,10 +101,7 @@ function AdminPage() {
 
   const triggerPasswordsMutation = useMutation({
     mutationFn: api.admin.scheduledTasks.triggerPasswordsExpiration,
-    onSuccess: (result) => {
-      refetchTaskRuns()
-      toast.success(`Password expiration check completed: ${result.usersChecked} users checked, ${result.notificationsSent} notifications sent`)
-    },
+    onSuccess: reportRun('passwords_expiration'),
     onError: (error: Error) => {
       toast.error(error.message)
     },
@@ -99,17 +109,7 @@ function AdminPage() {
 
   const triggerLockoutScanMutation = useMutation({
     mutationFn: api.admin.scheduledTasks.triggerLockoutScan,
-    onSuccess: (result) => {
-      refetchTaskRuns()
-      // "Locked accounts seen" rather than "users checked": the scan only reads the
-      // locked ones, and a run that examined 0 accounts is the healthy outcome.
-      toast.success(
-        `Lockout scan completed: ${result.usersChecked} locked account${result.usersChecked === 1 ? '' : 's'} seen, ${result.notificationsSent} notification${result.notificationsSent === 1 ? '' : 's'} sent`,
-      )
-      if (result.errors?.length) {
-        toast.warning(result.errors.join('; '), { duration: 12000 })
-      }
-    },
+    onSuccess: reportRun('lockouts_scan'),
     onError: (error: Error) => {
       toast.error(error.message)
     },
@@ -393,7 +393,7 @@ function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Account Expiration</span>
+                    <span className="font-medium">{taskLabel('users_expiration')}</span>
                   </div>
                   <Badge variant={scheduledTasksConfig?.usersExpiration.value ? 'default' : 'secondary'}>
                     {scheduledTasksConfig?.usersExpiration.value || 'Disabled'}
@@ -421,7 +421,7 @@ function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <KeyRound className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Password Expiration</span>
+                    <span className="font-medium">{taskLabel('passwords_expiration')}</span>
                   </div>
                   <Badge variant={scheduledTasksConfig?.passwordsExpiration.value ? 'default' : 'secondary'}>
                     {scheduledTasksConfig?.passwordsExpiration.value || 'Disabled'}
@@ -449,7 +449,7 @@ function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Lock className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Lockout Scan</span>
+                    <span className="font-medium">{taskLabel('lockouts_scan')}</span>
                   </div>
                   <Badge variant={scheduledTasksConfig?.lockoutScan.value ? 'default' : 'secondary'}>
                     {scheduledTasksConfig?.lockoutScan.value || 'Disabled'}
@@ -492,12 +492,12 @@ function AdminPage() {
                       ) : (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       )}
-                      <span>{run.taskName === 'users_expiration' ? 'Account' : 'Password'} Expiration</span>
+                      <span>{taskLabel(run.taskName)}</span>
                       <Badge variant="outline" className="text-xs">{run.triggeredBy}</Badge>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 text-muted-foreground">
-                      <span>{run.usersChecked} checked</span>
-                      <span>{run.notificationsSent} sent</span>
+                      <span>{taskCheckedLabel(run.taskName, run.usersChecked)}</span>
+                      <span>{taskNotifiedLabel(run.notificationsSent)}</span>
                       <span>{new Date(run.startedAt).toLocaleString()}</span>
                     </div>
                   </div>
