@@ -79,10 +79,23 @@ web/                # React app
 - Zod for runtime validation
 
 **Key Patterns**
-- Schema-driven form generation using react-hook-form
-- Optimistic updates for better UX
-- Code-splitting by route
-- i18n via react-i18next
+- Forms hold their own state and adopt server data through `useSyncedForm`
+  (`web/src/lib/form-sync.ts`): it re-reads a refetched entry while the form is
+  untouched and leaves edits in progress alone. Deliberately not a form
+  library — the fields mirror LDAP attributes one for one, so there is no
+  schema to generate a form from, and the interesting problem is reconciling
+  with a directory that other tools also write to.
+- List views page, sort and filter server-side; the browser renders one page of
+  a narrow projection. See the UI conventions in `CLAUDE.md`.
+- Mutations invalidate the affected queries on success rather than updating the
+  cache optimistically. A directory write can be refused by ppolicy or by an
+  ACL, and showing a change that the server then rejects is worse than a
+  moment's wait.
+- Zod validates every API response at the boundary.
+
+**Not built yet**
+- Code-splitting by route: the bundle is a single chunk of roughly 840 kB.
+- i18n: the interface is English-only and pulls in no i18n library.
 
 ### Testing Strategy
 
@@ -90,7 +103,7 @@ web/                # React app
 - Unit tests for business logic (schema parsing, RBAC)
 - Integration tests against OpenLDAP container
 
-**Frontend**
+**Frontend** — none of this exists yet; CI runs lint, typecheck and build only
 - Vitest for unit tests
 - Playwright for E2E (critical flows: login, user CRUD)
 - Storybook for component documentation
