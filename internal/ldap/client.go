@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,6 +13,10 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/ldapwarden/ldapwarden/internal/config"
 )
+
+// defaultLDAPTimeout applies when the configuration carries none, so a client
+// built directly in a test still cannot wait for ever.
+const defaultLDAPTimeout = 20 * time.Second
 
 type Client struct {
 	config config.LDAPConfig
@@ -24,6 +29,11 @@ type Client struct {
 	capMu     sync.Mutex
 	capProbed bool
 	caps      Capabilities
+	// capProbing is non-nil while a probe is running, and closed when it
+	// finishes. It lets concurrent callers wait on that one probe instead of
+	// serialising behind capMu to each run their own — and, more to the point,
+	// keeps the mutex from being held across network I/O.
+	capProbing chan struct{}
 	// verdict is what a policy self-test observed, if one has been run. It fills
 	// in for the passive enforcement probe, which normally cannot tell.
 	verdict Enforcement
@@ -53,16 +63,21 @@ func (c *Client) connect() (*ldap.Conn, error) {
 		InsecureSkipVerify: c.config.TLSSkipVerify, //nolint:gosec // User-configurable setting
 	}
 
+	// A dial that cannot complete has to give up on its own: the handlers hold no
+	// context to cancel it with.
+	dialer := ldap.DialWithDialer(&net.Dialer{Timeout: c.timeout()})
+
 	switch c.config.TLSMode {
 	case "ssl":
 		// LDAPS - TLS from the start (typically port 636)
-		conn, err = ldap.DialURL(c.config.URL, ldap.DialWithTLSConfig(tlsConfig))
+		conn, err = ldap.DialURL(c.config.URL, dialer, ldap.DialWithTLSConfig(tlsConfig))
 	case "starttls":
 		// StartTLS - connect plain, then upgrade to TLS
-		conn, err = ldap.DialURL(c.config.URL)
+		conn, err = ldap.DialURL(c.config.URL, dialer)
 		if err != nil {
 			return nil, fmt.Errorf("dial LDAP server: %w", err)
 		}
+		conn.SetTimeout(c.timeout())
 		if err = conn.StartTLS(tlsConfig); err != nil {
 			_ = conn.Close()
 			return nil, fmt.Errorf("StartTLS: %w", err)
@@ -70,15 +85,22 @@ func (c *Client) connect() (*ldap.Conn, error) {
 	default:
 		// "none" or unset - plain LDAP (or auto-detect ldaps:// URL)
 		if strings.HasPrefix(c.config.URL, "ldaps://") {
-			conn, err = ldap.DialURL(c.config.URL, ldap.DialWithTLSConfig(tlsConfig))
+			conn, err = ldap.DialURL(c.config.URL, dialer, ldap.DialWithTLSConfig(tlsConfig))
 		} else {
-			conn, err = ldap.DialURL(c.config.URL)
+			conn, err = ldap.DialURL(c.config.URL, dialer)
 		}
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("dial LDAP server: %w", err)
 	}
+
+	// Bounds every request made on this connection from here on, bind included.
+	// go-ldap sets no deadline by default, so a response that never arrives — a
+	// connection a firewall dropped without a FIN, a server wedged mid-search —
+	// blocks the calling goroutine for the lifetime of the process, holding
+	// whatever lock it took on the way in.
+	conn.SetTimeout(c.timeout())
 
 	if err := conn.Bind(c.config.BindDN, c.config.BindPass); err != nil {
 		_ = conn.Close()
@@ -87,6 +109,16 @@ func (c *Client) connect() (*ldap.Conn, error) {
 
 	c.conn = conn
 	return conn, nil
+}
+
+// timeout is the bound applied to every LDAP operation. Zero or negative
+// disables it, which is go-ldap's own default and never what a served request
+// wants; the config default is what normally applies.
+func (c *Client) timeout() time.Duration {
+	if c.config.Timeout <= 0 {
+		return defaultLDAPTimeout
+	}
+	return c.config.Timeout
 }
 
 func (c *Client) Close() {

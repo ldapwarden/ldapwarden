@@ -101,6 +101,20 @@ type LDAPConfig struct {
 	TLSMode         string // "none", "ssl", "starttls"
 	TLSSkipVerify   bool   // Skip certificate verification (for self-signed certs)
 	SearchSizeLimit int    // Max entries returned by UI list/search endpoints (0 = no limit)
+	// Timeout bounds every single LDAP operation: the dial, the bind and each
+	// request on an established connection.
+	//
+	// go-ldap applies no deadline of its own, so without this a request whose
+	// response never arrives — a connection silently dropped by a firewall, a
+	// server wedged on an unindexed search — waits for ever. That is not a slow
+	// page but a permanently stuck one: the goroutine keeps whatever lock it
+	// holds, and the handlers have no context to cancel it.
+	//
+	// Kept below the 30s the browser allows a request, so a directory that has
+	// stopped answering produces an error the operator can read instead of a
+	// client-side abort with nothing behind it. Raise it for a directory large
+	// enough that a legitimate paged count runs longer.
+	Timeout time.Duration
 }
 
 type SessionConfig struct {
@@ -135,6 +149,7 @@ func Load() *Config {
 			TLSMode:         getEnv("LDAP_TLS_MODE", "none"),
 			TLSSkipVerify:   getEnvBool("LDAP_TLS_SKIP_VERIFY", false),
 			SearchSizeLimit: getEnvInt("LDAP_SEARCH_SIZE_LIMIT", 500),
+			Timeout:         getEnvDuration("LDAP_TIMEOUT", 20*time.Second),
 		},
 		Session: SessionConfig{
 			Secret: getEnv("SESSION_SECRET", defaultSessionSecret),

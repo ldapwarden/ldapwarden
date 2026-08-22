@@ -71,32 +71,70 @@ const pwdEndTimeAttr = "pwdEndTime"
 // ppolicyConfigClass is the objectClass of the overlay's configuration entry.
 const ppolicyConfigClass = "olcPPolicyConfig"
 
+// probeTimeLimitSeconds is the server-side time limit on the two probe searches.
+const probeTimeLimitSeconds = 10
+
 // Capabilities returns the cached capability set, probing the directory on first
 // use. A probe failure is not fatal: it yields the conservative answer (no
 // scheduled expiry), because offering a feature the server will silently ignore
 // is worse than hiding one it might support.
+//
+// The probe runs without capMu held, and concurrent callers wait on the one
+// probe already in flight instead of queueing behind the mutex to run their own.
+// Holding the lock across two network searches meant a directory that stopped
+// answering did not merely slow this call down: it wedged every later caller for
+// the lifetime of the process, since the handlers have no context and the
+// goroutine that took the lock never returned to release it. In practice that
+// took out /api/overview and /api/admin/config — everything that asks what the
+// directory supports — while the parts of the app backed by Postgres went on
+// working, which made it look like anything but a lock.
 func (c *Client) Capabilities() Capabilities {
 	c.capMu.Lock()
-	defer c.capMu.Unlock()
-
-	if c.capProbed {
-		return c.caps
+	for {
+		if c.capProbed {
+			caps := c.caps
+			c.capMu.Unlock()
+			return caps
+		}
+		if c.capProbing == nil {
+			break
+		}
+		// Someone else is already asking; wait for their answer rather than
+		// starting a second probe behind theirs.
+		inflight := c.capProbing
+		c.capMu.Unlock()
+		<-inflight
+		c.capMu.Lock()
 	}
 
+	inflight := make(chan struct{})
+	c.capProbing = inflight
+	c.capMu.Unlock()
+
+	// Both searches are bounded by the connection deadline and by
+	// probeTimeLimitSeconds, so this cannot outlive them.
 	enforcement := c.probePolicyEnforcement()
+	scheduledExpiry := c.hasAttributeType(pwdEndTimeAttr)
+
+	c.capMu.Lock()
 	// A self-test actually proved something; the passive probe usually cannot. Let
 	// the proof win, but never let it override a config read that disagrees — that
 	// would hide a policy having been removed since.
 	if enforcement == EnforcementUnknown && c.verdict != "" {
 		enforcement = c.verdict
 	}
-
 	c.caps = Capabilities{
-		ScheduledExpiry:   c.hasAttributeType(pwdEndTimeAttr),
+		ScheduledExpiry:   scheduledExpiry,
 		PolicyEnforcement: enforcement,
 	}
 	c.capProbed = true
-	return c.caps
+	c.capProbing = nil
+	caps := c.caps
+	c.capMu.Unlock()
+
+	// Releases anyone who arrived while this probe was running.
+	close(inflight)
+	return caps
 }
 
 // RecordEnforcementVerdict stores what a self-test observed, so the answer stops
@@ -129,7 +167,12 @@ func (c *Client) probePolicyEnforcement() Enforcement {
 		"cn=config",
 		ldap.ScopeWholeSubtree,
 		ldap.NeverDerefAliases,
-		0, 0, false,
+		// A server-side time limit as well as the connection deadline: this one
+		// asks the directory to stop working, where the deadline only stops us
+		// waiting for it. A whole-subtree search on cn=config is the most
+		// exposed request the app makes — usually refused outright, occasionally
+		// answered by a config tree of unknown size.
+		0, probeTimeLimitSeconds, false,
 		"(objectClass="+ppolicyConfigClass+")",
 		[]string{"olcPPolicyDefault"},
 		nil,
@@ -177,7 +220,9 @@ func (c *Client) hasAttributeType(name string) bool {
 		"cn=Subschema",
 		ldap.ScopeBaseObject,
 		ldap.NeverDerefAliases,
-		0, 0, false,
+		// The subschema is a single multi-megabyte value; bound the server's work
+		// as well as our wait for it.
+		0, probeTimeLimitSeconds, false,
 		"(objectClass=*)",
 		[]string{"attributeTypes"},
 		nil,
