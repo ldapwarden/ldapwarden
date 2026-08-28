@@ -130,6 +130,19 @@ func (c *Client) GetUserSudoRoles(uid string) ([]SudoRole, error) {
 		}
 	}
 
+	// And +netgroup, for the netgroups that reach this user — including those
+	// that only reach them through nesting, since "+parent" grants to everyone
+	// the parent absorbs. A directory without nis.schema has none, and the
+	// lookup is skipped rather than failing the whole answer: a netgroup that
+	// cannot be read must not hide the roles granted directly.
+	if c.Capabilities().Netgroups {
+		if netgroups, nerr := c.NetgroupsContainingUser(uid); nerr == nil {
+			for _, name := range netgroups {
+				filterParts = append(filterParts, fmt.Sprintf("(sudoUser=+%s)", ldap.EscapeFilter(name)))
+			}
+		}
+	}
+
 	// Build the complete filter
 	filter := fmt.Sprintf("(&(objectClass=sudoRole)(|%s))", strings.Join(filterParts, ""))
 	entries, err := c.Search(c.SudoBaseDN(), filter, defaultSudoAttributes)
@@ -314,6 +327,50 @@ func (c *Client) AddGroupToSudoRole(sudoRoleDN, groupCN string) error {
 func (c *Client) RemoveGroupFromSudoRole(sudoRoleDN, groupCN string) error {
 	modReq := ldap.NewModifyRequest(sudoRoleDN, nil)
 	modReq.Delete("sudoUser", []string{"%" + groupCN})
+	return c.Modify(modReq)
+}
+
+// GetNetgroupSudoRoles returns the sudo roles naming this netgroup, on either
+// side: "+name" in sudoUser grants to its users, in sudoHost it restricts to its
+// hosts. Both are the same string, which is exactly why a netgroup used on the
+// wrong side fails silently.
+func (c *Client) GetNetgroupSudoRoles(netgroupCN string) ([]SudoRole, error) {
+	escaped := ldap.EscapeFilter("+" + netgroupCN)
+	filter := fmt.Sprintf("(&(objectClass=sudoRole)(|(sudoUser=%s)(sudoHost=%s)))", escaped, escaped)
+	entries, err := c.Search(c.SudoBaseDN(), filter, defaultSudoAttributes)
+	if err != nil {
+		return nil, err
+	}
+	roles := make([]SudoRole, 0, len(entries))
+	for _, entry := range entries {
+		roles = append(roles, entryToSudoRole(entry))
+	}
+	return roles, nil
+}
+
+// AddNetgroupToSudoRole names a netgroup in a sudo role, with the "+" prefix
+// sudo uses for netgroups — the counterpart of "%" for groups.
+//
+// `attr` is "sudoUser" or "sudoHost": a netgroup of users belongs in the first
+// and a netgroup of hosts in the second, and putting one in the other matches
+// nothing at all without any error. The caller decides, because only it knows
+// which the operator meant; Netgroup.Kind is what it should ask.
+func (c *Client) AddNetgroupToSudoRole(sudoRoleDN, attr, netgroupCN string) error {
+	if attr != "sudoUser" && attr != "sudoHost" {
+		return fmt.Errorf("a netgroup can only be added to sudoUser or sudoHost, not %q", attr)
+	}
+	modReq := ldap.NewModifyRequest(sudoRoleDN, nil)
+	modReq.Add(attr, []string{"+" + netgroupCN})
+	return c.Modify(modReq)
+}
+
+// RemoveNetgroupFromSudoRole is the counterpart of AddNetgroupToSudoRole.
+func (c *Client) RemoveNetgroupFromSudoRole(sudoRoleDN, attr, netgroupCN string) error {
+	if attr != "sudoUser" && attr != "sudoHost" {
+		return fmt.Errorf("a netgroup can only be removed from sudoUser or sudoHost, not %q", attr)
+	}
+	modReq := ldap.NewModifyRequest(sudoRoleDN, nil)
+	modReq.Delete(attr, []string{"+" + netgroupCN})
 	return c.Modify(modReq)
 }
 
