@@ -12,8 +12,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { MultiValueField } from '@/components/ui/multi-value-field'
 import { Callout } from '@/components/ui/callout'
-import { ArrowLeft, Save, ShieldCheck, Plus, X, Users, Terminal, Clock } from 'lucide-react'
+import { ArrowLeft, Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/sudo-roles/$dn')({
@@ -436,44 +437,6 @@ function SudoRoleDetailPage() {
           </div>
         )}
       </form>
-    </div>
-  )
-}
-
-function MultiValueField({
-  values,
-  onRemove,
-  canWrite,
-  mono = false,
-}: {
-  values: string[]
-  onRemove: (value: string) => void
-  canWrite: boolean
-  mono?: boolean
-}) {
-  if (values.length === 0) {
-    return <p className="text-sm text-muted-foreground">None configured</p>
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {values.map((value, index) => (
-        <span
-          key={index}
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-sm ${mono ? 'font-mono' : ''}`}
-        >
-          {value}
-          {canWrite && (
-            <button
-              type="button"
-              onClick={() => onRemove(value)}
-              className="hover:text-destructive"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </span>
-      ))}
     </div>
   )
 }

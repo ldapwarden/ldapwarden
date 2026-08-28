@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { MultiValueField } from '@/components/ui/multi-value-field'
 import { Callout } from '@/components/ui/callout'
-import { ArrowLeft, Save, ShieldCheck, Plus, X, Users, Terminal, Clock } from 'lucide-react'
+import { ArrowLeft, Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
@@ -214,6 +215,7 @@ function NewSudoRolePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <MultiValueField
+                empty="None added yet"
                 values={formData.sudoUser}
                 onRemove={(v) => removeFromArray('sudoUser', v)}
               />
@@ -239,6 +241,7 @@ function NewSudoRolePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <MultiValueField
+                empty="None added yet"
                 values={formData.sudoHost}
                 onRemove={(v) => removeFromArray('sudoHost', v)}
               />
@@ -267,6 +270,7 @@ function NewSudoRolePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <MultiValueField
+                empty="None added yet"
                 values={formData.sudoCommand}
                 onRemove={(v) => removeFromArray('sudoCommand', v)}
                 mono
@@ -294,6 +298,7 @@ function NewSudoRolePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <MultiValueField
+                empty="None added yet"
                 values={formData.sudoRunAsUser}
                 onRemove={(v) => removeFromArray('sudoRunAsUser', v)}
               />
@@ -319,6 +324,7 @@ function NewSudoRolePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <MultiValueField
+                empty="None added yet"
                 values={formData.sudoRunAsGroup}
                 onRemove={(v) => removeFromArray('sudoRunAsGroup', v)}
               />
@@ -344,6 +350,7 @@ function NewSudoRolePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <MultiValueField
+                empty="None added yet"
                 values={formData.sudoRunAs}
                 onRemove={(v) => removeFromArray('sudoRunAs', v)}
               />
@@ -369,6 +376,7 @@ function NewSudoRolePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <MultiValueField
+                empty="None added yet"
                 values={formData.sudoOption}
                 onRemove={(v) => removeFromArray('sudoOption', v)}
                 mono
@@ -402,40 +410,6 @@ function NewSudoRolePage() {
           </Button>
         </div>
       </form>
-    </div>
-  )
-}
-
-function MultiValueField({
-  values,
-  onRemove,
-  mono = false,
-}: {
-  values: string[]
-  onRemove: (value: string) => void
-  mono?: boolean
-}) {
-  if (values.length === 0) {
-    return <p className="text-sm text-muted-foreground">None added yet</p>
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {values.map((value, index) => (
-        <span
-          key={index}
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-sm ${mono ? 'font-mono' : ''}`}
-        >
-          {value}
-          <button
-            type="button"
-            onClick={() => onRemove(value)}
-            className="hover:text-destructive"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </span>
-      ))}
     </div>
   )
 }
