@@ -494,6 +494,58 @@ export const SudoRoleSchema = z.object({
   sudoNotAfter: z.string().optional(),
 })
 
+export const NetgroupTripleSchema = z.object({
+  // Any slot may be empty, and empty means "any" — never "none". A netgroup
+  // whose host slots are all empty matches every host; see the expansion's
+  // openHost for why that cannot be read off an empty list.
+  host: z.string(),
+  user: z.string(),
+  domain: z.string(),
+})
+
+export const NetgroupSchema = z.object({
+  dn: z.string(),
+  cn: z.string(),
+  description: z.string().optional(),
+  triples: z.array(NetgroupTripleSchema),
+  // Stored values the server could not parse. Shown, never silently dropped:
+  // they are also the ones a rename cannot migrate.
+  malformed: z.array(z.string()).optional(),
+  members: z.array(z.string()).optional(),
+})
+
+export const NetgroupsResponseSchema = z.object({
+  data: z.array(NetgroupSchema),
+  total: z.number(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
+  truncated: z.boolean().optional(),
+})
+
+export const NetgroupMemberSchema = z.object({
+  name: z.string(),
+  // The nested netgroup that contributed this name; absent when named directly.
+  via: z.string().optional(),
+})
+
+export const NetgroupExpansionSchema = z.object({
+  root: z.string(),
+  users: z.array(NetgroupMemberSchema),
+  hosts: z.array(NetgroupMemberSchema),
+  // Netgroups contributing a triple with that slot left open, i.e. matching
+  // every name. Non-empty means "all", which an empty users/hosts list cannot
+  // express on its own.
+  openUser: z.array(z.string()).optional(),
+  openHost: z.array(z.string()).optional(),
+  cycles: z.array(z.string()).optional(),
+  dangling: z.array(z.string()).optional(),
+})
+
+export const NetgroupDeleteResponseSchema = z.object({
+  message: z.string(),
+  warnings: z.array(z.string()).default([]),
+})
+
 export const SudoRolesResponseSchema = z.object({
   data: z.array(SudoRoleSchema),
   total: z.number(),
@@ -600,6 +652,11 @@ export const ConfigResponseSchema = z.object({
       // enforced — that is policyEnforcement, a genuinely different question.
       scheduledExpirySupported: z.boolean(),
       policyEnforcement: PolicyEnforcementSchema,
+      // Whether the directory declares nisNetgroup. Says nothing about whether
+      // sudo will honour a "+netgroup" grant — that is decided on each client by
+      // NSS, ldap.conf or SSSD, and is not visible from the directory at all.
+      // Defaulted so an older backend does not fail validation.
+      netgroupsSupported: z.boolean().default(false),
     })
     .optional(),
   mail: z.object({
@@ -654,6 +711,10 @@ export type AuditLogsResponse = z.infer<typeof AuditLogsResponseSchema>
 export type NextIDs = z.infer<typeof NextIDsSchema>
 export type SudoRole = z.infer<typeof SudoRoleSchema>
 export type SudoRolesResponse = z.infer<typeof SudoRolesResponseSchema>
+export type Netgroup = z.infer<typeof NetgroupSchema>
+export type NetgroupTriple = z.infer<typeof NetgroupTripleSchema>
+export type NetgroupsResponse = z.infer<typeof NetgroupsResponseSchema>
+export type NetgroupExpansion = z.infer<typeof NetgroupExpansionSchema>
 export type PasswordPolicy = z.infer<typeof PasswordPolicySchema>
 export type PasswordPoliciesResponse = z.infer<typeof PasswordPoliciesResponseSchema>
 export type ConfigValue = z.infer<typeof ConfigValueSchema>
@@ -971,6 +1032,43 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(data),
       }, GroupSchema),
+  },
+
+  netgroups: {
+    list: (params?: ListParams, signal?: AbortSignal) =>
+      fetchApi(`/netgroups${listQuery(params)}`, {}, NetgroupsResponseSchema, signal),
+
+    get: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/netgroups/${encodeURIComponent(dn)}`, {}, NetgroupSchema, signal),
+
+    // Nesting resolved. A separate call because it reads the whole collection —
+    // a listing that expanded every row would pay for it once per row.
+    expand: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/netgroups/${encodeURIComponent(dn)}/expand`, {}, NetgroupExpansionSchema, signal),
+
+    create: (data: {
+      cn: string
+      description?: string
+      triples?: NetgroupTriple[]
+      members?: string[]
+    }) =>
+      fetchApi('/netgroups', { method: 'POST', body: JSON.stringify(data) }, NetgroupSchema),
+
+    update: (dn: string, data: {
+      description?: string
+      triples?: NetgroupTriple[]
+      members?: string[]
+    }) =>
+      fetchApi(`/netgroups/${encodeURIComponent(dn)}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }, NetgroupSchema),
+
+    // Answers with warnings: sudo names a netgroup by "+name" and nothing ties
+    // that string to the entry, so deleting one can leave rules matching nobody.
+    delete: (dn: string) =>
+      fetchApi(`/netgroups/${encodeURIComponent(dn)}`, { method: 'DELETE' },
+        NetgroupDeleteResponseSchema),
   },
 
   sudoRoles: {

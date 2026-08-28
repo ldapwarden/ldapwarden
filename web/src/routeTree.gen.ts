@@ -17,6 +17,9 @@ import { Route as GroupsIndexRouteImport } from './routes/groups/index'
 import { Route as GroupsDnRouteImport } from './routes/groups/$dn'
 import { Route as GroupsImportRouteImport } from './routes/groups/import'
 import { Route as GroupsNewRouteImport } from './routes/groups/new'
+import { Route as NetgroupsIndexRouteImport } from './routes/netgroups/index'
+import { Route as NetgroupsDnRouteImport } from './routes/netgroups/$dn'
+import { Route as NetgroupsNewRouteImport } from './routes/netgroups/new'
 import { Route as PasswordPoliciesIndexRouteImport } from './routes/password-policies/index'
 import { Route as PasswordPoliciesDnRouteImport } from './routes/password-policies/$dn'
 import { Route as PasswordPoliciesNewRouteImport } from './routes/password-policies/new'
@@ -67,6 +70,21 @@ const GroupsImportRoute = GroupsImportRouteImport.update({
 const GroupsNewRoute = GroupsNewRouteImport.update({
   id: '/groups/new',
   path: '/groups/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetgroupsIndexRoute = NetgroupsIndexRouteImport.update({
+  id: '/netgroups/',
+  path: '/netgroups/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetgroupsDnRoute = NetgroupsDnRouteImport.update({
+  id: '/netgroups/$dn',
+  path: '/netgroups/$dn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetgroupsNewRoute = NetgroupsNewRouteImport.update({
+  id: '/netgroups/new',
+  path: '/netgroups/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PasswordPoliciesIndexRoute = PasswordPoliciesIndexRouteImport.update({
@@ -133,6 +151,8 @@ export interface FileRoutesByFullPath {
   '/groups/$dn': typeof GroupsDnRoute
   '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
+  '/netgroups/$dn': typeof NetgroupsDnRoute
+  '/netgroups/new': typeof NetgroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
   '/reset-password/$token': typeof ResetPasswordTokenRoute
@@ -142,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/users/import': typeof UsersImportRoute
   '/users/new': typeof UsersNewRoute
   '/groups/': typeof GroupsIndexRoute
+  '/netgroups/': typeof NetgroupsIndexRoute
   '/password-policies/': typeof PasswordPoliciesIndexRoute
   '/sudo-roles/': typeof SudoRolesIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -154,6 +175,8 @@ export interface FileRoutesByTo {
   '/groups/$dn': typeof GroupsDnRoute
   '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
+  '/netgroups/$dn': typeof NetgroupsDnRoute
+  '/netgroups/new': typeof NetgroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
   '/reset-password/$token': typeof ResetPasswordTokenRoute
@@ -163,6 +186,7 @@ export interface FileRoutesByTo {
   '/users/import': typeof UsersImportRoute
   '/users/new': typeof UsersNewRoute
   '/groups': typeof GroupsIndexRoute
+  '/netgroups': typeof NetgroupsIndexRoute
   '/password-policies': typeof PasswordPoliciesIndexRoute
   '/sudo-roles': typeof SudoRolesIndexRoute
   '/users': typeof UsersIndexRoute
@@ -176,6 +200,8 @@ export interface FileRoutesById {
   '/groups/$dn': typeof GroupsDnRoute
   '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
+  '/netgroups/$dn': typeof NetgroupsDnRoute
+  '/netgroups/new': typeof NetgroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
   '/reset-password/$token': typeof ResetPasswordTokenRoute
@@ -185,6 +211,7 @@ export interface FileRoutesById {
   '/users/import': typeof UsersImportRoute
   '/users/new': typeof UsersNewRoute
   '/groups/': typeof GroupsIndexRoute
+  '/netgroups/': typeof NetgroupsIndexRoute
   '/password-policies/': typeof PasswordPoliciesIndexRoute
   '/sudo-roles/': typeof SudoRolesIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -199,6 +226,8 @@ export interface FileRouteTypes {
     | '/groups/$dn'
     | '/groups/import'
     | '/groups/new'
+    | '/netgroups/$dn'
+    | '/netgroups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
     | '/reset-password/$token'
@@ -208,6 +237,7 @@ export interface FileRouteTypes {
     | '/users/import'
     | '/users/new'
     | '/groups/'
+    | '/netgroups/'
     | '/password-policies/'
     | '/sudo-roles/'
     | '/users/'
@@ -220,6 +250,8 @@ export interface FileRouteTypes {
     | '/groups/$dn'
     | '/groups/import'
     | '/groups/new'
+    | '/netgroups/$dn'
+    | '/netgroups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
     | '/reset-password/$token'
@@ -229,6 +261,7 @@ export interface FileRouteTypes {
     | '/users/import'
     | '/users/new'
     | '/groups'
+    | '/netgroups'
     | '/password-policies'
     | '/sudo-roles'
     | '/users'
@@ -241,6 +274,8 @@ export interface FileRouteTypes {
     | '/groups/$dn'
     | '/groups/import'
     | '/groups/new'
+    | '/netgroups/$dn'
+    | '/netgroups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
     | '/reset-password/$token'
@@ -250,6 +285,7 @@ export interface FileRouteTypes {
     | '/users/import'
     | '/users/new'
     | '/groups/'
+    | '/netgroups/'
     | '/password-policies/'
     | '/sudo-roles/'
     | '/users/'
@@ -263,6 +299,8 @@ export interface RootRouteChildren {
   GroupsDnRoute: typeof GroupsDnRoute
   GroupsImportRoute: typeof GroupsImportRoute
   GroupsNewRoute: typeof GroupsNewRoute
+  NetgroupsDnRoute: typeof NetgroupsDnRoute
+  NetgroupsNewRoute: typeof NetgroupsNewRoute
   PasswordPoliciesDnRoute: typeof PasswordPoliciesDnRoute
   PasswordPoliciesNewRoute: typeof PasswordPoliciesNewRoute
   ResetPasswordTokenRoute: typeof ResetPasswordTokenRoute
@@ -272,6 +310,7 @@ export interface RootRouteChildren {
   UsersImportRoute: typeof UsersImportRoute
   UsersNewRoute: typeof UsersNewRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
+  NetgroupsIndexRoute: typeof NetgroupsIndexRoute
   PasswordPoliciesIndexRoute: typeof PasswordPoliciesIndexRoute
   SudoRolesIndexRoute: typeof SudoRolesIndexRoute
   UsersIndexRoute: typeof UsersIndexRoute
@@ -333,6 +372,27 @@ declare module '@tanstack/react-router' {
       path: '/groups/new'
       fullPath: '/groups/new'
       preLoaderRoute: typeof GroupsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/netgroups/': {
+      id: '/netgroups/'
+      path: '/netgroups'
+      fullPath: '/netgroups/'
+      preLoaderRoute: typeof NetgroupsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/netgroups/$dn': {
+      id: '/netgroups/$dn'
+      path: '/netgroups/$dn'
+      fullPath: '/netgroups/$dn'
+      preLoaderRoute: typeof NetgroupsDnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/netgroups/new': {
+      id: '/netgroups/new'
+      path: '/netgroups/new'
+      fullPath: '/netgroups/new'
+      preLoaderRoute: typeof NetgroupsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/password-policies/': {
@@ -423,6 +483,8 @@ const rootRouteChildren: RootRouteChildren = {
   GroupsDnRoute: GroupsDnRoute,
   GroupsImportRoute: GroupsImportRoute,
   GroupsNewRoute: GroupsNewRoute,
+  NetgroupsDnRoute: NetgroupsDnRoute,
+  NetgroupsNewRoute: NetgroupsNewRoute,
   PasswordPoliciesDnRoute: PasswordPoliciesDnRoute,
   PasswordPoliciesNewRoute: PasswordPoliciesNewRoute,
   ResetPasswordTokenRoute: ResetPasswordTokenRoute,
@@ -432,6 +494,7 @@ const rootRouteChildren: RootRouteChildren = {
   UsersImportRoute: UsersImportRoute,
   UsersNewRoute: UsersNewRoute,
   GroupsIndexRoute: GroupsIndexRoute,
+  NetgroupsIndexRoute: NetgroupsIndexRoute,
   PasswordPoliciesIndexRoute: PasswordPoliciesIndexRoute,
   SudoRolesIndexRoute: SudoRolesIndexRoute,
   UsersIndexRoute: UsersIndexRoute,

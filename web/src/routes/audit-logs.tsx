@@ -34,6 +34,7 @@ const RESOURCE_TYPE_OPTIONS = [
   { value: 'group', label: 'Group' },
   { value: 'sudorole', label: 'Sudo role' },
   { value: 'pwdpolicy', label: 'Password policy' },
+  { value: 'netgroup', label: 'Netgroup' },
   { value: 'schema', label: 'Schema' },
 ]
 
@@ -63,6 +64,9 @@ const ACTION_OPTIONS = [
   { value: 'sudorole.user.remove', label: 'sudorole.user.remove' },
   { value: 'sudorole.group.add', label: 'sudorole.group.add' },
   { value: 'sudorole.group.remove', label: 'sudorole.group.remove' },
+  { value: 'netgroup.create', label: 'netgroup.create' },
+  { value: 'netgroup.update', label: 'netgroup.update' },
+  { value: 'netgroup.delete', label: 'netgroup.delete' },
   { value: 'pwdpolicy.create', label: 'pwdpolicy.create' },
   { value: 'pwdpolicy.update', label: 'pwdpolicy.update' },
   { value: 'pwdpolicy.delete', label: 'pwdpolicy.delete' },
@@ -122,6 +126,7 @@ function resourceLink(log: AuditLog): { to: string; dn: string } | null {
     group: '/groups/$dn',
     sudorole: '/sudo-roles/$dn',
     pwdpolicy: '/password-policies/$dn',
+    netgroup: '/netgroups/$dn',
   }
   const to = route[log.resourceType]
   return to ? { to, dn: encodeDN(log.resourceDn) } : null

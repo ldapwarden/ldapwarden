@@ -13,6 +13,7 @@ import {
   User,
   Users,
   UsersRound,
+  Network,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
@@ -83,6 +84,12 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     enabled: open && searching,
   })
 
+  const { data: netgroups } = useQuery({
+    queryKey: ['netgroups', { search: term, palette: true }],
+    queryFn: ({ signal }) => api.netgroups.list({ search: term, limit: perGroupLimit }, signal),
+    enabled: open && searching,
+  })
+
   const { data: sudoRoles } = useQuery({
     queryKey: ['sudo-roles', { search: term, palette: true }],
     queryFn: ({ signal }) => api.sudoRoles.list({ search: term, limit: perGroupLimit }, signal),
@@ -127,6 +134,16 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           run: go('/groups/$dn', { dn: encodeDN(group.dn) }),
         })
       }
+      for (const netgroup of netgroups?.data ?? []) {
+        items.push({
+          id: `netgroup:${netgroup.dn}`,
+          label: netgroup.cn,
+          hint: netgroup.description,
+          group: 'Netgroups',
+          icon: Network,
+          run: go('/netgroups/$dn', { dn: encodeDN(netgroup.dn) }),
+        })
+      }
       for (const role of sudoRoles?.data ?? []) {
         items.push({
           id: `sudo:${role.dn}`,
@@ -156,6 +173,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       { id: 'go:users', label: 'Users', group: 'Go to', icon: Users, run: go('/users') },
       { id: 'go:groups', label: 'Groups', group: 'Go to', icon: UsersRound, run: go('/groups') },
       { id: 'go:sudo', label: 'Sudo roles', group: 'Go to', icon: ShieldCheck, run: go('/sudo-roles') },
+      { id: 'go:netgroups', label: 'Netgroups', group: 'Go to', icon: Network, run: go('/netgroups') },
     ]
     if (canReadSettings) {
       actions.push({ id: 'go:policies', label: 'Password policies', group: 'Go to', icon: KeyRound, run: go('/password-policies') })
@@ -179,7 +197,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
     return items
   }, [
-    searching, term, users, groups, sudoRoles, policies,
+    searching, term, users, groups, sudoRoles, policies, netgroups,
     canWrite, canReadAudit, canReadSettings, navigate, onOpenChange,
   ])
 

@@ -37,7 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound, Menu, Search } from 'lucide-react'
+import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound, Menu, Search, Network } from 'lucide-react'
 import { CommandPalette } from '@/components/command-palette'
 import { useCommandHotkey } from '@/lib/use-hotkey'
 import { RouteError } from '@/components/route-error'
@@ -118,6 +118,12 @@ function RootComponent() {
     if (enabledModules.includes('users')) items.push({ to: '/users', label: 'Users', icon: Users })
     if (enabledModules.includes('groups')) items.push({ to: '/groups', label: 'Groups', icon: UsersRound })
     if (enabledModules.includes('sudo')) items.push({ to: '/sudo-roles', label: 'Sudo Roles', icon: ShieldCheck })
+    // Gated on the directory declaring nisNetgroup as well as on the module: the
+    // API answers 501 without it, and a nav item leading to a dead page is worse
+    // than no nav item.
+    if (enabledModules.includes('netgroups') && config?.capabilities?.netgroupsSupported) {
+      items.push({ to: '/netgroups', label: 'Netgroups', icon: Network })
+    }
     if (enabledModules.includes('policies') && session?.permissions.includes('settings:read')) {
       items.push({ to: '/password-policies', label: 'Policies', icon: KeyRound })
     }
@@ -125,7 +131,7 @@ function RootComponent() {
       items.push({ to: '/audit-logs', label: 'Audit Logs', icon: ScrollText })
     }
     return items
-  }, [enabledModules, session?.permissions])
+  }, [enabledModules, session?.permissions, config?.capabilities?.netgroupsSupported])
 
   const changePasswordMutation = useMutation({
     mutationFn: async () => {
