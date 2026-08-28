@@ -388,6 +388,11 @@ export const GroupMemberSchema = z.object({
   cn: z.string().optional(),
   displayName: z.string().optional(),
   hasPhoto: z.boolean().optional(),
+  // Enough to render AccountStatus: a membership list is where an account
+  // nobody can use still looks like it holds every access the group grants.
+  pwdAccountLockedTime: z.string().optional(),
+  pwdEndTime: z.string().optional(),
+  lockout: LockoutSchema.optional(),
 })
 
 export const GroupMembersResponseSchema = z.object({

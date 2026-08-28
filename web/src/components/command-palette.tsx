@@ -17,6 +17,8 @@ import {
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useDebounced } from '@/lib/use-debounced'
+import { AccountStatus } from '@/components/account-status'
+import type { AccountStatusFields } from '@/lib/account'
 import { encodeDN } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +28,8 @@ interface Command {
   hint?: string
   group: string
   icon: typeof Users
+  /** Present on user rows, so a locked account is flagged where it is found. */
+  account?: AccountStatusFields
   run: () => void
 }
 
@@ -109,6 +113,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           hint: user.uid,
           group: 'Users',
           icon: User,
+          account: user,
           run: go('/users/$dn', { dn: encodeDN(user.dn) }),
         })
       }
@@ -272,6 +277,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                         >
                           <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                           <span className="truncate">{command.label}</span>
+                          {command.account && <AccountStatus user={command.account} quiet />}
                           {command.hint && (
                             <span className="ml-auto truncate pl-2 text-xs text-muted-foreground">
                               {command.hint}

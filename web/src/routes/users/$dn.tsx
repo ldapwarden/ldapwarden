@@ -39,6 +39,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Callout } from '@/components/ui/callout'
 import { PasswordStrength } from '@/components/ui/password-strength'
 import { PasswordRequirements } from '@/components/ui/password-requirements'
+import { AccountStatus } from '@/components/account-status'
 import { PasswordInput } from '@/components/ui/password-input'
 import { useState, useRef, useMemo } from 'react'
 
@@ -774,8 +775,14 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                                 size="sm"
                               />
                               <div className="flex-1 min-w-0">
-                                <div className="font-medium truncate">
-                                  {mgr.displayName || mgr.cn}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-medium truncate">
+                                    {mgr.displayName || mgr.cn}
+                                  </span>
+                                  {/* A locked account can still be someone's
+                                      manager, but it is worth knowing before
+                                      picking one. */}
+                                  <AccountStatus user={mgr} quiet />
                                 </div>
                                 <div className={`text-sm truncate ${
                                   formData.manager === mgr.dn

@@ -8,7 +8,7 @@ import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useSyncedForm } from '@/lib/form-sync'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
-import { userPhotoUrl, type GroupMember } from '@/lib/api'
+import { userPhotoUrl, type GroupMember, type UserListItem } from '@/lib/api'
 import { decodeDN } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Callout } from '@/components/ui/callout'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
+import { AccountStatus } from '@/components/account-status'
 import { ArrowLeft, Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
@@ -398,8 +399,11 @@ function MembersTab({
 }: {
   group: NonNullable<ReturnType<typeof api.groups.get> extends Promise<infer T> ? T : never>
   members: GroupMember[] | undefined
-  availableUsers: Array<{ dn: string; uid: string; cn: string; displayName?: string; hasPhoto?: boolean }>
-  picker: ReturnType<typeof usePickerSearch<{ dn: string; uid: string; cn: string; displayName?: string; hasPhoto?: boolean }>>
+  // The list endpoint's own row type rather than a hand-written subset of it:
+  // the subset silently dropped the lockout fields, so the picker could not say
+  // that a candidate is locked even though the payload carried it.
+  availableUsers: UserListItem[]
+  picker: ReturnType<typeof usePickerSearch<UserListItem>>
   canWrite: boolean
   addMemberOpen: boolean
   setAddMemberOpen: (open: boolean) => void
@@ -463,8 +467,13 @@ function MembersTab({
                           size="sm"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">
-                            {user.displayName || user.cn}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium truncate">
+                              {user.displayName || user.cn}
+                            </span>
+                            {/* Adding a locked account to a group is rarely what
+                                was meant; say so before the click, not after. */}
+                            <AccountStatus user={user} quiet />
                           </div>
                           <div className={`text-sm truncate ${
                             newMember === user.uid
@@ -527,10 +536,15 @@ function MembersTab({
                       size="sm"
                     />
                     <div>
-                      <span className="font-medium">{uid}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-medium">{uid}</span>
+                        {/* Quiet: only a member who cannot use what this group
+                            grants is worth stopping the eye on. */}
+                        <AccountStatus user={member} quiet />
+                      </span>
                       {name && (
-                        <span className="text-sm text-muted-foreground ml-2">
-                          ({name})
+                        <span className="text-sm text-muted-foreground">
+                          {name}
                         </span>
                       )}
                     </div>

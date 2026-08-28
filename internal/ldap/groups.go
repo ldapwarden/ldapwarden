@@ -238,6 +238,13 @@ type GroupMember struct {
 	CN          string `json:"cn,omitempty"`
 	DisplayName string `json:"displayName,omitempty"`
 	HasPhoto    bool   `json:"hasPhoto"`
+	// Whether this member can actually use what the group grants. A membership
+	// list is where dead weight accumulates — an account locked by an
+	// administrator months ago still appears to hold every access its groups
+	// confer — so the row says so rather than looking like any other.
+	PwdAccountLockedTime string   `json:"pwdAccountLockedTime,omitempty"`
+	PwdEndTime           string   `json:"pwdEndTime,omitempty"`
+	Lockout              *Lockout `json:"lockout,omitempty"`
 }
 
 // GroupMembers resolves a group's memberUid values to user entries.
@@ -265,7 +272,8 @@ func (c *Client) GroupMembers(groupDN string) ([]GroupMember, error) {
 	uids.WriteString(")")
 	memberFilter := "(&(objectClass=inetOrgPerson)" + uids.String() + ")"
 
-	entries, err := c.Search(c.UserBaseDN(), memberFilter, []string{"uid", "cn", "displayName"})
+	entries, err := c.Search(c.UserBaseDN(), memberFilter,
+		[]string{"uid", "cn", "displayName", lockAttr, expiryAttr, "pwdPolicySubentry"})
 	if err != nil {
 		return nil, err
 	}
@@ -281,15 +289,23 @@ func (c *Client) GroupMembers(groupDN string) ([]GroupMember, error) {
 		}
 	}
 
+	// One resolver for the whole group: the policies it reads are the same handful
+	// for every member, as on the users list.
+	lockouts := c.newLockoutResolver()
+
 	resolved := make(map[string]GroupMember, len(entries))
 	for _, entry := range entries {
 		uid := entry.GetAttributeValue("uid")
+		lockedAt := entry.GetAttributeValue(lockAttr)
 		resolved[uid] = GroupMember{
-			UID:         uid,
-			DN:          entry.DN,
-			CN:          entry.GetAttributeValue("cn"),
-			DisplayName: entry.GetAttributeValue("displayName"),
-			HasPhoto:    withPhoto[entry.DN],
+			UID:                  uid,
+			DN:                   entry.DN,
+			CN:                   entry.GetAttributeValue("cn"),
+			DisplayName:          entry.GetAttributeValue("displayName"),
+			HasPhoto:             withPhoto[entry.DN],
+			PwdAccountLockedTime: lockedAt,
+			PwdEndTime:           entry.GetAttributeValue(expiryAttr),
+			Lockout:              lockouts.resolve(lockedAt, entry.GetAttributeValue("pwdPolicySubentry")),
 		}
 	}
 
