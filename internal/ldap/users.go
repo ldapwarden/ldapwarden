@@ -462,6 +462,30 @@ func (c *Client) RenameUser(oldDN, oldUID, newUID string) (string, []string, err
 		}
 	}
 
+	// Netgroups: the uid sits inside a "(host,user,domain)" triple, so this
+	// rewrites the user slot rather than the value. A triple the parser could not
+	// read is reported instead — it may name the old uid, and guessing at its
+	// shape to rewrite it would be worse than saying so.
+	if netgroups, err := c.NetgroupsForUser(oldUID); err != nil {
+		warn("read netgroups", err)
+	} else {
+		for _, netgroup := range netgroups {
+			triples, changed := renameUserInTriples(netgroup.Triples, oldUID, newUID)
+			if !changed {
+				continue
+			}
+			if err := c.saveTriples(netgroup, triples); err != nil {
+				warn(fmt.Sprintf("update netgroup %q", netgroup.CN), err)
+				continue
+			}
+			if len(netgroup.Malformed) > 0 {
+				warnings = append(warnings, fmt.Sprintf(
+					"netgroup %q has %d unreadable triple(s) left untouched; check them for %q",
+					netgroup.CN, len(netgroup.Malformed), oldUID))
+			}
+		}
+	}
+
 	// Manager references on other users store the (now stale) DN.
 	if users, err := c.ListUsers(); err != nil {
 		warn("scan manager references", err)
@@ -830,6 +854,35 @@ func (c *Client) DeleteUser(dn string) ([]string, error) {
 			if len(role.SudoUser) == 1 {
 				warnings = append(warnings, fmt.Sprintf(
 					"sudo role %q now has no sudoUser: it applied to %q only", role.CN, uid))
+			}
+		}
+	}
+
+	// Netgroups: drop the triples naming this uid. See removeUserFromTriples for
+	// why the whole triple goes rather than just the slot.
+	if netgroups, err := c.NetgroupsForUser(uid); err != nil {
+		warn("read netgroups", err)
+	} else {
+		for _, netgroup := range netgroups {
+			triples, changed := removeUserFromTriples(netgroup.Triples, uid)
+			if !changed {
+				continue
+			}
+			if err := c.saveTriples(netgroup, triples); err != nil {
+				warn(fmt.Sprintf("update netgroup %q", netgroup.CN), err)
+				continue
+			}
+			if len(netgroup.Malformed) > 0 {
+				warnings = append(warnings, fmt.Sprintf(
+					"netgroup %q has %d unreadable triple(s) left untouched; check them for %q",
+					netgroup.CN, len(netgroup.Malformed), uid))
+			}
+			// Emptied out, like a sudo role that named only this user: left in
+			// place, because deleting someone is not authority to delete a
+			// netgroup, but said out loud so it does not rot quietly.
+			if len(triples) == 0 && len(netgroup.Members) == 0 {
+				warnings = append(warnings, fmt.Sprintf(
+					"netgroup %q is now empty: it contained %q only", netgroup.CN, uid))
 			}
 		}
 	}

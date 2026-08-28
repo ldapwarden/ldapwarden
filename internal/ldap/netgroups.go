@@ -2,6 +2,7 @@ package ldap
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
@@ -390,4 +391,83 @@ func formatTriples(triples []NetgroupTriple) []string {
 		values = append(values, triple.String())
 	}
 	return values
+}
+
+// renameUserInTriples rewrites every slot that names oldUID, leaving the rest of
+// each triple alone.
+//
+// The uid is a field inside a value here, not a value of its own, so the
+// wholesale swap used for memberUid and sudoUser does not apply: replacing the
+// stored string would also rewrite a host called jdoe, and a substring
+// replacement would corrupt jdoe-backup. Only the user slot, and only when it
+// names exactly this uid — an open slot must not be filled in, and a "-" must
+// not be turned into a name.
+func renameUserInTriples(triples []NetgroupTriple, oldUID, newUID string) ([]NetgroupTriple, bool) {
+	out := make([]NetgroupTriple, len(triples))
+	changed := false
+	for i, triple := range triples {
+		if triple.NamesUser(oldUID) {
+			triple = triple.WithUser(newUID)
+			changed = true
+		}
+		out[i] = triple
+	}
+	return out, changed
+}
+
+// removeUserFromTriples drops every triple naming this uid.
+//
+// The whole triple goes, not just the user slot. A triple is one statement —
+// "(web01,jdoe,)" says jdoe *on* web01 — so it does not independently assert
+// that web01 belongs to the netgroup; a netgroup that wanted the host on its own
+// would carry "(web01,,)". Blanking the user slot instead would silently widen
+// the entry from "jdoe on web01" to "anyone on web01", which is the opposite of
+// what removing a user should do.
+func removeUserFromTriples(triples []NetgroupTriple, uid string) ([]NetgroupTriple, bool) {
+	out := make([]NetgroupTriple, 0, len(triples))
+	for _, triple := range triples {
+		if triple.NamesUser(uid) {
+			continue
+		}
+		out = append(out, triple)
+	}
+	return out, len(out) != len(triples)
+}
+
+// saveTriples writes a rewritten triple list back, carrying over the values the
+// parser could not read.
+//
+// Without KeepMalformed a rewrite would delete them: UpdateNetgroup replaces the
+// attribute wholesale, and they are not in the parsed list. They are also
+// precisely the values this cannot migrate, which is why the caller reports them
+// rather than assuming the entry is clean.
+func (c *Client) saveTriples(netgroup Netgroup, triples []NetgroupTriple) error {
+	_, err := c.UpdateNetgroup(netgroup.DN, UpdateNetgroupRequest{
+		Triples:       triples,
+		KeepMalformed: netgroup.Malformed,
+	})
+	return err
+}
+
+// NetgroupsNesting returns the netgroups that absorb this one through
+// memberNisNetgroup.
+//
+// Unlike the triples, this attribute does carry equality matching, so the
+// directory can answer it.
+func (c *Client) NetgroupsNesting(cn string) ([]string, error) {
+	if cn == "" {
+		return nil, nil
+	}
+	filter := fmt.Sprintf("(&(objectClass=%s)(%s=%s))",
+		netgroupObjectClass, netgroupMemberAttr, ldap.EscapeFilter(cn))
+	entries, err := c.Search(c.NetgroupBaseDN(), filter, []string{"cn"})
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.GetAttributeValue("cn"))
+	}
+	sort.Strings(names)
+	return names, nil
 }
