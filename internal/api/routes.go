@@ -186,6 +186,20 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermAuditRead)).Get("/export", s.handleExportAuditLogs)
 			})
 
+			// Netgroups take the groups:* permissions: a netgroup is a collection,
+			// and managing one is the same kind of act as managing a group. Naming
+			// one from a sudo role stays under users:*, like the rest of sudo —
+			// see the /sudo-roles block above for why.
+			r.Route("/netgroups", func(r chi.Router) {
+				r.Use(maxBodyBytes(defaultMaxBodyBytes))
+				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/", s.handleListNetgroups)
+				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}", s.handleGetNetgroup)
+				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}/expand", s.handleExpandNetgroup)
+				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/", s.handleCreateNetgroup)
+				r.With(s.requirePermission(rbac.PermGroupsWrite)).Put("/{dn}", s.handleUpdateNetgroup)
+				r.With(s.requirePermission(rbac.PermGroupsDelete)).Delete("/{dn}", s.handleDeleteNetgroup)
+			})
+
 			r.Route("/overview", func(r chi.Router) {
 				r.Use(maxBodyBytes(defaultMaxBodyBytes))
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/", s.handleGetOverview)

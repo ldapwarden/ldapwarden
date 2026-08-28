@@ -111,6 +111,9 @@ const (
 	ActionSudoRoleUserDel  Action = "sudorole.user.remove"
 	ActionSudoRoleGroupAdd Action = "sudorole.group.add"
 	ActionSudoRoleGroupDel Action = "sudorole.group.remove"
+	ActionNetgroupCreate   Action = "netgroup.create"
+	ActionNetgroupUpdate   Action = "netgroup.update"
+	ActionNetgroupDelete   Action = "netgroup.delete"
 	ActionPwdPolicyCreate  Action = "pwdpolicy.create"
 	ActionPwdPolicyUpdate  Action = "pwdpolicy.update"
 	ActionPwdPolicyDelete  Action = "pwdpolicy.delete"
@@ -133,6 +136,7 @@ const (
 	ResourceSchema    ResourceType = "schema"
 	ResourceSudoRole  ResourceType = "sudorole"
 	ResourcePwdPolicy ResourceType = "pwdpolicy"
+	ResourceNetgroup  ResourceType = "netgroup"
 	ResourceDirectory ResourceType = "directory"
 )
 
