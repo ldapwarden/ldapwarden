@@ -86,6 +86,11 @@ type LDAPConfig struct {
 	GroupOU   string
 	SudoersOU string
 	PpolicyOU string
+	// NetgroupOU holds nisNetgroup entries. Separate from GroupOU because a
+	// netgroup is not a posixGroup and the two are searched by object class:
+	// mixing them in one OU works, but makes every listing pay for the other's
+	// entries.
+	NetgroupOU string
 	// DefaultPolicyDN names the password policy the directory applies to entries
 	// that carry no pwdPolicySubentry of their own — i.e. what olcPPolicyDefault
 	// is set to on the ppolicy overlay.
@@ -143,6 +148,7 @@ func Load() *Config {
 			GroupOU:         getEnv("LDAP_GROUP_OU", "ou=Groups"),
 			SudoersOU:       getEnv("LDAP_SUDOERS_OU", "ou=sudoers"),
 			PpolicyOU:       getEnv("LDAP_PPOLICY_OU", "ou=policies"),
+			NetgroupOU:      getEnv("LDAP_NETGROUP_OU", "ou=netgroups"),
 			DefaultPolicyDN: getEnv("LDAP_DEFAULT_POLICY_DN", ""),
 			MinUID:          getEnvInt("LDAP_MIN_UID", 1000),
 			MinGID:          getEnvInt("LDAP_MIN_GID", 1000),

@@ -35,6 +35,16 @@ type Capabilities struct {
 	// expiring it both succeed and both do nothing, while the UI reports the
 	// account as locked or expired. Measured, not assumed — see the constants.
 	PolicyEnforcement Enforcement
+
+	// Netgroups reports that the directory declares nisNetgroup, i.e. that
+	// nis.schema is loaded. Unlike the two above this is a plain schema question
+	// with a reliable answer — a netgroup entry either can or cannot be created.
+	//
+	// It says nothing about whether sudo will honour a "+netgroup" grant: that is
+	// decided on each client by NSS, ldap.conf's netgroup_base or SSSD, none of
+	// which is visible from here. The UI has to say so rather than imply that
+	// writing the grant is the end of the job.
+	Netgroups bool
 }
 
 // Enforcement is a three-valued answer, because the honest answer is usually
@@ -115,6 +125,7 @@ func (c *Client) Capabilities() Capabilities {
 	// probeTimeLimitSeconds, so this cannot outlive them.
 	enforcement := c.probePolicyEnforcement()
 	scheduledExpiry := c.hasAttributeType(pwdEndTimeAttr)
+	netgroups := c.hasObjectClass(netgroupObjectClass)
 
 	c.capMu.Lock()
 	// A self-test actually proved something; the passive probe usually cannot. Let
@@ -126,6 +137,7 @@ func (c *Client) Capabilities() Capabilities {
 	c.caps = Capabilities{
 		ScheduledExpiry:   scheduledExpiry,
 		PolicyEnforcement: enforcement,
+		Netgroups:         netgroups,
 	}
 	c.capProbed = true
 	c.capProbing = nil
@@ -205,12 +217,25 @@ func (c *Client) RefreshCapabilities() {
 
 // hasAttributeType reports whether the directory's subschema declares an
 // attribute type of this name.
+func (c *Client) hasAttributeType(name string) bool {
+	return c.schemaDeclares("attributeTypes", name)
+}
+
+// hasObjectClass reports whether the directory's subschema declares an object
+// class of this name — the question behind Netgroups, since nisNetgroup comes
+// from nis.schema and a directory is free not to load it.
+func (c *Client) hasObjectClass(name string) bool {
+	return c.schemaDeclares("objectClasses", name)
+}
+
+// schemaDeclares reports whether the subschema's schemaAttr ("attributeTypes" or
+// "objectClasses") declares something of this name.
 //
 // It matches on the quoted name rather than parsing every definition: the
 // subschema is one multi-megabyte value, the answer is a yes/no, and a substring
-// check on "'pwdEndTime'" cannot collide — attribute names are unique and always
+// check on "'pwdEndTime'" cannot collide — schema names are unique and always
 // quoted in a NAME clause.
-func (c *Client) hasAttributeType(name string) bool {
+func (c *Client) schemaDeclares(schemaAttr, name string) bool {
 	conn, err := c.connect()
 	if err != nil {
 		return false
@@ -224,7 +249,7 @@ func (c *Client) hasAttributeType(name string) bool {
 		// as well as our wait for it.
 		0, probeTimeLimitSeconds, false,
 		"(objectClass=*)",
-		[]string{"attributeTypes"},
+		[]string{schemaAttr},
 		nil,
 	)
 
@@ -242,7 +267,7 @@ func (c *Client) hasAttributeType(name string) bool {
 	}
 
 	needle := "'" + name + "'"
-	for _, definition := range result.Entries[0].GetAttributeValues("attributeTypes") {
+	for _, definition := range result.Entries[0].GetAttributeValues(schemaAttr) {
 		if strings.Contains(definition, needle) {
 			return true
 		}

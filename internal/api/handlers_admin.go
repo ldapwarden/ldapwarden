@@ -40,6 +40,15 @@ type CapabilitiesResponse struct {
 	// that anything is wrong. See POST /api/admin/policy-selftest for a
 	// definitive answer.
 	PolicyEnforcement string `json:"policyEnforcement"`
+
+	// NetgroupsSupported requires nis.schema, which declares nisNetgroup. Without
+	// it the netgroup module is hidden rather than offered and failing on save.
+	//
+	// "Supported", again in the narrow sense: it says the directory will accept a
+	// netgroup entry, not that sudo will honour a "+netgroup" grant. That is
+	// decided on each client by NSS, ldap.conf or SSSD and is not visible from
+	// here at all.
+	NetgroupsSupported bool `json:"netgroupsSupported"`
 }
 
 type ServerConfigResponse struct {
@@ -146,6 +155,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		Capabilities: CapabilitiesResponse{
 			ScheduledExpirySupported: s.ldapClient.Capabilities().ScheduledExpiry,
 			PolicyEnforcement:        string(s.ldapClient.Capabilities().PolicyEnforcement),
+			NetgroupsSupported:       s.ldapClient.Capabilities().Netgroups,
 		},
 		Mail: MailConfigResponse{
 			Host:     getConfigValue("MAIL_HOST", cfg.Mail.Host, "localhost"),

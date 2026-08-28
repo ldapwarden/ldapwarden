@@ -251,3 +251,35 @@ sudoHost: ALL
 sudoCommand: /usr/bin/docker *
 sudoRunAsUser: root
 sudoOrder: 60
+
+dn: ou=netgroups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: netgroups
+
+# A user netgroup: the host slot is left open, so these users match on every
+# host. This is the shape referenced from sudoUser as "+ops".
+dn: cn=ops,ou=netgroups,dc=example,dc=org
+objectClass: nisNetgroup
+cn: ops
+description: Operators, on any host
+nisNetgroupTriple: (,admin,)
+nisNetgroupTriple: (,jdoe,)
+
+# A host netgroup: the user slot is left open. Referenced from sudoHost as
+# "+web-servers".
+dn: cn=web-servers,ou=netgroups,dc=example,dc=org
+objectClass: nisNetgroup
+cn: web-servers
+description: Front-end web servers
+nisNetgroupTriple: (web01,,)
+nisNetgroupTriple: (web02,,)
+
+# Nesting, so the expansion has something real to walk: ops-oncall absorbs ops
+# and adds one member of its own.
+dn: cn=ops-oncall,ou=netgroups,dc=example,dc=org
+objectClass: nisNetgroup
+cn: ops-oncall
+description: On-call rotation, nests ops
+nisNetgroupTriple: (,asmith,)
+memberNisNetgroup: ops
+
