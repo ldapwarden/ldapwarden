@@ -1011,6 +1011,168 @@ Content-Type: application/json
 
 ---
 
+## Netgroups
+
+`nisNetgroup` entries, from `nis.schema`. Governed by the **`groups:*`**
+permissions — a netgroup is a collection, and managing one is the same kind of
+act as managing a group. Naming a netgroup *from a sudo role* stays under
+`users:*`, like the rest of sudo.
+
+Every route answers **501 Not Implemented** when the directory does not declare
+`nisNetgroup`. An empty list would say "there are none", which is a different
+answer from "this server cannot hold any".
+
+### The triple, and its one trap
+
+A netgroup stores members as `nisNetgroupTriple`, spelled `(host,user,domain)`.
+The API exposes it parsed:
+
+```json
+{ "host": "web01", "user": "jdoe", "domain": "" }
+```
+
+**An empty slot means *any*, not *none*.** `(,jdoe,)` is jdoe on every host;
+`(web01,,)` is every user on web01. The NIS marker `-` is the one that means
+"matches nothing". A client that renders an empty slot as a blank, or reads an
+empty host list as "no hosts", reports the opposite of the truth — see
+`openHost` / `openUser` on the expansion below.
+
+`nisNetgroupTriple` carries no matching rules, so it cannot be filtered
+server-side; `?search=` is applied by the server in Go, over the name,
+description, triples and nested names.
+
+### List Netgroups
+
+```http
+GET /api/netgroups
+```
+
+**Required permission:** `groups:read`
+
+Accepts `search`, `sort` (`cn`), `order`, `limit`, `offset`.
+
+### Get Netgroup
+
+```http
+GET /api/netgroups/{dn}
+```
+
+**Required permission:** `groups:read`
+
+`malformed` holds stored values the server could not parse. They are never
+dropped: an update carries them through untouched, and a user rename reports
+them as references it could not migrate.
+
+### Expand Netgroup
+
+```http
+GET /api/netgroups/{dn}/expand
+```
+
+**Required permission:** `groups:read`
+
+Resolves `memberNisNetgroup` and answers with what the netgroup contributes.
+
+```json
+{
+  "root": "ops-oncall",
+  "users": [{ "name": "jdoe", "via": "ops" }],
+  "hosts": [],
+  "openHost": ["ops", "ops-oncall"],
+  "cycles": [],
+  "dangling": []
+}
+```
+
+- `via` names the nested netgroup a member came from; absent when named directly.
+- `openHost` / `openUser` name the netgroups leaving that slot open. Non-empty
+  means **every** host / user, which the empty `hosts` list above cannot say on
+  its own.
+- `cycles` and `dangling` are reported, not errors: `innetgr()` bounds a loop
+  rather than failing, and a nested name pointing at nothing simply contributes
+  nothing.
+
+A separate endpoint rather than a field on the entry, because expanding reads
+the whole collection.
+
+### Create Netgroup
+
+```http
+POST /api/netgroups
+```
+
+**Required permission:** `groups:write`
+
+```json
+{
+  "cn": "ops",
+  "description": "Operators, on any host",
+  "triples": [{ "host": "", "user": "jdoe", "domain": "" }],
+  "members": ["ops-junior"]
+}
+```
+
+A triple with all three fields empty is refused: it matches every user on every
+host. Nothing else is — a triple with the host and user the wrong way round is
+indistinguishable from a deliberate one.
+
+### Update Netgroup
+
+```http
+PUT /api/netgroups/{dn}
+```
+
+**Required permission:** `groups:write`
+
+The `cn` cannot change: sudo rules and other netgroups reference it by name, and
+nothing in the directory tracks those references.
+
+### Delete Netgroup
+
+```http
+DELETE /api/netgroups/{dn}
+```
+
+**Required permission:** `groups:delete`
+
+Answers with `warnings` naming what is left pointing at nothing — sudo roles
+that still say `+name`, and netgroups that still nest it. Collected before the
+delete, while the name still resolves. Reported rather than refused: removing a
+netgroup is legitimate.
+
+### Netgroups of a user
+
+```http
+GET /api/users/{dn}/netgroups
+```
+
+**Required permission:** `users:read`
+
+```json
+{ "data": [{ "cn": "ops", "direct": true }, { "cn": "ops-oncall", "direct": false }] }
+```
+
+`direct: false` means the user is reached only through a nesting parent — a sudo
+rule naming it still grants to them, but it is not the netgroup to edit to take
+that away.
+
+### Using a netgroup in a sudo rule
+
+Sudo names a netgroup `+name`, in `sudoUser` or in `sudoHost`. The two are the
+same string and mean different things: `+name` in `sudoUser` reads only the
+netgroup's user slots, in `sudoHost` only its host slots. **A netgroup of users
+placed in `sudoHost` matches nothing at all**, with no error from sudo or from
+the directory.
+
+`GET /api/users/{dn}/sudo-roles` returns each role with a `via` array holding the
+`sudoUser` values that matched — the uid itself, `ALL`, `%group` or `+netgroup` —
+so a caller can tell a direct grant from an inherited one.
+
+Writing the grant is necessary and not sufficient: sudo resolves netgroups on the
+client, through NSS, `netgroup_base` in `ldap.conf`, or SSSD. None of that is
+visible from the directory, so LDAP Warden cannot confirm a `+netgroup` rule has
+any effect. `getent netgroup <name>` on a host is what settles it.
+
 ## Password Policies
 
 Requires the ppolicy overlay on the directory (see the schema prerequisites in

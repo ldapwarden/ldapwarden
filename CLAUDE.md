@@ -72,6 +72,9 @@ parameters the list endpoints accept.
 - `POST /api/admin/policy-selftest` - Prove whether ppolicy is enforced (writes a throwaway entry)
 - `POST /api/admin/scheduled-tasks/lockout-scan/trigger` - Run the lockout scan now
 - `POST/DELETE /api/groups/:dn/members` - Group membership
+- `GET/POST/PUT/DELETE /api/netgroups` - Netgroup CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
+- `GET /api/netgroups/:dn/expand` - Effective contents, nesting followed
+- `GET /api/users/:dn/netgroups` - Netgroups reaching a user, direct or nested
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
 - `GET /api/audit-logs/export` - Audit logs as CSV, same filters
@@ -127,6 +130,36 @@ MVP implemented with:
   `user.lockout` audit row while they exist; nothing else in the app records them.
   Its interval must stay shorter than the shortest `pwdLockoutDuration`, or
   lockouts start and expire between two runs.
+- **A netgroup triple's empty slot means *any*, never *none*.** `nisNetgroupTriple`
+  stores `(host,user,domain)`; `(,jdoe,)` is jdoe on every host, `(web01,,)` is every
+  user on web01, and `-` is the NIS marker for "matches nothing". Turning a `-` into an
+  empty slot widens a grant; reading an empty host list as "no hosts" reports the exact
+  opposite of the truth. `NetgroupExpansion` therefore carries `OpenUser`/`OpenHost`
+  alongside the name lists, and `AnyHost()` is the question to ask — never
+  `len(Hosts) == 0`.
+- **`nisNetgroupTriple` cannot be searched.** It is declared with a SYNTAX and *no*
+  matching rules, so a filter over it is not evaluated — and OpenLDAP does not reject
+  such a filter, it answers `Success` with zero entries. A search box built on one looks
+  like it works and silently never finds a member. Only presence, `(nisNetgroupTriple=*)`,
+  works server-side; everything else is filtered in Go on parsed triples. OpenLDAP does
+  validate the syntax on write, so an unparsable value can only arrive from a server that
+  does not.
+- **A netgroup is named by string, from two places that do not track it.** Sudo says
+  `+name` and other netgroups say `memberNisNetgroup`, and nothing in the directory ties
+  either to the entry. Deleting a netgroup therefore leaves rules matching nobody, in
+  silence — `DELETE /api/netgroups/:dn` collects those references before the delete and
+  reports them. It is also why a netgroup's CN is immutable in the UI: renaming would
+  need the migration `RenameUser` performs for users.
+- **Which side a netgroup is used from decides which half of it applies.** `+name` in
+  `sudoUser` reads only the user slots, in `sudoHost` only the host slots. A netgroup of
+  users named in `sudoHost` matches nothing at all, with no error from sudo or the
+  directory. `Netgroup.Kind()` derives users/hosts/mixed from the triples so the UI can
+  warn; nothing is stored to declare it, because no other tool would honour it.
+- **Writing a `+netgroup` grant is necessary and not sufficient.** Sudo resolves netgroups
+  on the client — NSS, `netgroup_base` in `ldap.conf`, or SSSD — none of which is visible
+  from the directory. Same shape as ppolicy enforcement: the app writes something it
+  cannot verify, so it says so rather than implying the job is done. `getent netgroup
+  <name>` on a host is what settles it.
 - **`memberUid` and `sudoUser` store a plain uid, not a DN**, so the directory
   cannot follow them: any operation on a user that changes or removes its uid has
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,
