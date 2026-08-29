@@ -94,6 +94,7 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 - **User Management** — Create, edit, and delete LDAP users with support for `inetOrgPerson`, `posixAccount`, and `shadowAccount` object classes
 - **Group Management** — Manage POSIX groups and group memberships with an intuitive UI
 - **Sudo Roles** — Full sudoers LDAP schema support with user and group-based sudo privilege management
+- **Netgroups** — Manage `nisNetgroup` entries and grant sudo to all their members at once with `+name`; nesting is resolved so a rule shows who it actually reaches, and the app warns when a netgroup is named on the side sudo will ignore
 - **Password Policies** — View and manage password policies (ppolicy overlay), assign policies to users
 - **SSH Key Management** — Store and manage SSH public keys in LDAP (`ldapPublicKey` object class)
 - **Samba Integration** — Optional support for `sambaSamAccount` and `sambaGroupMapping` object classes
@@ -182,6 +183,7 @@ LDAP Warden is configured via environment variables:
 | `LDAP_USER_OU` | Organizational Unit for users | `ou=People` |
 | `LDAP_GROUP_OU` | Organizational Unit for groups | `ou=Groups` |
 | `LDAP_SUDOERS_OU` | Organizational Unit for sudo roles | `ou=sudoers` |
+| `LDAP_NETGROUP_OU` | Organizational Unit for netgroups | `ou=netgroups` |
 | `LDAP_PPOLICY_OU` | Organizational Unit for password policies | `ou=policies` |
 | `LDAP_DEFAULT_POLICY_DN` | The policy in the overlay's `olcPPolicyDefault`, which applies to entries with no `pwdPolicySubentry`. `cn=config` is not readable with an ordinary bind identity, so set this to tell a lockout still in force from one `pwdLockoutDuration` has lifted | *(none)* |
 | `LDAP_MIN_UID` | Minimum UID for new users | `1000` |
@@ -265,6 +267,8 @@ LDAP Warden allows you to customize which features are visible based on your LDA
 - `groups` — Group management
 - `sudo` — Sudo roles management (requires sudoers schema)
 - `policies` — Password policies (requires ppolicy overlay)
+- `netgroups` — Netgroup management (requires `nis.schema`); **not enabled by
+  default**, add it to the list to get the tab
 
 > **Directory schema prerequisites.** The `sudo` and `policies` modules need
 > the corresponding schema loaded **on your LDAP server** — the bundled compose
@@ -284,6 +288,11 @@ LDAP Warden allows you to customize which features are visible based on your LDA
 > # a policy entry that exists in your tree.
 > ldapmodify -Y EXTERNAL -H ldapi:/// -f ldap/config/ppolicy-overlay.ldif
 > ```
+>
+> The `netgroups` module needs no such step: `nis.schema` is part of OpenLDAP's
+> default schema set and is normally already loaded. The app probes for
+> `nisNetgroup` and answers 501 on a directory that does not have it, rather than
+> reporting an empty list as though there were simply no netgroups.
 >
 > These LDIFs target OpenLDAP's `cn=config`. For a different directory server
 > (389-DS, FreeIPA, AD) use that server's equivalent sudo/ppolicy schema.

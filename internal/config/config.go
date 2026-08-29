@@ -45,7 +45,7 @@ type AppConfig struct {
 	AdminGroup        string
 	Organization      string
 	PublicURL         string
-	Modules           []string // High-level modules: users, groups, sudo, policies
+	Modules           []string // High-level modules: users, groups, sudo, policies, netgroups
 	UsersObjects      []string // LDAP objectClasses for users
 	GroupsObjects     []string // LDAP objectClasses for groups
 	AuditNotifyEmails []string // Recipients for per-change audit emails (empty disables the feature)

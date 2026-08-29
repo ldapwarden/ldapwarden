@@ -21,6 +21,7 @@ We want to build a tool similar to "LDAP Account Manager" (https://www.ldap-acco
 4. Basic RBAC (admin/read-only)
 5. Audit logging
 6. Docker Compose deployment
+7. Netgroup and sudo rule management
 
 ## Architecture
 
@@ -179,6 +180,45 @@ web/                # React app
 - Hosts and roles management
 
 
+## Netgroups & Sudo
+
+**MVP**
+- CRUD for `nisNetgroup` entries, with nesting (`memberNisNetgroup`) resolved on
+  demand rather than stored
+- Sudo rules granting to a netgroup through the `+name` prefix, on either side
+- CSV import for netgroups
+- A user's netgroup memberships, direct and inherited, shown on their page
+
+**Post-MVP**
+- A host inventory, so a triple's host slot can be picked rather than typed
+- Renaming a netgroup, which means migrating every `+name` and
+  `memberNisNetgroup` reference by hand, as `RenameUser` already does for uids
+
+**Design constraints.** These are properties of the NIS schema and of how sudo
+consumes it, not choices this project made. They are listed here because each one
+is a way for the app to be confidently wrong, and the implementation is shaped
+around saying so instead:
+
+- An empty slot in a `(host,user,domain)` triple means *any*, never *none*; `-`
+  is the NIS marker for "matches nothing". Reading one as the other reports the
+  exact opposite of a grant.
+- `nisNetgroupTriple` declares a syntax and no matching rules, so the directory
+  cannot evaluate a filter over it — and OpenLDAP does not refuse such a filter,
+  it answers `Success` with zero entries. Only a presence test works server-side;
+  everything else is filtered in Go over parsed triples.
+- A netgroup is referenced by string from two places that do not track it,
+  `sudoUser`/`sudoHost` and `memberNisNetgroup`. Deleting or renaming one leaves
+  references matching nobody, and nothing in the directory reports it.
+- Which side a `+name` is used from decides which half of the netgroup applies.
+  A netgroup of users named in `sudoHost` matches nothing, silently.
+- Sudo resolves netgroups on the client — NSS, `netgroup_base`, or SSSD — none of
+  which is visible from the directory. Writing a grant is therefore necessary and
+  not sufficient, and the app states that rather than implying the job is done.
+
+The full rules live in `CLAUDE.md` under Directory Semantics, and the endpoints
+in [API.md](API.md).
+
+
 ## Password & Account Policies
 
 - Password reset flows with admin approval or self-service
@@ -274,6 +314,9 @@ cd web && pnpm dev
 - `LDAP_URL` - Default LDAP server (can be overridden in UI)
 - `SESSION_SECRET` - Secret for session signing
 - `LOG_LEVEL` - debug/info/warn/error
+
+The full set, with defaults, is in `.env.example` and in the Configuration
+tables of the README; the list above is only the connection essentials.
 
 **Config File** (`config.yaml`)
 - Feature flags
