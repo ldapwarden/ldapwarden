@@ -158,6 +158,56 @@ func (c *Client) GetUserSudoRoles(uid string) ([]SudoRole, error) {
 	return roles, nil
 }
 
+// SudoRoleGrant is a sudo role together with why it reaches a given user.
+//
+// The role alone does not say: "+ops" in sudoUser looks exactly like a username
+// to anything that does not know what ops is, and a role reached through a group
+// or a netgroup is edited somewhere other than here. Listing roles without it
+// leaves an operator to guess which of the three they are looking at.
+type SudoRoleGrant struct {
+	SudoRole
+	// Via holds the sudoUser values that matched, verbatim: the uid itself,
+	// "ALL", "%group" or "+netgroup". More than one can match at once.
+	Via []string `json:"via"`
+}
+
+// GetUserSudoRoleGrants is GetUserSudoRoles with the reason attached.
+func (c *Client) GetUserSudoRoleGrants(uid string) ([]SudoRoleGrant, error) {
+	roles, err := c.GetUserSudoRoles(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	// The same three routes the search filter is built from, resolved once for
+	// the whole answer rather than per role.
+	groups := map[string]bool{}
+	if found, gerr := c.GetUserGroups(uid); gerr == nil {
+		for _, group := range found {
+			groups["%"+group.CN] = true
+		}
+	}
+	netgroups := map[string]bool{}
+	if c.Capabilities().Netgroups {
+		if found, nerr := c.NetgroupsContainingUser(uid); nerr == nil {
+			for _, name := range found {
+				netgroups["+"+name] = true
+			}
+		}
+	}
+
+	grants := make([]SudoRoleGrant, 0, len(roles))
+	for _, role := range roles {
+		via := []string{}
+		for _, value := range role.SudoUser {
+			if value == uid || value == "ALL" || groups[value] || netgroups[value] {
+				via = append(via, value)
+			}
+		}
+		grants = append(grants, SudoRoleGrant{SudoRole: role, Via: via})
+	}
+	return grants, nil
+}
+
 // CreateSudoRole creates a new sudo role
 func (c *Client) CreateSudoRole(req CreateSudoRoleRequest) (*SudoRole, error) {
 	dn := fmt.Sprintf("cn=%s,%s", ldap.EscapeDN(req.CN), c.SudoBaseDN())

@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select } from '@/components/ui/select'
-import { ArrowLeft, Save, Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy } from 'lucide-react'
+import { ArrowLeft, Save, Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy, Network } from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -1736,6 +1736,20 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
     queryFn: ({ signal }) => api.users.getSudoRoles(dn, signal),
   })
 
+  // Netgroups reaching this user. Skipped where the directory has no
+  // nisNetgroup: the endpoint answers 501 and an empty card would suggest the
+  // user is in none.
+  const { data: config } = useQuery({
+    queryKey: ['admin', 'config'],
+    queryFn: ({ signal }) => api.admin.getConfig(signal),
+  })
+  const netgroupsSupported = config?.capabilities?.netgroupsSupported ?? false
+  const { data: userNetgroups } = useQuery({
+    queryKey: ['user', dn, 'netgroups'],
+    queryFn: ({ signal }) => api.users.getNetgroups(dn, signal),
+    enabled: netgroupsSupported,
+  })
+
   // Candidate roles come from the directory; headroom covers the ones the user
   // already holds, dropped just below.
   const rolePicker = usePickerSearch(['sudo-roles', 'picker', dn], api.sudoRoles.list, {
@@ -1870,6 +1884,37 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
         )}
       </CardHeader>
       <CardContent>
+        {netgroupsSupported && (userNetgroups?.data.length ?? 0) > 0 && (
+          <div className="mb-4 space-y-1.5 rounded-md border p-3">
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              <Network className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Netgroups
+            </p>
+            <p className="text-xs text-muted-foreground">
+              A sudo rule naming one of these as “+name” grants to this user.
+            </p>
+            <ul className="flex flex-wrap gap-1.5 pt-1">
+              {userNetgroups?.data.map((membership) => (
+                <li key={membership.cn}>
+                  <span
+                    className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-sm"
+                    title={
+                      membership.direct
+                        ? 'Named directly by this netgroup.'
+                        : 'Reached only through a nesting parent — edit the netgroup that names the user, not this one.'
+                    }
+                  >
+                    {membership.cn}
+                    {!membership.direct && (
+                      <span className="text-xs text-muted-foreground">nested</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {(addToRoleMutation.error || removeFromRoleMutation.error) && (
           <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md mb-4">
             {(addToRoleMutation.error || removeFromRoleMutation.error)?.message}
@@ -1888,9 +1933,15 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                 className="flex items-start justify-between p-3 rounded-md bg-muted"
               >
                 <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">{role.cn}</span>
+                    {/* Why the role reaches this user. A role granted through a
+                        group or a netgroup is removed from there, not here — the
+                        remove button below only touches a direct grant. */}
+                    {role.via.map((token) => (
+                      <GrantOrigin key={token} token={token} uid={user.uid} />
+                    ))}
                   </div>
                   <div className="text-sm text-muted-foreground space-y-0.5">
                     {role.sudoHost && role.sudoHost.length > 0 && (
@@ -1907,7 +1958,7 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                     )}
                   </div>
                 </div>
-                {canWrite && (
+                {canWrite && role.via.includes(user.uid) && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1929,6 +1980,34 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Why a sudo role reaches this user.
+ *
+ * The three routes are edited in three different places, and the stored value
+ * does not distinguish them to the eye: "+ops" reads like a username unless you
+ * know what ops is. Naming the route is what stops someone looking for a user in
+ * a rule that never mentioned them.
+ */
+function GrantOrigin({ token, uid }: { token: string; uid: string }) {
+  if (token === uid) return null // direct: the default, not worth a badge
+  const [label, title] =
+    token === 'ALL'
+      ? ['everyone', 'This rule applies to every user (sudoUser: ALL).']
+      : token.startsWith('%')
+        ? [`via group ${token.slice(1)}`, 'Granted through a group. Remove the user from that group to take it away.']
+        : token.startsWith('+')
+          ? [`via netgroup ${token.slice(1)}`, 'Granted through a netgroup, possibly a nested one. Edit that netgroup to take it away.']
+          : [`via ${token}`, 'Granted through this sudoUser value.']
+  return (
+    <span
+      className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+      title={title}
+    >
+      {label}
+    </span>
   )
 }
 

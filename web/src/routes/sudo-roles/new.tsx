@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { MultiValueField } from '@/components/ui/multi-value-field'
+import { NetgroupPicker, NetgroupResolutionNotice } from '@/components/netgroup-picker'
 import { Callout } from '@/components/ui/callout'
 import { ArrowLeft, Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
@@ -81,6 +82,21 @@ function NewSudoRolePage() {
         setFormData({ ...formData, [field]: [...arr, value.trim()] })
       }
       setter('')
+    }
+  }
+
+  // The picker hands over a finished value ("+ops"), so it does not go through
+  // addToArray, which exists to drain a text input.
+  // Shown only when the rule actually names one: the caveat is real but it is
+  // noise on a rule that grants to plain usernames.
+  const namesNetgroup =
+    formData.sudoUser.some((v) => v.startsWith('+')) ||
+    formData.sudoHost.some((v) => v.startsWith('+'))
+
+  const addValue = (field: keyof typeof formData, value: string) => {
+    const arr = formData[field] as string[]
+    if (!arr.includes(value)) {
+      setFormData({ ...formData, [field]: [...arr, value] })
     }
   }
 
@@ -229,6 +245,11 @@ function NewSudoRolePage() {
                 <Button type="button" variant="outline" onClick={() => addToArray('sudoUser', newUser, setNewUser)}>
                   <Plus className="h-4 w-4" />
                 </Button>
+                <NetgroupPicker
+                  side="sudoUser"
+                  existing={formData.sudoUser}
+                  onPick={(value) => addValue('sudoUser', value)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -255,9 +276,16 @@ function NewSudoRolePage() {
                 <Button type="button" variant="outline" onClick={() => addToArray('sudoHost', newHost, setNewHost)}>
                   <Plus className="h-4 w-4" />
                 </Button>
+                <NetgroupPicker
+                  side="sudoHost"
+                  existing={formData.sudoHost}
+                  onPick={(value) => addValue('sudoHost', value)}
+                />
               </div>
             </CardContent>
           </Card>
+
+          {namesNetgroup && <NetgroupResolutionNotice />}
 
           {/* Commands */}
           <Card className="md:col-span-2">

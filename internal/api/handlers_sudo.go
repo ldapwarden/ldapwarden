@@ -61,7 +61,7 @@ func (s *Server) handleGetUserSudoRoles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	roles, err := s.ldapClient.GetUserSudoRoles(user.UID)
+	roles, err := s.ldapClient.GetUserSudoRoleGrants(user.UID)
 	if err != nil {
 		writeServerError(w, r, "get user sudo roles", err)
 		return

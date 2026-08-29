@@ -124,6 +124,7 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/ssh-keys", s.handleAddSSHKey)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Delete("/{dn}/ssh-keys", s.handleRemoveSSHKey)
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/{dn}/sudo-roles", s.handleGetUserSudoRoles)
+				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/{dn}/netgroups", s.handleGetUserNetgroups)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/send-password-reset", s.handleSendPasswordReset)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Put("/{dn}/samba", s.handleUpdateUserSamba)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Put("/{dn}/shadow", s.handleUpdateUserShadow)

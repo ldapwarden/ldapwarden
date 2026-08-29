@@ -546,6 +546,30 @@ export const NetgroupDeleteResponseSchema = z.object({
   warnings: z.array(z.string()).default([]),
 })
 
+export const SudoRoleGrantSchema = SudoRoleSchema.extend({
+  // The sudoUser values that matched: the uid itself, "ALL", "%group" or
+  // "+netgroup". A role can be reached by more than one at once, and a role
+  // reached through a group or a netgroup is edited somewhere other than the
+  // user's page.
+  via: z.array(z.string()).default([]),
+})
+
+export const SudoRoleGrantsResponseSchema = z.object({
+  data: z.array(SudoRoleGrantSchema),
+  total: z.number().optional(),
+})
+
+export const UserNetgroupsResponseSchema = z.object({
+  data: z.array(
+    z.object({
+      cn: z.string(),
+      // False when the user is only reached through a nesting parent, which is
+      // not the netgroup to edit to remove them.
+      direct: z.boolean(),
+    }),
+  ),
+})
+
 export const SudoRolesResponseSchema = z.object({
   data: z.array(SudoRoleSchema),
   total: z.number(),
@@ -711,6 +735,7 @@ export type AuditLogsResponse = z.infer<typeof AuditLogsResponseSchema>
 export type NextIDs = z.infer<typeof NextIDsSchema>
 export type SudoRole = z.infer<typeof SudoRoleSchema>
 export type SudoRolesResponse = z.infer<typeof SudoRolesResponseSchema>
+export type SudoRoleGrant = z.infer<typeof SudoRoleGrantSchema>
 export type Netgroup = z.infer<typeof NetgroupSchema>
 export type NetgroupTriple = z.infer<typeof NetgroupTripleSchema>
 export type NetgroupsResponse = z.infer<typeof NetgroupsResponseSchema>
@@ -940,7 +965,10 @@ export const api = {
       }, UserSchema),
 
     getSudoRoles: (dn: string, signal?: AbortSignal) =>
-      fetchApi(`/users/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRolesResponseSchema, signal),
+      fetchApi(`/users/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRoleGrantsResponseSchema, signal),
+
+    getNetgroups: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/users/${encodeURIComponent(dn)}/netgroups`, {}, UserNetgroupsResponseSchema, signal),
 
     sendPasswordReset: (dn: string) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/send-password-reset`, { method: 'POST' }),

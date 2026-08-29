@@ -97,6 +97,55 @@ func (s *Server) handleExpandNetgroup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, expansion)
 }
 
+// handleGetUserNetgroups lists the netgroups that reach this user.
+//
+// Direct membership and membership through nesting are both included and
+// distinguished: "+parent" in a sudo rule grants to everyone the parent
+// absorbs, so a netgroup the user is only in indirectly still matters, but it
+// is not the one to edit to remove them.
+func (s *Server) handleGetUserNetgroups(w http.ResponseWriter, r *http.Request) {
+	if !s.netgroupsAvailable(w) {
+		return
+	}
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	user, err := s.ldapClient.GetUser(dn)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	all, err := s.ldapClient.NetgroupsContainingUser(user.UID)
+	if err != nil {
+		writeServerError(w, r, "list user netgroups", err)
+		return
+	}
+	direct, err := s.ldapClient.NetgroupsForUser(user.UID)
+	if err != nil {
+		writeServerError(w, r, "list user netgroups", err)
+		return
+	}
+	isDirect := make(map[string]bool, len(direct))
+	for _, netgroup := range direct {
+		isDirect[netgroup.CN] = true
+	}
+
+	type membership struct {
+		CN     string `json:"cn"`
+		Direct bool   `json:"direct"`
+	}
+	items := make([]membership, 0, len(all))
+	for _, name := range all {
+		items = append(items, membership{CN: name, Direct: isDirect[name]})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": items})
+}
+
 func (s *Server) handleCreateNetgroup(w http.ResponseWriter, r *http.Request) {
 	if !s.netgroupsAvailable(w) {
 		return

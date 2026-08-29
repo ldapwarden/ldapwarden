@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -224,5 +225,61 @@ func TestIntegration_Netgroups_DeleteWarnsAboutDanglingReferences(t *testing.T) 
 	}
 	if !sawParent {
 		t.Errorf("no warning about the netgroup still nesting it: %v", result.Warnings)
+	}
+}
+
+// TestIntegration_UserSudoRoles_ReportsWhyARoleApplies covers the provenance.
+//
+// A role reached through a group or a netgroup is edited somewhere other than
+// the user's page, and "+ops" reads like a username to anything that does not
+// know what ops is. Without `via` the three cases are indistinguishable.
+func TestIntegration_UserSudoRoles_ReportsWhyARoleApplies(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	// jdoe is seeded into the ops netgroup, which ops-oncall nests.
+	dn := "uid=jdoe," + env.LDAP.UserBaseDN()
+
+	roleCN := "ldapwarden-via-ng-" + uniqueSuffix(t)
+	role, err := env.LDAP.CreateSudoRole(ldap.CreateSudoRoleRequest{
+		CN: roleCN, SudoUser: []string{"+ops-oncall"}, SudoHost: []string{"ALL"},
+		SudoCommand: []string{"/bin/true"},
+	})
+	if err != nil {
+		t.Fatalf("create sudo role: %v", err)
+	}
+	t.Cleanup(func() { _ = env.LDAP.DeleteSudoRole(role.DN) })
+
+	resp, body := doJSON(t, env, http.MethodGet, userPath(dn)+"/sudo-roles", nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d body=%s", resp.StatusCode, body)
+	}
+
+	var page struct {
+		Data []struct {
+			CN  string   `json:"cn"`
+			Via []string `json:"via"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		t.Fatalf("unmarshal: %v (body=%s)", err, body)
+	}
+
+	var found bool
+	for _, grant := range page.Data {
+		if grant.CN != roleCN {
+			continue
+		}
+		found = true
+		// Reached only through nesting: ops-oncall absorbs ops, which names jdoe.
+		if !slices.Contains(grant.Via, "+ops-oncall") {
+			t.Errorf("via = %v, want it to name +ops-oncall", grant.Via)
+		}
+		if slices.Contains(grant.Via, "jdoe") {
+			t.Errorf("via = %v claims a direct grant, but the role names no uid", grant.Via)
+		}
+	}
+	if !found {
+		t.Errorf("the role granted through a netgroup is missing; got %v", page.Data)
 	}
 }
