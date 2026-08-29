@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Plus, X, AlertTriangle } from 'lucide-react'
-import type { NetgroupTriple } from '@/lib/api'
+import { api, type NetgroupTriple } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { usePickerSearch } from '@/lib/use-picker-search'
 import { describeTriple, formatTriple, NETGROUP_NO_MATCH } from '@/lib/netgroup'
 
 /**
@@ -23,8 +24,17 @@ export function TripleEditor({
   onChange: (triples: NetgroupTriple[]) => void
   canWrite: boolean
 }) {
-  const [user, setUser] = useState('')
   const [host, setHost] = useState('')
+
+  // The user slot searches the directory, so a triple cannot quietly name an
+  // account that does not exist. The host slot stays free text: there is no
+  // host inventory to search, and inventing one is a separate piece of work.
+  // Nothing forces a match either — a netgroup may legitimately name a user
+  // this directory does not hold.
+  const userPicker = usePickerSearch(['users', 'picker', 'netgroup-triple'], api.users.list, {
+    sort: 'uid',
+  })
+  const user = userPicker.input
 
   const add = () => {
     const next: NetgroupTriple = {
@@ -38,7 +48,7 @@ export function TripleEditor({
       return
     }
     onChange([...triples, next])
-    setUser('')
+    userPicker.reset()
     setHost('')
   }
 
@@ -88,10 +98,18 @@ export function TripleEditor({
               <Input
                 id="triple-user"
                 value={user}
-                onChange={(e) => setUser(e.target.value)}
+                onChange={(e) => userPicker.setInput(e.target.value)}
                 placeholder="Leave empty for any user"
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())}
+                autoComplete="off"
               />
+              {user.trim() !== '' && user !== NETGROUP_NO_MATCH && (
+                <UserSuggestions
+                  matches={userPicker.items}
+                  typed={user}
+                  onPick={(uid) => userPicker.setInput(uid)}
+                />
+              )}
             </div>
             <div className="space-y-1">
               <Label htmlFor="triple-host" className="text-xs">
@@ -135,6 +153,56 @@ export function TripleEditor({
             </Button>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Directory matches for what is being typed in the user slot.
+ *
+ * Suggestions, not a constraint: a netgroup can legitimately name a user this
+ * directory does not hold — a local account on the hosts, or one from another
+ * tree. So an unmatched value is flagged rather than refused, which is the same
+ * stance the rest of the app takes towards references it cannot resolve.
+ */
+function UserSuggestions({
+  matches,
+  typed,
+  onPick,
+}: {
+  matches: Array<{ dn: string; uid: string; cn: string; displayName?: string }>
+  typed: string
+  onPick: (uid: string) => void
+}) {
+  const exact = matches.some((u) => u.uid === typed)
+  const shown = matches.filter((u) => u.uid !== typed).slice(0, 5)
+
+  if (exact) return null
+
+  return (
+    <div className="space-y-1 pt-1">
+      {shown.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {shown.map((match) => (
+            <button
+              key={match.dn}
+              type="button"
+              onClick={() => onPick(match.uid)}
+              className="rounded-md bg-muted px-2 py-0.5 text-xs hover:bg-accent"
+            >
+              {match.uid}
+              <span className="ml-1 text-muted-foreground">
+                {match.displayName || match.cn}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          No user in this directory is called “{typed}”. That is allowed — the netgroup can
+          name an account held elsewhere — but check the spelling.
+        </p>
       )}
     </div>
   )
