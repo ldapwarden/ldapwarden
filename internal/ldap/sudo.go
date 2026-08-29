@@ -398,32 +398,6 @@ func (c *Client) GetNetgroupSudoRoles(netgroupCN string) ([]SudoRole, error) {
 	return roles, nil
 }
 
-// AddNetgroupToSudoRole names a netgroup in a sudo role, with the "+" prefix
-// sudo uses for netgroups — the counterpart of "%" for groups.
-//
-// `attr` is "sudoUser" or "sudoHost": a netgroup of users belongs in the first
-// and a netgroup of hosts in the second, and putting one in the other matches
-// nothing at all without any error. The caller decides, because only it knows
-// which the operator meant; Netgroup.Kind is what it should ask.
-func (c *Client) AddNetgroupToSudoRole(sudoRoleDN, attr, netgroupCN string) error {
-	if attr != "sudoUser" && attr != "sudoHost" {
-		return fmt.Errorf("a netgroup can only be added to sudoUser or sudoHost, not %q", attr)
-	}
-	modReq := ldap.NewModifyRequest(sudoRoleDN, nil)
-	modReq.Add(attr, []string{"+" + netgroupCN})
-	return c.Modify(modReq)
-}
-
-// RemoveNetgroupFromSudoRole is the counterpart of AddNetgroupToSudoRole.
-func (c *Client) RemoveNetgroupFromSudoRole(sudoRoleDN, attr, netgroupCN string) error {
-	if attr != "sudoUser" && attr != "sudoHost" {
-		return fmt.Errorf("a netgroup can only be removed from sudoUser or sudoHost, not %q", attr)
-	}
-	modReq := ldap.NewModifyRequest(sudoRoleDN, nil)
-	modReq.Delete(attr, []string{"+" + netgroupCN})
-	return c.Modify(modReq)
-}
-
 func entryToSudoRole(entry *ldap.Entry) SudoRole {
 	sudoOrder, _ := strconv.Atoi(entry.GetAttributeValue("sudoOrder"))
 
