@@ -46,7 +46,10 @@ func (s *Server) handleGetSudoRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetUserSudoRoles(w http.ResponseWriter, r *http.Request) {
-	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
+	// The {dn} here is a *user*, not a sudo role — this route is mounted under
+	// /users. Scoping it to the sudoers base rejected every well-formed request,
+	// because resolveDN requires the DN to sit under the base it is given.
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
@@ -211,7 +214,8 @@ func (s *Server) handleRemoveUserFromSudoRole(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleGetGroupSudoRoles(w http.ResponseWriter, r *http.Request) {
-	dn, err := resolveDN(r, s.ldapClient.SudoBaseDN())
+	// Likewise a *group* DN: this route is mounted under /groups.
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid dn")
 		return
