@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend infra test test-integration clean lint lint-go lint-frontend
+.PHONY: dev dev-backend dev-frontend infra test test-web test-integration clean lint lint-go lint-frontend
 
 # Start all infrastructure
 infra:
@@ -38,6 +38,10 @@ lint-frontend:
 # Run tests
 test:
 	go test ./...
+
+# Frontend unit tests (vitest), the counterpart of `test` for the web side
+test-web:
+	cd web && pnpm test
 
 # Run integration tests against docker-compose services
 # --wait replaces the hand-rolled polling loops: all three services declare a

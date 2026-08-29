@@ -104,10 +104,13 @@ web/                # React app
 - Unit tests for business logic (schema parsing, RBAC)
 - Integration tests against OpenLDAP container
 
-**Frontend** — none of this exists yet; CI runs lint, typecheck and build only
-- Vitest for unit tests
-- Playwright for E2E (critical flows: login, user CRUD)
-- Storybook for component documentation
+**Frontend**
+- Vitest for unit tests — set up and run in CI (`make test-web`). Covers the pure
+  logic in `src/lib`, which is where the rules a component must not get wrong are
+  deliberately kept; components themselves are not covered yet, though jsdom is
+  installed so they can be
+- Playwright for E2E (critical flows: login, user CRUD) — not set up
+- Storybook for component documentation — not set up
 
 **CI Pipeline**
 - Lint + type-check on every PR

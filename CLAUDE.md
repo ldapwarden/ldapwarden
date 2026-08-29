@@ -29,6 +29,7 @@ docker compose up -d          # Start infrastructure
 docker compose down           # Stop infrastructure
 cd cmd/server && go run .     # Backend (port 8000) — applies migrations on startup
 cd web && pnpm dev            # Frontend (port 5173)
+make test-web                 # Frontend unit tests (vitest)
 make test-integration         # Run integration tests against compose services
 ```
 
