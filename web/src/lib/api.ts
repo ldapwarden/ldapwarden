@@ -368,6 +368,15 @@ export const GroupsResponseSchema = z.object({
   total: z.number(),
   truncated: z.boolean().optional(),
 })
+// Result of renaming a group (POST /groups/{dn}/change-cn): the renamed group
+// plus any reference the rename could not migrate. Same shape as the user
+// rename, for the same reason — sudo names a group by "%cn", a bare string the
+// directory does not track.
+export const ChangeGroupCNResultSchema = z.object({
+  group: GroupSchema,
+  warnings: z.array(z.string()).nullish().transform((v) => v ?? []),
+})
+export type ChangeGroupCNResult = z.infer<typeof ChangeGroupCNResultSchema>
 
 // GroupListItemSchema is the projection returned by GET /groups: row fields
 // plus a member count, instead of every group's full member list.
@@ -1053,6 +1062,12 @@ export const api = {
 
     import: (rows: ImportRow[]) =>
       fetchApi('/groups/import', { method: 'POST', body: JSON.stringify({ rows }) }, ImportResultSchema),
+
+    changeCn: (dn: string, newCn: string) =>
+      fetchApi(`/groups/${encodeURIComponent(dn)}/change-cn`, {
+        method: 'POST',
+        body: JSON.stringify({ newCn }),
+      }, ChangeGroupCNResultSchema),
 
     addMember: (dn: string, memberUid: string) =>
       fetchApi(`/groups/${encodeURIComponent(dn)}/members`, {

@@ -69,6 +69,7 @@ parameters the list endpoints accept.
 - `GET/POST/PUT/DELETE /api/users` - User CRUD; list takes `search`, `status`, `sort`, `order`, `limit`, `offset`
 - `GET /api/users/:dn/photo` - User photo as `image/jpeg`
 - `GET/POST/PUT/DELETE /api/groups` - Group CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
+- `POST /api/groups/:dn/change-cn` - Rename a group; rewrites the `%cn` sudo grants, refuses the admin group
 - `GET /api/groups/:dn/members` - Membership resolved to names
 - `POST /api/admin/policy-selftest` - Prove whether ppolicy is enforced (writes a throwaway entry)
 - `POST /api/admin/scheduled-tasks/lockout-scan/trigger` - Run the lockout scan now
@@ -163,6 +164,13 @@ MVP implemented with:
   from the directory. Same shape as ppolicy enforcement: the app writes something it
   cannot verify, so it says so rather than implying the job is done. `getent netgroup
   <name>` on a host is what settles it.
+- **A group is named by string from sudo, and by number from its members.** `%cn` in
+  `sudoUser` is a bare string the directory does not track, so renaming a group has to
+  rewrite those grants by hand — `RenameGroup` does, reporting what it could not reach.
+  Members need nothing: `memberUid` holds usernames and primary members hold `gidNumber`,
+  neither of which follows the name. Renaming the group named by `LDAPWARDEN_ADMIN_GROUP`
+  is refused outright: admin is decided by comparing group names to that setting, so it
+  would strip admin from everyone including whoever did it.
 - **`memberUid` and `sudoUser` store a plain uid, not a DN**, so the directory
   cannot follow them: any operation on a user that changes or removes its uid has
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,

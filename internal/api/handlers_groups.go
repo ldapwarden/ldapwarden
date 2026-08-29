@@ -359,3 +359,84 @@ func groupUpdateChanges(before *ldap.Group, req ldap.UpdateGroupRequest) []audit
 
 	return changes
 }
+
+// handleChangeGroupCN renames a group, the counterpart of change-uid for users.
+//
+// It gets its own route rather than riding on the update, for the same reason
+// the user rename does: it changes the entry's DN, it migrates references, and
+// it can report warnings — none of which an ordinary field edit does. Putting it
+// behind its own confirmation is also what stops it happening by accident from a
+// form someone opened to fix a description.
+func (s *Server) handleChangeGroupCN(w http.ResponseWriter, r *http.Request) {
+	dn, err := resolveDN(r, s.ldapClient.GroupBaseDN())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	var req struct {
+		NewCN string `json:"newCn"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := validateRDNValue("cn", req.NewCN); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	before, err := s.ldapClient.GetGroup(dn)
+	if err != nil || before == nil {
+		writeError(w, http.StatusNotFound, "group not found")
+		return
+	}
+	if req.NewCN == before.CN {
+		writeError(w, http.StatusBadRequest, "the new name is the same as the current one")
+		return
+	}
+	if existing, _ := s.ldapClient.GetGroupByCN(req.NewCN); existing != nil {
+		writeError(w, http.StatusConflict, "a group with this name already exists")
+		return
+	}
+
+	// Refused, not warned about. Administrator access is decided by comparing a
+	// user's group names against LDAPWARDEN_ADMIN_GROUP, so renaming that group
+	// takes admin away from everyone — including whoever is doing it, who would
+	// then be unable to undo it from here. The same reason a user may not rename
+	// themselves; see refuseSelfTarget.
+	if strings.EqualFold(before.CN, s.config.App.AdminGroup) {
+		writeError(w, http.StatusConflict,
+			"This is the administrator group named by LDAPWARDEN_ADMIN_GROUP. Renaming it here "+
+				"would remove administrator access from everyone, with no way to undo it from "+
+				"this app. Change the setting and the group together, then restart.")
+		return
+	}
+
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: groupDisplayName(before),
+		audit.DetailsKeyChanges: []audit.FieldChange{
+			{Field: "Name", Old: before.CN, New: req.NewCN},
+		},
+	}
+	if !s.auditMutating(w, r, audit.ActionGroupRename, audit.ResourceGroup, dn, details) {
+		return
+	}
+
+	newDN, warnings, err := s.ldapClient.RenameGroup(dn, before.CN, req.NewCN)
+	if err != nil {
+		writeServerError(w, r, "rename group", err)
+		return
+	}
+
+	group, err := s.ldapClient.GetGroup(newDN)
+	if err != nil {
+		writeServerError(w, r, "read renamed group", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"group":    group,
+		"warnings": warnings,
+	})
+}

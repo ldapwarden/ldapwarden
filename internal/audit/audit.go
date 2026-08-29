@@ -101,6 +101,7 @@ const (
 	ActionGroupCreate      Action = "group.create"
 	ActionGroupUpdate      Action = "group.update"
 	ActionGroupDelete      Action = "group.delete"
+	ActionGroupRename      Action = "group.rename"
 	ActionMemberAdd        Action = "group.member.add"
 	ActionMemberRemove     Action = "group.member.remove"
 	ActionSchemaRefresh    Action = "schema.refresh"
@@ -258,6 +259,7 @@ var notifiableActions = map[Action]struct{}{
 	ActionGroupCreate:      {},
 	ActionGroupUpdate:      {},
 	ActionGroupDelete:      {},
+	ActionGroupRename:      {},
 	ActionMemberAdd:        {},
 	ActionMemberRemove:     {},
 	ActionSudoRoleCreate:   {},

@@ -176,6 +176,7 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/{dn}/members", s.handleAddGroupMember)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Delete("/{dn}/members", s.handleRemoveGroupMember)
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}/sudo-roles", s.handleGetGroupSudoRoles)
+				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/{dn}/change-cn", s.handleChangeGroupCN)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Put("/{dn}/samba", s.handleUpdateGroupSamba)
 			})
 

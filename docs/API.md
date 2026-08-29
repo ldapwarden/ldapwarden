@@ -707,6 +707,38 @@ curl -X PUT "http://localhost:8000/api/groups/$ENCODED_DN" \
   -d '{"description": "Software Development team"}'
 ```
 
+### Rename a group
+
+```http
+POST /api/groups/{dn}/change-cn
+```
+
+**Required permission:** `groups:write`
+
+```json
+{ "newCn": "platform" }
+```
+
+The `cn` is the RDN, so this renames the entry and its DN changes. Members do
+not move: a POSIX group is joined by `memberUid` (a username) and by `gidNumber`
+for primary members, and neither follows the name.
+
+Sudo does. A rule grants to a group as `%cn`, a bare string nothing in the
+directory tracks, so every such rule is rewritten here. `sudoRunAsGroup` holds a
+group name without the prefix, which is indistinguishable from a group local to
+the hosts — those are reported in `warnings` rather than rewritten.
+
+Refused with `409` for the group named by `LDAPWARDEN_ADMIN_GROUP`: administrator
+access is decided by comparing group names against that setting, so renaming it
+would remove admin from everyone, with no way to undo it from the app.
+
+Answers with the renamed group and the references it could not migrate:
+
+```json
+{ "group": { "dn": "cn=platform,ou=Groups,dc=example,dc=org", "cn": "platform" },
+  "warnings": [] }
+```
+
 ### Delete Group
 
 ```http

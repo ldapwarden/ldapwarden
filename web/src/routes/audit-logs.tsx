@@ -55,6 +55,7 @@ const ACTION_OPTIONS = [
   { value: 'group.create', label: 'group.create' },
   { value: 'group.update', label: 'group.update' },
   { value: 'group.delete', label: 'group.delete' },
+  { value: 'group.rename', label: 'group.rename' },
   { value: 'group.member.add', label: 'group.member.add' },
   { value: 'group.member.remove', label: 'group.member.remove' },
   { value: 'sudorole.create', label: 'sudorole.create' },

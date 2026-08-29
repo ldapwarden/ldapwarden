@@ -426,3 +426,67 @@ func (c *Client) SetSambaGroupAttributes(dn string, req UpdateSambaGroupRequest)
 
 	return c.GetGroup(dn)
 }
+
+// RenameGroup changes a group's cn, which is its RDN, and migrates the
+// references the directory will not.
+//
+// Far less invasive than renaming a user, and for one reason: a POSIX group is
+// joined by number, not by name. Its members sit in memberUid as plain uids and
+// its primary members carry gidNumber, so neither notices the rename. What does
+// notice is sudo, which names a group as "%cn" in sudoUser — a bare string the
+// directory does not track, exactly like "+name" for a netgroup. Left alone,
+// those rules would go on granting to a name that no longer exists, silently.
+//
+// Returns the new DN and the references it could not migrate. A failure to
+// rewrite one is reported, never fatal: the entry has already been renamed by
+// then, and unwinding that would leave the directory in a third state nobody
+// asked for.
+func (c *Client) RenameGroup(oldDN, oldCN, newCN string) (string, []string, error) {
+	if existing, err := c.GetGroupByCN(newCN); err == nil && existing != nil {
+		return "", nil, fmt.Errorf("a group named %q already exists", newCN)
+	}
+
+	newDN := fmt.Sprintf("cn=%s,%s", ldap.EscapeDN(newCN), c.GroupBaseDN())
+
+	// deleteOldRDN drops the old cn value, so the cn attribute matches the new
+	// RDN rather than keeping both.
+	if err := c.ModifyDN(oldDN, "cn="+ldap.EscapeDN(newCN), true); err != nil {
+		return "", nil, fmt.Errorf("rename entry: %w", err)
+	}
+
+	// Non-nil so it serialises as an empty JSON array, not null.
+	warnings := []string{}
+	warn := func(what string, err error) {
+		warnings = append(warnings, fmt.Sprintf("%s: %v", what, err))
+	}
+
+	// Sudo roles granting to "%oldCN". Only exact matches are swapped, so a uid
+	// or an "ALL" that happens to look similar is left alone.
+	if roles, err := c.GetGroupSudoRoles(oldCN); err != nil {
+		warn("read sudo roles", err)
+	} else {
+		for _, role := range roles {
+			users := replaceExact(role.SudoUser, "%"+oldCN, "%"+newCN)
+			if _, err := c.UpdateSudoRole(role.DN, UpdateSudoRoleRequest{SudoUser: users}); err != nil {
+				warn(fmt.Sprintf("update sudo role %q", role.CN), err)
+			}
+		}
+	}
+
+	// sudoRunAsGroup names a group to run as, without the "%" prefix — so the
+	// value is indistinguishable from a group that only exists on the hosts.
+	// Rewriting it would be a guess about which one was meant, so it is reported
+	// instead, the same way a rename reports what it could not reach.
+	if roles, err := c.sudoRolesRunningAsGroup(oldCN); err != nil {
+		warn("check sudoRunAsGroup references", err)
+	} else {
+		for _, role := range roles {
+			warnings = append(warnings, fmt.Sprintf(
+				"sudo role %q runs as group %q, which no longer exists here; "+
+					"check whether it meant this group or one local to the hosts",
+				role.CN, oldCN))
+		}
+	}
+
+	return newDN, warnings, nil
+}

@@ -366,6 +366,24 @@ func (c *Client) GetGroupSudoRoles(groupCN string) ([]SudoRole, error) {
 	return roles, nil
 }
 
+// sudoRolesRunningAsGroup finds roles whose sudoRunAsGroup names this group.
+//
+// Separate from GetGroupSudoRoles because it is a different kind of reference:
+// sudoUser says who the rule grants to and carries the "%" prefix, while
+// sudoRunAsGroup says which group the command runs as and carries a bare name.
+func (c *Client) sudoRolesRunningAsGroup(groupCN string) ([]SudoRole, error) {
+	filter := fmt.Sprintf("(&(objectClass=sudoRole)(sudoRunAsGroup=%s))", ldap.EscapeFilter(groupCN))
+	entries, err := c.Search(c.SudoBaseDN(), filter, defaultSudoAttributes)
+	if err != nil {
+		return nil, err
+	}
+	roles := make([]SudoRole, 0, len(entries))
+	for _, entry := range entries {
+		roles = append(roles, entryToSudoRole(entry))
+	}
+	return roles, nil
+}
+
 // AddGroupToSudoRole adds a group to an existing sudo role (with % prefix)
 func (c *Client) AddGroupToSudoRole(sudoRoleDN, groupCN string) error {
 	modReq := ldap.NewModifyRequest(sudoRoleDN, nil)

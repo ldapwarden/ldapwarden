@@ -29,6 +29,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Callout } from '@/components/ui/callout'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
+import { GroupRenameCard } from '@/components/group-rename'
 import { AccountStatus } from '@/components/account-status'
 import { ArrowLeft, Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
@@ -335,7 +336,10 @@ function InformationTab({
           <div className="space-y-2">
             <Label htmlFor="cn">Name (CN)</Label>
             <Input id="cn" value={group?.cn || ''} disabled />
-            <p className="text-xs text-muted-foreground">The group name cannot be changed after creation.</p>
+            <p className="text-xs text-muted-foreground">
+              The name is the entry's identity, so changing it renames the entry. Use “Change
+              name” below.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -364,6 +368,8 @@ function InformationTab({
           )}
         </CardContent>
       </Card>
+
+      {canWrite && <GroupRenameCard dn={group.dn} cn={group.cn} />}
     </form>
   )
 }
