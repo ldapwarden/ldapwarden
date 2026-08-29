@@ -2,6 +2,7 @@ import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { useServerInfo } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -54,14 +55,9 @@ function NewUserPage() {
       api.groups.list({ sort: 'cn', order: 'asc', limit: PRIMARY_GROUP_OPTIONS_LIMIT }, signal),
   })
 
-  const { data: config } = useQuery({
-    queryKey: ['admin', 'config'],
-    queryFn: ({ signal }) => api.admin.getConfig(signal),
-  })
-
   // Scheduled expiry needs pwdEndTime in the directory (OpenLDAP >= 2.5); the
   // backend refuses to write one otherwise, so the field is not offered.
-  const canExpire = config?.capabilities?.scheduledExpirySupported ?? false
+  const canExpire = useServerInfo()?.capabilities?.scheduledExpirySupported ?? false
 
   const [primaryGroup, setPrimaryGroup] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])

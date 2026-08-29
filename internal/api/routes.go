@@ -102,6 +102,11 @@ func (s *Server) setupRoutes() chi.Router {
 		r.Group(func(r chi.Router) {
 			r.Use(s.authMiddleware)
 
+			// No permission: every session needs to know which modules are on
+			// and what the directory supports, or the UI hides features the
+			// user is allowed to use. See handleGetServerInfo.
+			r.Get("/server-info", s.handleGetServerInfo)
+
 			r.Route("/users", func(r chi.Router) {
 				// jpegPhoto in UpdateUserRequest can carry a base64-encoded
 				// avatar; cap higher than the rest of the API.

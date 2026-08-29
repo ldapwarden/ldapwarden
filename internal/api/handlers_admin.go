@@ -146,7 +146,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			AdminGroup:        getConfigValue("LDAPWARDEN_ADMIN_GROUP", cfg.App.AdminGroup, "admins"),
 			Organization:      getConfigValue("LDAPWARDEN_ORGANIZATION", cfg.App.Organization, "Example Organization"),
 			PublicURL:         getConfigValue("LDAPWARDEN_PUBLIC_URL", cfg.App.PublicURL, "http://localhost:8000"),
-			Modules:           getConfigValue("LDAPWARDEN_MODULES", cfg.App.Modules, []string{"users", "groups", "sudo", "policies"}),
+			Modules:           getConfigValue("LDAPWARDEN_MODULES", cfg.App.Modules, []string{"users", "groups", "sudo", "policies", "netgroups"}),
 			UsersObjects:      getConfigValue("LDAPWARDEN_USERS_OBJECTS", cfg.App.UsersObjects, []string{"inetOrgPerson", "posixAccount", "ldapPublicKey"}),
 			GroupsObjects:     getConfigValue("LDAPWARDEN_GROUPS_OBJECTS", cfg.App.GroupsObjects, []string{"posixGroup"}),
 			AuditNotifyEmails: getConfigValue("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", cfg.App.AuditNotifyEmails, []string(nil)),

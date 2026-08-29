@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
-import { useNetgroupsEnabled } from '@/lib/use-netgroups'
+import { useNetgroupsEnabled } from '@/lib/use-server-info'
 import { netgroupKind, netgroupSideFit, type NetgroupKind, type NetgroupSide } from '@/lib/netgroup'
 import {
   Dialog,

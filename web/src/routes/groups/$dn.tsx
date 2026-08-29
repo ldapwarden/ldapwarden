@@ -3,7 +3,7 @@ import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { DEFAULT_MODULES } from '@/lib/netgroup'
+import { useEnabledModules, useEnabledObjects } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useSyncedForm } from '@/lib/form-sync'
@@ -78,28 +78,12 @@ function GroupDetailPage() {
     queryFn: ({ signal }) => api.groups.members(dn, signal),
   })
 
-  const { data: config } = useQuery({
-    queryKey: ['admin', 'config'],
-    queryFn: ({ signal }) => api.admin.getConfig(signal),
-  })
+  // From /server-info rather than /admin/config, which takes settings:read: a
+  // read-only session could not read it and silently fell back to a hardcoded
+  // list instead of the deployment's own, so it saw the wrong tabs.
+  const enabledObjects = useEnabledObjects('groups', ['posixgroup'])
 
-  // Get enabled LDAP object classes from config
-  const enabledObjects = useMemo(() => {
-    const objects = config?.app.groupsObjects.value
-    if (Array.isArray(objects)) {
-      return new Set(objects.map(m => m.toLowerCase()))
-    }
-    return new Set(['posixgroup'])
-  }, [config])
-
-  // Get enabled high-level modules from config
-  const enabledModules = useMemo(() => {
-    const modules = config?.app.modules.value
-    if (Array.isArray(modules)) {
-      return new Set(modules.map(m => m.toLowerCase()))
-    }
-    return new Set(DEFAULT_MODULES)
-  }, [config])
+  const enabledModules = new Set(useEnabledModules().map((m) => m.toLowerCase()))
 
   const showPosixGroupTabs = enabledObjects.has('posixgroup')
   const showSambaTab = enabledObjects.has('sambagroupmapping')

@@ -11,7 +11,7 @@ import {
   type NetgroupResolution,
   type NetgroupSide,
 } from '@/lib/netgroup'
-import { useNetgroupsEnabled } from '@/lib/use-netgroups'
+import { useNetgroupsEnabled } from '@/lib/use-server-info'
 
 /**
  * Wide enough that an exact name is never crowded out in practice, since the

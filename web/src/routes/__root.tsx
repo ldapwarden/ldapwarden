@@ -1,6 +1,6 @@
 import { createRootRouteWithContext, Outlet, Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { encodeDN } from '@/lib/utils'
-import { DEFAULT_MODULES } from '@/lib/netgroup'
+import { useEnabledModules, useServerInfo } from '@/lib/use-server-info'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { Toaster, toast } from 'sonner'
@@ -84,14 +84,6 @@ function RootComponent() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  // Fetch config to get enabled modules
-  const { data: config } = useQuery({
-    queryKey: ['config'],
-    queryFn: ({ signal }) => api.admin.getConfig(signal),
-    enabled: isAuthenticated && session?.roleName === 'admin',
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-  })
-
   // Fetch the current user's avatar. It is served separately from the session
   // (which no longer carries the base64 photo) and cached so it is loaded once
   // per app session rather than on every request.
@@ -102,15 +94,12 @@ function RootComponent() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // Get enabled modules from config (default to all if not available)
-  const enabledModules = useMemo(() => {
-    const modulesValue = config?.app?.modules?.value
-    if (Array.isArray(modulesValue)) {
-      return modulesValue as string[]
-    }
-    // Default modules if config not loaded (for non-admin users)
-    return DEFAULT_MODULES
-  }, [config])
+  // From /server-info, not /admin/config: the latter takes settings:read, which
+  // the readonly role does not have, so a read-only session fell through to the
+  // defaults here and — worse — saw netgroupsSupported default to false, hiding
+  // a tab the API would have served them.
+  const enabledModules = useEnabledModules()
+  const serverInfo = useServerInfo()
 
   // The section links, filtered by enabled module and permission. Built once so
   // the wide bar and the mobile dropdown cannot drift apart.
@@ -122,7 +111,7 @@ function RootComponent() {
     // Gated on the directory declaring nisNetgroup as well as on the module: the
     // API answers 501 without it, and a nav item leading to a dead page is worse
     // than no nav item.
-    if (enabledModules.includes('netgroups') && config?.capabilities?.netgroupsSupported) {
+    if (enabledModules.includes('netgroups') && serverInfo?.capabilities?.netgroupsSupported) {
       items.push({ to: '/netgroups', label: 'Netgroups', icon: Network })
     }
     if (enabledModules.includes('policies') && session?.permissions.includes('settings:read')) {
@@ -132,7 +121,7 @@ function RootComponent() {
       items.push({ to: '/audit-logs', label: 'Audit Logs', icon: ScrollText })
     }
     return items
-  }, [enabledModules, session?.permissions, config?.capabilities?.netgroupsSupported])
+  }, [enabledModules, session?.permissions, serverInfo?.capabilities?.netgroupsSupported])
 
   const changePasswordMutation = useMutation({
     mutationFn: async () => {

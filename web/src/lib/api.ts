@@ -494,6 +494,22 @@ export const SudoRoleSchema = z.object({
   sudoNotAfter: z.string().optional(),
 })
 
+// GET /api/server-info — what the UI may render.
+// Readable by any authenticated session, unlike /admin/config: the readonly role
+// has no settings:read, and gating the UI on that permission hid features the
+// user was allowed to use.
+export const ServerInfoSchema = z.object({
+  modules: z.array(z.string()).nullish().transform((v) => v ?? []),
+  usersObjects: z.array(z.string()).nullish().transform((v) => v ?? []),
+  groupsObjects: z.array(z.string()).nullish().transform((v) => v ?? []),
+  capabilities: z.object({
+    scheduledExpirySupported: z.boolean().optional(),
+    policyEnforcement: z.string().optional(),
+    netgroupsSupported: z.boolean().optional(),
+  }),
+})
+export type ServerInfo = z.infer<typeof ServerInfoSchema>
+
 export const NetgroupTripleSchema = z.object({
   // Any slot may be empty, and empty means "any" — never "none". A netgroup
   // whose host slots are all empty matches every host; see the expansion's
@@ -1272,6 +1288,12 @@ export const api = {
     get: (signal?: AbortSignal) =>
       fetchApi('/overview', {}, OverviewSchema, signal),
   },
+
+  // Which build is running, and what this session may render. Not under
+  // `admin`: it needs no permission, precisely so that a read-only session gets
+  // the same answer as an administrator.
+  serverInfo: (signal?: AbortSignal) =>
+    fetchApi('/server-info', {}, ServerInfoSchema, signal),
 
   admin: {
     getConfig: (signal?: AbortSignal) =>

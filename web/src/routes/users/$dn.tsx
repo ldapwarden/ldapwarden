@@ -3,8 +3,8 @@ import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-rout
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, userPhotoUrl, type User as UserDetail } from '@/lib/api'
-import { DEFAULT_MODULES } from '@/lib/netgroup'
-import { useNetgroupsEnabled } from '@/lib/use-netgroups'
+import { useEnabledModules, useEnabledObjects, useServerInfo } from '@/lib/use-server-info'
+import { useNetgroupsEnabled } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, expiryInstantTitle, formatExpiryDate, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
 import { hasLapsedLock, isLocked, lockoutLiftsAt } from '@/lib/account'
@@ -88,28 +88,18 @@ function UserDetailPage() {
     queryFn: ({ signal }) => api.users.getGroups(dn, signal),
   })
 
-  const { data: config } = useQuery({
-    queryKey: ['admin', 'config'],
-    queryFn: ({ signal }) => api.admin.getConfig(signal),
-  })
+  const serverInfo = useServerInfo()
 
-  // Get enabled LDAP object classes from config
-  const enabledObjects = useMemo(() => {
-    const objects = config?.app.usersObjects.value
-    if (Array.isArray(objects)) {
-      return new Set(objects.map(m => m.toLowerCase()))
-    }
-    return new Set(['inetorgperson', 'posixaccount', 'ldappublickey'])
-  }, [config])
+  // From /server-info rather than /admin/config, which takes settings:read: a
+  // read-only session could not read it and silently fell back to this list
+  // instead of the deployment's own, so it saw the wrong tabs.
+  const enabledObjects = useEnabledObjects('users', [
+    'inetorgperson',
+    'posixaccount',
+    'ldappublickey',
+  ])
 
-  // Get enabled high-level modules from config
-  const enabledModules = useMemo(() => {
-    const modules = config?.app.modules.value
-    if (Array.isArray(modules)) {
-      return new Set(modules.map(m => m.toLowerCase()))
-    }
-    return new Set(DEFAULT_MODULES)
-  }, [config])
+  const enabledModules = new Set(useEnabledModules().map((m) => m.toLowerCase()))
 
   const showIdentityTab = enabledObjects.has('inetorgperson')
   const showPosixTab = enabledObjects.has('posixaccount')
@@ -121,10 +111,10 @@ function UserDetailPage() {
   // Scheduled expiry needs pwdEndTime in the directory (OpenLDAP >= 2.5). The
   // backend refuses to write one otherwise, so the controls stay hidden rather
   // than failing on submit.
-  const canExpire = config?.capabilities?.scheduledExpirySupported ?? false
+  const canExpire = serverInfo?.capabilities?.scheduledExpirySupported ?? false
   // Only ever "not-enforced" on evidence — see PolicyEnforcementSchema. Anything
   // else, including the usual "unknown", stays silent rather than crying wolf.
-  const policyEnforcement = config?.capabilities?.policyEnforcement ?? 'unknown'
+  const policyEnforcement = serverInfo?.capabilities?.policyEnforcement ?? 'unknown'
 
   // Check which objectClasses the user actually has
   const userObjectClasses = useMemo(() => {

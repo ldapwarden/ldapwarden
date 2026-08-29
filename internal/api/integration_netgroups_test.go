@@ -666,3 +666,64 @@ func TestIntegration_Netgroups_SudoRoles(t *testing.T) {
 		}
 	}
 }
+
+// TestIntegration_ServerInfo_ReadableByReadOnly is the regression that mattered:
+// the UI decided what to render from /api/admin/config, which takes
+// settings:read — a permission the readonly role does not have.
+//
+// So a read-only user, whom the API happily lets list netgroups, was served a UI
+// with no Netgroups tab, no membership section and no netgroup panels on sudo
+// rules, because the probe behind them had 403'd and every capability defaulted
+// to false. Nothing reported it; the features simply were not there.
+func TestIntegration_ServerInfo_ReadableByReadOnly(t *testing.T) {
+	env := setupTestServer(t)
+	viewer := loginAs(t, env, "viewer", "viewer123").Token
+
+	// The premise: this user may read netgroups but not the admin config.
+	resp, _ := doJSON(t, env, http.MethodGet, "/api/netgroups", nil, viewer)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("read-only listing netgroups: status=%d, want 200", resp.StatusCode)
+	}
+	resp, _ = doJSON(t, env, http.MethodGet, "/api/admin/config", nil, viewer)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("read-only reading /admin/config: status=%d, want 403", resp.StatusCode)
+	}
+
+	resp, body := doJSON(t, env, http.MethodGet, "/api/server-info", nil, viewer)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("read-only reading /server-info: status=%d body=%s, want 200", resp.StatusCode, body)
+	}
+
+	var info struct {
+		Version struct {
+			Version  string `json:"version"`
+			Revision string `json:"revision"`
+		} `json:"version"`
+		Modules      []string `json:"modules"`
+		Capabilities struct {
+			NetgroupsSupported bool `json:"netgroupsSupported"`
+		} `json:"capabilities"`
+	}
+	if err := json.Unmarshal(body, &info); err != nil {
+		t.Fatalf("unmarshal: %v (body=%s)", err, body)
+	}
+
+	// The answer has to be the same one an administrator gets, or the UI is
+	// still deciding from a guess.
+	if !info.Capabilities.NetgroupsSupported {
+		t.Error("netgroupsSupported is false for a read-only session on a directory that holds netgroups")
+	}
+	if !slices.Contains(info.Modules, "netgroups") {
+		t.Errorf("modules = %v, want the netgroups module a read-only session is entitled to see", info.Modules)
+	}
+	// Unstamped in a test binary, but present: the footer reads this.
+	if info.Version.Version == "" {
+		t.Error("version is empty; the footer would have nothing to show")
+	}
+
+	// Unauthenticated it stays closed: an exact version is free reconnaissance.
+	resp, _ = doJSON(t, env, http.MethodGet, "/api/server-info", nil, "")
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("unauthenticated /server-info: status=%d, want 401", resp.StatusCode)
+	}
+}
