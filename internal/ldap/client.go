@@ -194,6 +194,12 @@ func (c *Client) Search(baseDN, filter string, attributes []string) ([]*ldap.Ent
 
 	result, err := conn.Search(searchRequest)
 	if err != nil {
+		// A base the directory does not hold is a configuration mismatch, not a
+		// failed search; it is reported as such so the caller can say which
+		// setting to look at. See MissingBaseError.
+		if missing := c.asMissingBase(baseDN, err); missing != err {
+			return nil, missing
+		}
 		return nil, fmt.Errorf("search LDAP: %w", err)
 	}
 
@@ -229,6 +235,9 @@ func (c *Client) SearchLimited(baseDN, filter string, attributes []string) (entr
 		// treat that as a successful, truncated search rather than an error.
 		if result != nil && (errors.Is(err, ldap.ErrSizeLimitExceeded) || ldap.IsErrorWithCode(err, ldap.LDAPResultSizeLimitExceeded)) {
 			return result.Entries, true, nil
+		}
+		if missing := c.asMissingBase(baseDN, err); missing != err {
+			return nil, false, missing
 		}
 		return nil, false, fmt.Errorf("search LDAP: %w", err)
 	}
@@ -369,7 +378,11 @@ func (c *Client) Add(entry *ldap.AddRequest) error {
 		return err
 	}
 
-	return conn.Add(entry)
+	// "No such object" on an add is about the *parent*: the entry being created
+	// has nowhere to go. Same configuration mismatch as a search against a
+	// missing base, and worth the same answer — otherwise creating the first
+	// netgroup on a directory without an ou=netgroups reports an internal error.
+	return c.asMissingParent(entry.DN, conn.Add(entry))
 }
 
 func (c *Client) Modify(request *ldap.ModifyRequest) error {

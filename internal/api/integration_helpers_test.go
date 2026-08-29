@@ -48,6 +48,14 @@ type testEnv struct {
 // not "1" or any of postgres / redis / OpenLDAP cannot be reached.
 func setupTestServer(t *testing.T) *testEnv {
 	t.Helper()
+	return setupTestServerWith(t, nil)
+}
+
+// setupTestServerWith is setupTestServer with a hook to bend the configuration
+// after it is loaded, for the tests that need a deployment pointed somewhere the
+// bundled directory is not.
+func setupTestServerWith(t *testing.T, adjust func(*config.Config)) *testEnv {
+	t.Helper()
 
 	if os.Getenv("LDAPWARDEN_TEST_INTEGRATION") != "1" {
 		t.Skip("set LDAPWARDEN_TEST_INTEGRATION=1 (and start docker compose) to run integration tests")
@@ -67,6 +75,9 @@ func setupTestServer(t *testing.T) *testEnv {
 	setEnvIfUnset(t, "LDAP_DEFAULT_POLICY_DN", "cn=default,ou=policies,dc=example,dc=org")
 
 	cfg := config.Load()
+	if adjust != nil {
+		adjust(cfg)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

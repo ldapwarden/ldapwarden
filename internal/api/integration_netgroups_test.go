@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ldapwarden/ldapwarden/internal/config"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
@@ -725,5 +726,61 @@ func TestIntegration_ServerInfo_ReadableByReadOnly(t *testing.T) {
 	resp, _ = doJSON(t, env, http.MethodGet, "/api/server-info", nil, "")
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("unauthenticated /server-info: status=%d, want 401", resp.StatusCode)
+	}
+}
+
+// TestIntegration_MissingBase_IsNotAnInternalError covers what a client is told
+// when the directory has no base entry for a collection.
+//
+// The API is the layer that has to get this right: the operator reads the
+// message, and "internal server error (requestId=…)" sends them to file a bug
+// for something an ldapadd fixes. Asserted through HTTP because the wording and
+// the status are the deliverable, not the error type behind them.
+func TestIntegration_MissingBase_IsNotAnInternalError(t *testing.T) {
+	env := setupTestServerWith(t, func(cfg *config.Config) {
+		cfg.LDAP.NetgroupOU = "ou=ldapwarden-missing-on-purpose"
+	})
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		body   any
+	}{
+		{name: "list", method: http.MethodGet},
+		{name: "create", method: http.MethodPost, body: map[string]any{
+			"cn": "ldapwarden-should-not-exist", "triples": []map[string]string{{"user": "jdoe"}},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := "/api/netgroups"
+			if tc.method == http.MethodPost {
+				path = "/api/netgroups/"
+			}
+			resp, body := doJSON(t, env, tc.method, path, tc.body, token)
+
+			if resp.StatusCode == http.StatusInternalServerError {
+				t.Fatalf("still an internal server error: %s", body)
+			}
+			if resp.StatusCode != http.StatusNotImplemented {
+				t.Fatalf("status=%d, want 501 (body=%s)", resp.StatusCode, body)
+			}
+
+			var answer struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(body, &answer); err != nil {
+				t.Fatalf("unmarshal: %v (body=%s)", err, body)
+			}
+			// The setting is what an operator acts on, so it has to be named.
+			if !strings.Contains(answer.Error, "LDAP_NETGROUP_OU") {
+				t.Errorf("the message does not name the setting to change: %q", answer.Error)
+			}
+			// The DN must not be: it is exactly the kind of value the redaction
+			// policy keeps out of responses. It belongs in the log.
+			if strings.Contains(answer.Error, "dc=example") {
+				t.Errorf("the message leaks a DN: %q", answer.Error)
+			}
+		})
 	}
 }

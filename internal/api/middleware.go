@@ -104,6 +104,21 @@ func writeServerError(w http.ResponseWriter, r *http.Request, action string, err
 	reqID := middleware.GetReqID(r.Context())
 	log.Printf("server error: action=%q requestId=%s err=%v", action, reqID, err)
 
+	// A base entry the directory does not hold: the deployment's configuration
+	// and its directory disagree, and every request against that collection will
+	// fail the same way until an operator acts. Answered like the other "this
+	// directory cannot serve this" case — see netgroupsAvailable — and naming the
+	// setting to change, because "internal server error" sent people to file a
+	// bug for something an ldapadd fixes. The setting name is safe to return; the
+	// DN it expands to is not, and is left in the log.
+	if missing, ok := ldap.AsMissingBase(err); ok {
+		writeError(w, http.StatusNotImplemented, fmt.Sprintf(
+			"This directory has no %s base entry, so %s cannot be served. "+
+				"Check %s, or create the entry in the directory.",
+			missing.Collection, missing.Collection, missing.Setting))
+		return
+	}
+
 	// Directory-side errors that the operator can actually act on get a clear,
 	// curated message and a 4xx instead of an opaque 500 — but only a fixed
 	// message keyed off the LDAP result code, never the raw error text (which

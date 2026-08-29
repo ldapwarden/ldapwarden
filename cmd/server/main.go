@@ -88,6 +88,17 @@ func run() error {
 	defer ldapClient.Close()
 	log.Println("LDAP client initialized")
 
+	// Say which configured base entries the directory does not hold, once, here.
+	// Startup is when an operator can still fix it; otherwise the first sign is a
+	// failed request from a user, and the deployments most likely to hit this are
+	// the ones pointed at an existing directory that never had an ou=sudoers or
+	// an ou=netgroups. Not fatal: a deployment that only manages users has no
+	// reason to be stopped over a collection it does not use.
+	for _, base := range ldapClient.MissingBaseDNs() {
+		log.Printf("Warning: no %s base entry at %q (%s); requests for %s will be refused until it exists",
+			base.Collection, base.DN, base.Setting, base.Collection)
+	}
+
 	trustedProxies, err := api.ParseTrustedProxies(cfg.App.TrustedProxies)
 	if err != nil {
 		return fmt.Errorf("LDAPWARDEN_TRUSTED_PROXIES: %w", err)
