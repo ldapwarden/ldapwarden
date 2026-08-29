@@ -1116,6 +1116,57 @@ A triple with all three fields empty is refused: it matches every user on every
 host. Nothing else is — a triple with the host and user the wrong way round is
 indistinguishable from a deliberate one.
 
+### Import Netgroups
+
+```http
+POST /api/netgroups/import
+```
+
+**Required permission:** `groups:write`
+
+Bulk create, up to 1000 rows. Triples travel as their stored text rather than as
+parsed slots, because that is what a CSV cell can carry and what every other tool
+produces:
+
+```json
+{
+  "rows": [
+    {
+      "cn": "ops-oncall",
+      "description": "On-call operators",
+      "triples": ["(,jdoe,)", "(-,asmith,)"],
+      "members": ["ops"]
+    }
+  ]
+}
+```
+
+Each value is read with the same parser that reads the attribute back off the
+directory, so an import is held to the same rules as an edit — including the one
+that matters most here: an empty slot means *any* and `-` means *nothing*, and
+both survive the round trip unchanged.
+
+Rows are independent. A row that fails is reported and skipped, the rest are
+created, and the request still answers `200`:
+
+```json
+{
+  "created": 2,
+  "failed": 1,
+  "results": [
+    { "index": 0, "key": "ops-oncall", "status": "created" },
+    { "index": 1, "key": "ops", "status": "created" },
+    { "index": 2, "key": "bad", "status": "error",
+      "error": "netgroup triple \"(web01,jdoe)\" has 2 comma-separated fields, want 3 (host,user,domain)" }
+  ]
+}
+```
+
+A `members` entry naming a netgroup that does not exist yet is accepted: a file
+may create it in a later row, and the directory does not resolve
+`memberNisNetgroup` either. `POST /api/users/import` and
+`POST /api/groups/import` answer in the same shape.
+
 ### Update Netgroup
 
 ```http

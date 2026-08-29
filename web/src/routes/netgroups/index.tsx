@@ -19,7 +19,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { TableEmptyState } from '@/components/ui/empty-state'
-import { Plus, Search, Network, Server, User, AlertTriangle } from 'lucide-react'
+import { Plus, Search, Network, Server, User, AlertTriangle, Upload } from 'lucide-react'
 import { useCallback, useMemo, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
@@ -127,12 +127,20 @@ function NetgroupsPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Netgroups</h1>
         {canWrite && (
-          <Link to="/netgroups/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              New Netgroup
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/netgroups/import">
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-1" />
+                Import CSV
+              </Button>
+            </Link>
+            <Link to="/netgroups/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-1" />
+                New Netgroup
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 
@@ -260,12 +268,20 @@ function NetgroupsPage() {
                       }
                     >
                       {canWrite && (
-                        <Link to="/netgroups/new">
-                          <Button size="sm">
-                            <Plus className="h-4 w-4 mr-1" />
-                            New Netgroup
-                          </Button>
-                        </Link>
+                        <>
+                          <Link to="/netgroups/new">
+                            <Button size="sm">
+                              <Plus className="h-4 w-4 mr-1" />
+                              New Netgroup
+                            </Button>
+                          </Link>
+                          <Link to="/netgroups/import">
+                            <Button variant="outline" size="sm">
+                              <Upload className="h-4 w-4 mr-1" />
+                              Import CSV
+                            </Button>
+                          </Link>
+                        </>
                       )}
                     </TableEmptyState>
                   )

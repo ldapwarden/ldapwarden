@@ -284,6 +284,111 @@ func TestIntegration_UserSudoRoles_ReportsWhyARoleApplies(t *testing.T) {
 	}
 }
 
+// TestIntegration_Netgroups_Import covers the CSV import path end to end.
+//
+// The triples travel as text — "(host,user,domain)" — because that is the form a
+// spreadsheet can hold and the form the directory stores. So the assertions that
+// matter are about what that text became: a "-" must survive as "-", and an
+// empty slot must survive as empty, because those two mean opposite things and a
+// parser that confused them would widen or void a grant in silence.
+func TestIntegration_Netgroups_Import(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	suffix := uniqueSuffix(t)
+	good := "ldapwarden-import-" + suffix
+	nested := "ldapwarden-import-nested-" + suffix
+	bad := "ldapwarden-import-bad-" + suffix
+	wide := "ldapwarden-import-wide-" + suffix
+	// Every cn the file names, including the ones that must be refused: if a
+	// regression lets one through, the assertion fails *and* the entry is still
+	// removed, so the next run starts from the same directory as this one.
+	t.Cleanup(func() {
+		for _, cn := range []string{good, nested, bad, wide} {
+			_ = env.LDAP.DeleteNetgroup("cn=" + cn + "," + env.LDAP.NetgroupBaseDN())
+		}
+	})
+
+	rows := []map[string]any{
+		{
+			"cn":          good,
+			"description": "imported",
+			// An open user slot, a "-" host slot, and a fully named triple.
+			"triples": []string{"(,jdoe,)", "(-,asmith,)", "(web01,bob,example.org)"},
+			// Names the row below, which does not exist yet: a forward reference
+			// must not fail the row, since the directory does not resolve
+			// memberNisNetgroup either.
+			"members": []string{nested},
+		},
+		{"cn": nested, "triples": []string{"(,carol,)"}},
+		// Unparsable triple: two fields instead of three.
+		{"cn": bad, "triples": []string{"(web01,jdoe)"}},
+		// Every slot open — legal in the schema, and every user on every host.
+		{"cn": wide, "triples": []string{"(,,)"}},
+		// A cn the RDN validator rejects.
+		{"cn": "bad cn " + suffix, "triples": []string{"(,jdoe,)"}},
+	}
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/netgroups/import",
+		map[string]any{"rows": rows}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("import: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	var result struct {
+		Created int `json:"created"`
+		Failed  int `json:"failed"`
+		Results []struct {
+			Index  int    `json:"index"`
+			Key    string `json:"key"`
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("unmarshal: %v (body=%s)", err, body)
+	}
+	if result.Created != 2 || result.Failed != 3 {
+		t.Fatalf("created=%d failed=%d, want 2/3 (body=%s)", result.Created, result.Failed, body)
+	}
+	// A bad row must not take the rest of the file with it, and the report has to
+	// say which row so a 500-line file can be corrected.
+	for _, res := range result.Results {
+		if res.Index >= 2 && res.Status != "error" {
+			t.Errorf("row %d (%q) status=%q, want error", res.Index, res.Key, res.Status)
+		}
+		if res.Status == "error" && res.Error == "" {
+			t.Errorf("row %d reported an error with no message", res.Index)
+		}
+	}
+
+	// What actually landed in the directory.
+	created, err := env.LDAP.GetNetgroupByCN(good)
+	if err != nil {
+		t.Fatalf("read back %q: %v", good, err)
+	}
+	if len(created.Triples) != 3 {
+		t.Fatalf("stored %d triples, want 3: %+v", len(created.Triples), created.Triples)
+	}
+	if created.Triples[0].Host != "" {
+		t.Errorf("open host slot became %q — an empty slot means \"any\" and must stay empty",
+			created.Triples[0].Host)
+	}
+	if created.Triples[1].Host != "-" {
+		t.Errorf("%q host slot became %q — it means \"matches nothing\" and is not an empty slot",
+			"-", created.Triples[1].Host)
+	}
+	if created.Triples[2].Domain != "example.org" {
+		t.Errorf("domain slot = %q, want %q", created.Triples[2].Domain, "example.org")
+	}
+	if len(created.Members) != 1 || created.Members[0] != nested {
+		t.Errorf("members = %v, want the forward reference %q kept", created.Members, nested)
+	}
+	if len(created.Malformed) != 0 {
+		t.Errorf("import wrote values the parser cannot read back: %v", created.Malformed)
+	}
+}
+
 // TestIntegration_User_Netgroups covers GET /users/{dn}/netgroups over HTTP.
 //
 // Both halves of the answer — every netgroup that reaches the user, and which of

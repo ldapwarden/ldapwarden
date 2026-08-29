@@ -25,6 +25,27 @@ type importGroupsRequest struct {
 	Rows []ldap.CreateGroupRequest `json:"rows"`
 }
 
+// importNetgroupRow carries triples in their stored spelling, "(host,user,domain)",
+// rather than as parsed slots.
+//
+// A CSV cell is text, and the text here is the form operators already have: it
+// is what the directory holds, what the netgroup page displays, and what any
+// existing export or ldapsearch produces. Asking a spreadsheet to carry three
+// columns per triple — for a repeating field — would invent a shape nothing else
+// speaks. The canonical parser reads them server-side, so an import is held to
+// exactly the same rules as an edit, including the ones about "-" and the empty
+// slot that a lenient reader would quietly get wrong.
+type importNetgroupRow struct {
+	CN          string   `json:"cn"`
+	Description string   `json:"description,omitempty"`
+	Triples     []string `json:"triples,omitempty"`
+	Members     []string `json:"members,omitempty"`
+}
+
+type importNetgroupsRequest struct {
+	Rows []importNetgroupRow `json:"rows"`
+}
+
 // importRowResult is the outcome of one imported row. Key is the uid/cn so the
 // client can line results up with its parsed input.
 type importRowResult struct {
@@ -136,6 +157,89 @@ func (s *Server) handleImportGroups(w http.ResponseWriter, r *http.Request) {
 
 	s.notifyBulkImport(r, "groups", resp.Created, resp.Failed)
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleImportNetgroups(w http.ResponseWriter, r *http.Request) {
+	if !s.netgroupsAvailable(w) {
+		return
+	}
+	var req importNetgroupsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.Rows) == 0 {
+		writeError(w, http.StatusBadRequest, "no rows to import")
+		return
+	}
+	if len(req.Rows) > maxImportRows {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("too many rows (max %d)", maxImportRows))
+		return
+	}
+
+	ctx := audit.ContextSuppressingNotify(r.Context())
+	resp := importResponse{Results: make([]importRowResult, 0, len(req.Rows))}
+
+	for i, row := range req.Rows {
+		res := importRowResult{Index: i, Key: row.CN, Status: "created"}
+		create, err := netgroupCreateFromImport(row)
+		if err != nil {
+			resp.Failed++
+			resp.Results = append(resp.Results, importFailed(res, err.Error()))
+			continue
+		}
+		plannedDN := "cn=" + create.CN + "," + s.ldapClient.NetgroupBaseDN()
+		details := map[string]interface{}{"cn": create.CN}
+		if err := s.auditLogger.Log(ctx, audit.ActionNetgroupCreate, audit.ResourceNetgroup, plannedDN, details); err != nil {
+			resp.Failed++
+			resp.Results = append(resp.Results, importFailed(res, "audit unavailable; row skipped"))
+			continue
+		}
+		if _, err := s.ldapClient.CreateNetgroup(create); err != nil {
+			resp.Failed++
+			resp.Results = append(resp.Results, importFailed(res, importErrorMessage(err)))
+			continue
+		}
+		resp.Created++
+		resp.Results = append(resp.Results, res)
+	}
+
+	// Nested names are not resolved here. A file may perfectly well name a
+	// netgroup that a later row creates, and refusing the forward reference
+	// would make the import depend on row order for no gain — the directory does
+	// not resolve memberNisNetgroup either, so a name pointing at nothing is a
+	// state it holds happily and the netgroup page already reports.
+	s.notifyBulkImport(r, "netgroups", resp.Created, resp.Failed)
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// netgroupCreateFromImport validates one row and parses its triples, applying
+// the same rules a single create goes through.
+func netgroupCreateFromImport(row importNetgroupRow) (ldap.CreateNetgroupRequest, error) {
+	create := ldap.CreateNetgroupRequest{
+		CN:          row.CN,
+		Description: row.Description,
+	}
+	if err := validateRDNValue("cn", row.CN); err != nil {
+		return create, err
+	}
+	for _, raw := range row.Triples {
+		triple, err := ldap.ParseNetgroupTriple(raw)
+		if err != nil {
+			return create, err
+		}
+		create.Triples = append(create.Triples, triple)
+	}
+	if err := validateTriples(create.Triples); err != nil {
+		return create, err
+	}
+	for _, member := range row.Members {
+		if err := validateRDNValue("nested netgroup cn", member); err != nil {
+			return create, err
+		}
+	}
+	create.Members = row.Members
+	return create, nil
 }
 
 func importFailed(res importRowResult, msg string) importRowResult {

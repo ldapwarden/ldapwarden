@@ -73,6 +73,7 @@ parameters the list endpoints accept.
 - `POST /api/admin/scheduled-tasks/lockout-scan/trigger` - Run the lockout scan now
 - `POST/DELETE /api/groups/:dn/members` - Group membership
 - `GET/POST/PUT/DELETE /api/netgroups` - Netgroup CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
+- `POST /api/netgroups/import` - Bulk create; triples arrive as `"(host,user,domain)"` text and are parsed server-side
 - `GET /api/netgroups/:dn/expand` - Effective contents, nesting followed
 - `GET /api/users/:dn/netgroups` - Netgroups reaching a user, direct or nested
 - `GET /api/schema` - LDAP schema

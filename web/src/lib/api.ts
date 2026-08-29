@@ -1082,6 +1082,11 @@ export const api = {
     }) =>
       fetchApi('/netgroups', { method: 'POST', body: JSON.stringify(data) }, NetgroupSchema),
 
+    // Rows carry triples as their stored text, "(host,user,domain)"; the server
+    // parses them with the same parser that reads them back off the directory.
+    import: (rows: ImportRow[]) =>
+      fetchApi('/netgroups/import', { method: 'POST', body: JSON.stringify({ rows }) }, ImportResultSchema),
+
     update: (dn: string, data: {
       description?: string
       triples?: NetgroupTriple[]

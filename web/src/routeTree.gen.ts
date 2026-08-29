@@ -19,6 +19,7 @@ import { Route as GroupsImportRouteImport } from './routes/groups/import'
 import { Route as GroupsNewRouteImport } from './routes/groups/new'
 import { Route as NetgroupsIndexRouteImport } from './routes/netgroups/index'
 import { Route as NetgroupsDnRouteImport } from './routes/netgroups/$dn'
+import { Route as NetgroupsImportRouteImport } from './routes/netgroups/import'
 import { Route as NetgroupsNewRouteImport } from './routes/netgroups/new'
 import { Route as PasswordPoliciesIndexRouteImport } from './routes/password-policies/index'
 import { Route as PasswordPoliciesDnRouteImport } from './routes/password-policies/$dn'
@@ -80,6 +81,11 @@ const NetgroupsIndexRoute = NetgroupsIndexRouteImport.update({
 const NetgroupsDnRoute = NetgroupsDnRouteImport.update({
   id: '/netgroups/$dn',
   path: '/netgroups/$dn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetgroupsImportRoute = NetgroupsImportRouteImport.update({
+  id: '/netgroups/import',
+  path: '/netgroups/import',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NetgroupsNewRoute = NetgroupsNewRouteImport.update({
@@ -152,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
   '/netgroups/$dn': typeof NetgroupsDnRoute
+  '/netgroups/import': typeof NetgroupsImportRoute
   '/netgroups/new': typeof NetgroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
@@ -176,6 +183,7 @@ export interface FileRoutesByTo {
   '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
   '/netgroups/$dn': typeof NetgroupsDnRoute
+  '/netgroups/import': typeof NetgroupsImportRoute
   '/netgroups/new': typeof NetgroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
@@ -201,6 +209,7 @@ export interface FileRoutesById {
   '/groups/import': typeof GroupsImportRoute
   '/groups/new': typeof GroupsNewRoute
   '/netgroups/$dn': typeof NetgroupsDnRoute
+  '/netgroups/import': typeof NetgroupsImportRoute
   '/netgroups/new': typeof NetgroupsNewRoute
   '/password-policies/$dn': typeof PasswordPoliciesDnRoute
   '/password-policies/new': typeof PasswordPoliciesNewRoute
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/groups/import'
     | '/groups/new'
     | '/netgroups/$dn'
+    | '/netgroups/import'
     | '/netgroups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/groups/import'
     | '/groups/new'
     | '/netgroups/$dn'
+    | '/netgroups/import'
     | '/netgroups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
@@ -275,6 +286,7 @@ export interface FileRouteTypes {
     | '/groups/import'
     | '/groups/new'
     | '/netgroups/$dn'
+    | '/netgroups/import'
     | '/netgroups/new'
     | '/password-policies/$dn'
     | '/password-policies/new'
@@ -300,6 +312,7 @@ export interface RootRouteChildren {
   GroupsImportRoute: typeof GroupsImportRoute
   GroupsNewRoute: typeof GroupsNewRoute
   NetgroupsDnRoute: typeof NetgroupsDnRoute
+  NetgroupsImportRoute: typeof NetgroupsImportRoute
   NetgroupsNewRoute: typeof NetgroupsNewRoute
   PasswordPoliciesDnRoute: typeof PasswordPoliciesDnRoute
   PasswordPoliciesNewRoute: typeof PasswordPoliciesNewRoute
@@ -386,6 +399,13 @@ declare module '@tanstack/react-router' {
       path: '/netgroups/$dn'
       fullPath: '/netgroups/$dn'
       preLoaderRoute: typeof NetgroupsDnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/netgroups/import': {
+      id: '/netgroups/import'
+      path: '/netgroups/import'
+      fullPath: '/netgroups/import'
+      preLoaderRoute: typeof NetgroupsImportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/netgroups/new': {
@@ -484,6 +504,7 @@ const rootRouteChildren: RootRouteChildren = {
   GroupsImportRoute: GroupsImportRoute,
   GroupsNewRoute: GroupsNewRoute,
   NetgroupsDnRoute: NetgroupsDnRoute,
+  NetgroupsImportRoute: NetgroupsImportRoute,
   NetgroupsNewRoute: NetgroupsNewRoute,
   PasswordPoliciesDnRoute: PasswordPoliciesDnRoute,
   PasswordPoliciesNewRoute: PasswordPoliciesNewRoute,

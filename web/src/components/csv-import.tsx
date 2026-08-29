@@ -55,12 +55,20 @@ export function CsvImport({
   fields,
   backTo,
   submit,
+  notice,
 }: {
   title: string
   noun: string
   fields: ImportField[]
   backTo: string
   submit: (rows: ImportRow[]) => Promise<ImportResult>
+  /**
+   * Anything about the file format that a column list cannot convey, shown
+   * before the file is chosen. Netgroup triples need it: the convention they
+   * follow is not guessable, and an empty slot means the opposite of what a
+   * blank cell suggests.
+   */
+  notice?: React.ReactNode
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -162,6 +170,7 @@ export function CsvImport({
               {fields.filter((f) => f.required).map((f) => f.label).join(', ')}. Any other column is
               optional, and columns your file does not have can be left unmapped.
             </p>
+            {notice && <div className="text-xs text-muted-foreground">{notice}</div>}
           </CardContent>
         </Card>
       )}
@@ -416,7 +425,16 @@ function buildRow(csvRow: Record<string, string>, fields: ImportField[], mapping
       }
       row[f.key] = n
     } else if (f.type === 'stringArray') {
-      row[f.key] = raw.split(MULTI_SEP).map((s) => s.trim()).filter(Boolean)
+      const values = raw.split(MULTI_SEP).map((s) => s.trim()).filter(Boolean)
+      // The pattern applies to each value, not to the joined cell: a multi-value
+      // field is as worth checking as a single one, and naming the offending
+      // values beats reporting the whole cell as wrong.
+      const invalid = f.pattern ? values.filter((v) => !f.pattern!.test(v)) : []
+      if (invalid.length > 0) {
+        errors.push(`${f.label} ${f.patternHint ?? 'has invalid values'}: ${invalid.join(', ')}`)
+        continue
+      }
+      row[f.key] = values
     } else {
       if (f.pattern && !f.pattern.test(raw)) {
         errors.push(`${f.label} ${f.patternHint ?? 'has invalid characters'}`)
