@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { MultiValueField } from '@/components/ui/multi-value-field'
 import { NetgroupPicker, NetgroupResolutionNotice } from '@/components/netgroup-picker'
+import { NetgroupUsageWarnings, NetgroupContents } from '@/components/netgroup-usage'
 import { Callout } from '@/components/ui/callout'
 import { ArrowLeft, Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
@@ -285,7 +286,13 @@ function NewSudoRolePage() {
             </CardContent>
           </Card>
 
-          {namesNetgroup && <NetgroupResolutionNotice />}
+          {namesNetgroup && (
+            <div className="space-y-3">
+              <NetgroupUsageWarnings sudoUser={formData.sudoUser} sudoHost={formData.sudoHost} />
+              <NetgroupContents sudoUser={formData.sudoUser} sudoHost={formData.sudoHost} />
+              <NetgroupResolutionNotice />
+            </div>
+          )}
 
           {/* Commands */}
           <Card className="md:col-span-2">
