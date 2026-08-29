@@ -10,8 +10,8 @@ of it.
 ## Unreleased
 
 Read **Upgrading** first: this release changes where an account's expiry is
-stored, and the bundled Docker Compose stack moves to OpenLDAP 2.6. Neither is
-automatic.
+stored, moves the bundled Docker Compose stack to OpenLDAP 2.6, and turns the new
+netgroups module on by default. The first two are not automatic.
 
 ### Upgrading
 
@@ -80,6 +80,14 @@ producing `user.lockout` audit entries and digest emails — to
 against your shortest `pwdLockoutDuration`: slower than that, and lockouts start and
 expire between two runs.
 
+**7. `LDAPWARDEN_MODULES` gains `netgroups`.** The default is now
+`users,groups,sudo,policies,netgroups`, so a directory that declares `nisNetgroup`
+grows a Netgroups tab on upgrade. Nothing is created and nothing changes in the
+directory; where the object class is absent the tab hides itself rather than
+leading to a dead page. Set the variable explicitly to keep the old set. If you
+already set it, it is honoured as before — add `netgroups` to it to get the tab
+(`9835390`).
+
 **Prerequisite, unchanged but easy to miss:** ppolicy enforces neither locking nor
 expiry unless a policy applies to the entry (`olcPPolicyDefault` on the overlay,
 or `pwdPolicySubentry` on the entry) — and the attributes stay writable either
@@ -127,6 +135,69 @@ authenticate. The admin page now says what it knows, and
   schedule is a correctness setting, not a preference: a lockout is only visible for
   `pwdLockoutDuration`, and the run says so when the cadence is slower than the
   shortest policy's.
+- **Netgroups**, a module of its own: `nisNetgroup` entries with full CRUD, nesting
+  through `memberNisNetgroup` resolved on demand, CSV import, and the memberships
+  that reach a user shown on their page — direct and inherited kept apart, because
+  an inherited one still confers what a sudo rule grants but is not the entry to
+  edit to take it away. Off unless the directory declares the object class; see
+  Upgrading for the module default.
+
+  The feature is shaped around three properties of the NIS schema that make silent
+  wrongness the default, and every one of them is surfaced rather than smoothed
+  over. An empty slot in a `(host,user,domain)` triple means **any**, never *none*
+  — `-` is the marker for "matches nothing" — so the UI spells each slot out in
+  prose and the expansion carries `openUser`/`openHost` alongside the name lists,
+  since an empty list and an open slot mean opposite things. `nisNetgroupTriple`
+  declares no matching rules, so the directory cannot evaluate a filter over it and
+  OpenLDAP answers *success with zero entries* rather than refusing: everything but
+  a presence test is filtered in Go over parsed triples. And a netgroup is named by
+  string from two places nothing tracks — `+name` in sudo and `memberNisNetgroup`
+  in other netgroups — so deleting one reports the references it leaves pointing at
+  nothing, and a netgroup's `cn` cannot be changed here at all: renaming one would
+  have to rewrite every `+name` and `memberNisNetgroup` that reaches it, and
+  nothing in the directory can find them.
+
+  Renaming or deleting a user rewrites the triples that name them, best-effort,
+  reporting what it could not reach — the uid in a triple is a plain string like
+  `memberUid` and `sudoUser`, so the directory will not follow it either
+  (`76a8296`, `e961b1d`, `61eb7a6`, `1b941c3`, `8685626`, `ae026ee`, `22bbc8d`,
+  `af31ca9`, `d062cee`).
+- **Sudo grants to a netgroup**, written as `+name`, with the two things that
+  string cannot say on its own. Which side it is named from decides which half of
+  the netgroup applies — `sudoUser` reads only its user slots, `sudoHost` only its
+  hosts — so a netgroup on the wrong side matches nobody, silently, and the rule
+  now says so. And the rule shows who it actually reaches, resolved through
+  nesting, instead of leaving the reader to open the netgroup. A netgroup naming
+  both users and hosts is reported as *partly* applying, not as broken: half of it
+  still works. Sudo resolves netgroups on the client — NSS, `netgroup_base`, SSSD —
+  none of which is visible from here, so the app says the grant is necessary and
+  not sufficient rather than implying the job is done
+  (`045e0aa`, `a95a03f`, `857a251`, `dbd0090`, `0b9a8ba`).
+- **Renaming a group**, on its own control like the user rename, with the sudo
+  grants that name it as `%cn` rewritten. Members are untouched: a POSIX group is
+  joined by `memberUid` and by `gidNumber`, neither of which follows the name.
+  Renaming the group named by `LDAPWARDEN_ADMIN_GROUP` is refused — admin is
+  decided by comparing group names to that setting, so it would strip admin from
+  everyone including whoever ran it (`20444b0`).
+- **The running build, in a footer**: version and short commit, stamped into the
+  binary at release and read from the server rather than from the bundle, so a
+  browser holding a stale page still reports what it is talking to. A build from a
+  modified tree says so, since it is not the commit it names (`ae5e1e0`).
+- **`GET /api/server-info`**, readable by any authenticated session: the enabled
+  modules, the configured object classes and the directory capabilities — the
+  things the UI needs to decide what to render. See Fixed for why (`1408097`).
+- **Group membership lists flag accounts that cannot use what the group grants.**
+  A membership review is where dead access is meant to be spotted, and a locked
+  account looked exactly like one in daily use (`c312790`).
+- **The applicable password policy is stated on the user page**, and changing it is
+  confirmed rather than saved silently (`6afc0d9`).
+- An expiring session is explained and warned about before it lapses (`2fc2cc1`),
+  a skip link reaches the main content (`acd8f58`), and `prefers-reduced-motion` is
+  honoured (`8123966`).
+- The CSV import shows its four steps, offers a template with the column names, and
+  lists every error on a row instead of the first (`afc6018`).
+- A frontend test harness (vitest, in CI as `make test-web`), covering the pure
+  logic in `src/lib` (`f591094`).
 - **`GET /api/groups/{dn}/members`**, resolving `memberUid` to names server-side
   (`69ecea2`).
 - **`GET /healthz` and `GET /readyz`**, the Kubernetes names, split the way the
@@ -161,6 +232,29 @@ authenticate. The admin page now says what it knows, and
   small — so the permanent "these counts are lower bounds" warning is gone from
   every directory of more than 500 entries. It now appears only when the *server*
   limits the bind identity, which is something an operator can act on.
+- **Netgroup changes are recorded with what they did to the grant.** Create,
+  update, delete and import write a per-attribute diff like users and groups
+  always have; before, the journal said only that something had been modified. Each
+  triple is recorded with its meaning beside its stored spelling, as
+  `(,jdoe,) — jdoe on any host`, because an audit diff is exactly where
+  `(,jdoe,)` and `(-,jdoe,)` sit one character apart and mean opposite things. A
+  delete records the whole contents, since nothing else will hold them afterwards
+  (`62cc2bc`).
+- **The UI no longer decides what to render from `/api/admin/config`.** That
+  endpoint keeps its `settings:read` permission and still backs the settings page;
+  everything about *what this deployment can do* moved to `/api/server-info` — see
+  Fixed (`1408097`).
+- Selection and bulk delete are one model across all four lists (`37e3b22`), and
+  bulk lock/unlock asks for confirmation, shows progress and keeps its bar in view
+  (`efe91cb`).
+- Dependencies updated, and four that nothing imported were dropped
+  (`ae15a3c`, `ec340bc`), including a move off the deprecated `httprate.LimitByIP`
+  (`b50ec5d`); the runtime base moved to Alpine 3.24 (`0d15d40`); CI
+  gained a static-analysis job and runs the integration suite under `-race`
+  (`3550d03`).
+- The unused sqlc layer is gone: every query in the tree is hand-written against
+  pgx, and the generated code had stopped compiling (`690ea77`, `56a0633`,
+  `6912ce0`).
 - Locking writes `000001010000Z`, the value ppolicy never lifts, instead of the
   current time — which ppolicy lifted after `pwdLockoutDuration`, turning "Locked"
   into "unlocked" half an hour later with nothing recorded (`af9f212`).
@@ -184,6 +278,51 @@ authenticate. The admin page now says what it knows, and
   `sudoRole`'s `sudoUser`.** Recreating an account with the same username — routine
   when one is recycled — silently inherited the previous holder's groups and sudo
   grants (`1c44313`).
+- **Read-only users were served a UI missing features they were allowed to use.**
+  Everything the frontend used to decide what to render came from
+  `/api/admin/config`, which takes `settings:read` — a permission the `readonly`
+  role does not have. The 403 left every answer undefined and every gate defaulted
+  to off: no Netgroups tab, no membership section, no netgroup panels on sudo
+  rules, and the wrong tabs on the user and group pages, since the configured
+  object classes fell back to a hardcoded guess instead of the deployment's own.
+  Nothing reported any of it. `/api/server-info` answers the same questions for any
+  authenticated session (`1408097`).
+- **A missing base entry answered `500 internal server error`.** Pointing the app
+  at a directory with no `ou=netgroups` — or no `ou=sudoers`, or no `ou=policies`,
+  which is the normal state of a directory that never needed them — failed every
+  request for that collection while naming the wrong culprit: the fix is an
+  `ldapadd` or one line of configuration, not a bug report. LDAP result code 32
+  now answers `501` naming the setting to change, and the same for a create, whose
+  parent is what is missing. A missing *entry* stays an ordinary `404`. Startup
+  logs each base the directory does not hold, which is when an operator can still
+  act (`c66daf6`).
+- **The `lockout_events` migration was not embedded in the binary**, so a release
+  ran without the table the lockout scan writes to (`9d5860e`).
+- **The dashboard's numbers could vanish and never come back.** The capability
+  probe held its lock across unbounded directory searches, so one slow or silent
+  LDAP server wedged every later caller for the life of the process — taking out
+  the dashboard and the admin page while everything backed by PostgreSQL kept
+  working, which made it look like anything but a lock. Every operation is bounded
+  now (`1016185`).
+- **`GET /users/{dn}/sudo-roles` and `/groups/{dn}/sudo-roles` answered `400` for
+  every request**, having resolved the DN against the sudoers base instead of the
+  user's or group's own (`87f5390`).
+- A sudo rule reported a netgroup as non-existent when it merely sat outside the
+  page that was searched — condemning a working rule on the one screen whose job is
+  to say when a rule matches nobody. Absence is now claimed only from a complete
+  result set (`91b9155`).
+- The destructive colour failed contrast as text in both themes (`d86fad3`); an
+  over-tall dialog would not scroll (`581d123`); form field rows overflowed narrow
+  screens (`ee86baa`); switches had no accessible name (`9b8ec1d`); list avatars
+  were announced to screen readers (`a6f8053`).
+- Detail forms stopped adopting the server's copy after the first save, so a
+  background refetch left the field stale and claimed unsaved changes that were
+  someone else's edit (`35be26d`).
+- Raw Zod errors reached the user (`f56522e`); a rejected password did not say
+  which rule it broke (`af2aaa9`); lockout-scan runs were reported as password
+  expiration on the admin page (`fdbeabb`); a row did not say which kind of lock it
+  was reporting (`0f12ed6`); the sudo roles search box ignored the `/` hotkey
+  (`004f73f`).
 - **Same-origin mutations were refused**, so the deployment described in the README
   could read but not write (`dbec0bf`).
 - **An administrator could lock themselves out** via lock, delete, remove-password,
