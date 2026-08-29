@@ -1,6 +1,7 @@
 import { createRootRouteWithContext, Outlet, Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { encodeDN } from '@/lib/utils'
 import { useEnabledModules, useServerInfo } from '@/lib/use-server-info'
+import { BuildFooter } from '@/components/build-footer'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { Toaster, toast } from 'sonner'
@@ -381,6 +382,7 @@ function RootComponent() {
         <SessionExpiryNotice />
         <Outlet />
       </main>
+      <BuildFooter />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Suspense>
         <TanStackRouterDevtools />

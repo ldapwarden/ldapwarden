@@ -494,11 +494,16 @@ export const SudoRoleSchema = z.object({
   sudoNotAfter: z.string().optional(),
 })
 
-// GET /api/server-info — what the UI may render.
+// GET /api/server-info — which build is running, and what the UI may render.
 // Readable by any authenticated session, unlike /admin/config: the readonly role
 // has no settings:read, and gating the UI on that permission hid features the
 // user was allowed to use.
 export const ServerInfoSchema = z.object({
+  version: z.object({
+    version: z.string(),
+    revision: z.string().optional(),
+    modified: z.boolean().optional(),
+  }),
   modules: z.array(z.string()).nullish().transform((v) => v ?? []),
   usersObjects: z.array(z.string()).nullish().transform((v) => v ?? []),
   groupsObjects: z.array(z.string()).nullish().transform((v) => v ?? []),

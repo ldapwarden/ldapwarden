@@ -2,11 +2,15 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/ldapwarden/ldapwarden/internal/buildinfo"
 )
 
-// serverInfoResponse is what the UI needs to decide what to render.
+// serverInfoResponse is what the UI needs to decide what to render, plus which
+// build it is talking to.
 type serverInfoResponse struct {
-	Modules []string `json:"modules"`
+	Version buildinfo.Info `json:"version"`
+	Modules []string       `json:"modules"`
 	// The configured object classes, for the same reason as Modules: the user
 	// and group pages decide which tabs exist from them, and a read-only session
 	// that could not read them fell back to a hardcoded guess.
@@ -25,13 +29,19 @@ type serverInfoResponse struct {
 // capability probe behind them had 403'd. Nothing said so; the feature simply
 // was not there.
 //
-// None of this is privileged: which modules are on and what the directory can
-// hold is already evident from using the app. What is privileged — bind DNs, connection strings,
+// None of this is privileged. Which modules are on and what the directory can
+// hold is already evident from using the app, and the version has to reach a
+// footer every user sees. What is privileged — bind DNs, connection strings,
 // masked secrets — stays in /api/admin/config, which keeps its permission.
+//
+// Not on /healthz either: that route is unauthenticated, and publishing an exact
+// version to anyone who can reach the port is free reconnaissance against an
+// administration tool.
 func (s *Server) handleGetServerInfo(w http.ResponseWriter, r *http.Request) {
 	capabilities := s.ldapClient.Capabilities()
 
 	writeJSON(w, http.StatusOK, serverInfoResponse{
+		Version:       buildinfo.Get(),
 		Modules:       s.config.App.Modules,
 		UsersObjects:  s.config.App.UsersObjects,
 		GroupsObjects: s.config.App.GroupsObjects,

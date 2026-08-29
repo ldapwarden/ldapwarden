@@ -14,7 +14,13 @@ COPY cmd/ cmd/
 COPY internal/ internal/
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /ldapwarden ./cmd/server
+# Stamped at link time because the image does not copy .git, so the VCS
+# information Go records automatically is not available here. Without it the
+# server reports itself as "dev".
+ARG VERSION=""
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s -X github.com/ldapwarden/ldapwarden/internal/buildinfo.Version=${VERSION}" \
+    -o /ldapwarden ./cmd/server
 
 # Build stage for React frontend
 # node:24, not node:20 — pnpm 11 imports the node:sqlite built-in, absent on

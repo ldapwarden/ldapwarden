@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend infra test test-web test-integration clean lint lint-go lint-frontend
+.PHONY: dev dev-backend dev-frontend infra test test-web version-stamp-check test-integration clean lint lint-go lint-frontend
 
 # Start all infrastructure
 infra:
@@ -38,6 +38,12 @@ lint-frontend:
 # Run tests
 test:
 	go test ./...
+
+# Proves the -ldflags path the release build depends on: a typo in the symbol
+# name fails silently, leaving every release reporting itself as "dev".
+version-stamp-check:
+	go test -count=1 -ldflags "-X github.com/ldapwarden/ldapwarden/internal/buildinfo.Version=stamp-check" \
+		-run TestVersionVariableIsLinkable ./internal/buildinfo/
 
 # Frontend unit tests (vitest), the counterpart of `test` for the web side
 test-web:

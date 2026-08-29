@@ -41,6 +41,12 @@ jobs:
           version: v2.12.2
           args: --build-tags=integration
 
+      # The release stamps the version through -ldflags. A renamed symbol fails
+      # silently there — the build succeeds and every release reports "dev" —
+      # so the link path is exercised here instead.
+      - name: Version stamp
+        run: make version-stamp-check
+
       # govulncheck fetches the vulnerability database on every run, so this step
       # can turn red on a commit that has not changed — that is the point, but it
       # means a red build here may call for a Go patch bump rather than a code fix.
