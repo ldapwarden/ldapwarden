@@ -1,26 +1,16 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Network } from 'lucide-react'
-import { api, type Netgroup, type NetgroupsResponse } from '@/lib/api'
+import { api } from '@/lib/api'
 import { Callout } from '@/components/ui/callout'
-import { netgroupKind, type NetgroupKind } from '@/lib/netgroup'
-
-/** The netgroup names a sudo field refers to, without their "+" prefix. */
-function namedNetgroups(values: string[]): string[] {
-  return values.filter((v) => v.startsWith('+') && v.length > 1).map((v) => v.slice(1))
-}
-
-/**
- * What the directory says about one "+name" on a rule.
- *
- * "absent" is a claim, not a default: it is only reached when the whole result
- * set for that name was seen. Anything else — still loading, or a result the
- * server had to cut short — is "unknown", because reporting a netgroup as
- * missing when it merely sat outside the page would condemn a rule that works.
- */
-type Resolution =
-  | { status: 'found'; netgroup: Netgroup }
-  | { status: 'absent' }
-  | { status: 'unknown' }
+import {
+  namedNetgroups,
+  netgroupKind,
+  netgroupSideFit,
+  resolveNetgroupByName,
+  type NetgroupKind,
+  type NetgroupResolution,
+  type NetgroupSide,
+} from '@/lib/netgroup'
 
 /**
  * Wide enough that an exact name is never crowded out in practice, since the
@@ -29,19 +19,6 @@ type Resolution =
  * answer degrades to "unknown" rather than to a wrong one.
  */
 const NAME_LOOKUP_LIMIT = 50
-
-function resolutionOf(name: string, page: NetgroupsResponse | undefined): Resolution {
-  if (!page) return { status: 'unknown' }
-
-  const exact = page.data.find((n) => n.cn === name)
-  if (exact) return { status: 'found', netgroup: exact }
-
-  // Nothing found only means "no such netgroup" if nothing was left out.
-  // `truncated` reports the server-side size limit; comparing against `total`
-  // catches the page being narrower than the match set.
-  const complete = page.truncated !== true && page.data.length >= page.total
-  return complete ? { status: 'absent' } : { status: 'unknown' }
-}
 
 /**
  * Resolves every netgroup a sudo rule names, on either side.
@@ -70,13 +47,13 @@ function useNetgroupResolutions(sudoUser: string[], sudoHost: string[]) {
     })),
   })
 
-  const byName = new Map<string, Resolution>()
-  names.forEach((name, i) => byName.set(name, resolutionOf(name, results[i]?.data)))
+  const byName = new Map<string, NetgroupResolution>()
+  names.forEach((name, i) => byName.set(name, resolveNetgroupByName(name, results[i]?.data)))
 
   return {
     supported,
     names,
-    resolve: (name: string): Resolution => byName.get(name) ?? { status: 'unknown' },
+    resolve: (name: string): NetgroupResolution => byName.get(name) ?? { status: 'unknown' },
     settled: results.every((r) => !r.isPending),
   }
 }
@@ -102,59 +79,81 @@ export function NetgroupUsageWarnings({
   const { supported, names, resolve, settled } = useNetgroupResolutions(sudoUser, sudoHost)
   if (!supported || names.length === 0 || !settled) return null
 
-  const problems: { name: string; kind: NetgroupKind | null; side: 'Users' | 'Hosts' }[] = []
+  const problems: {
+    name: string
+    kind: NetgroupKind | null
+    side: NetgroupSide
+    fit: 'ignored' | 'partial'
+  }[] = []
 
-  const check = (values: string[], side: 'Users' | 'Hosts', wanted: NetgroupKind) => {
+  const check = (values: string[], side: NetgroupSide) => {
     for (const name of namedNetgroups(values)) {
       const resolution = resolve(name)
       // An unresolved name is not reported either way: it is the one state
       // that carries no claim.
       if (resolution.status === 'unknown') continue
       if (resolution.status === 'absent') {
-        problems.push({ name, kind: null, side })
+        problems.push({ name, kind: null, side, fit: 'ignored' })
         continue
       }
       const kind = netgroupKind(resolution.netgroup)
-      // "empty" contributes through nesting only, so its own triples say
-      // nothing about which side it belongs on.
-      if (kind !== wanted && kind !== 'empty') {
-        problems.push({ name, kind, side })
+      const fit = netgroupSideFit(kind, side)
+      if (fit !== 'ok') {
+        problems.push({ name, kind, side, fit })
       }
     }
   }
-  check(sudoUser, 'Users', 'users')
-  check(sudoHost, 'Hosts', 'hosts')
+  check(sudoUser, 'users')
+  check(sudoHost, 'hosts')
 
   if (problems.length === 0) return null
 
+  // Nothing is broken when every problem is a "partial": half the netgroup
+  // applies, which is a remark, not an alarm. Warning is reserved for a
+  // reference that reaches nobody.
+  const onlyPartial = problems.every((problem) => problem.fit === 'partial')
+
   return (
-    <Callout variant="warning">
+    <Callout variant={onlyPartial ? 'info' : 'warning'}>
       <p className="flex items-center gap-1.5 font-medium">
-        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-        {problems.length === 1 ? 'A netgroup on this rule' : 'Netgroups on this rule'} will be
-        ignored
+        {!onlyPartial && <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />}
+        {onlyPartial
+          ? 'Only part of a netgroup on this rule applies'
+          : `${problems.length === 1 ? 'A netgroup on this rule' : 'Netgroups on this rule'} will be ignored`}
       </p>
       <ul className="mt-1 space-y-1">
         {problems.map((problem) => (
           <li key={`${problem.side}:${problem.name}`} className="flex items-start gap-1.5">
             <Network className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>
-              <span className="font-mono">+{problem.name}</span> in {problem.side}:{' '}
-              {problem.kind === null
-                ? 'no netgroup of that name exists, so it matches nobody.'
-                : `it names ${problem.kind === 'users' ? 'users' : problem.kind === 'hosts' ? 'hosts' : 'both users and hosts'}, and ${problem.side} reads the ${
-                    problem.side === 'Users' ? 'user' : 'host'
-                  } slots — ${
-                    problem.kind === 'mixed'
-                      ? 'only that half applies.'
-                      : 'which are empty, so it matches nobody.'
-                  }`}
+              <span className="font-mono">+{problem.name}</span> in{' '}
+              {problem.side === 'users' ? 'Users' : 'Hosts'}: {problemText(problem)}
             </span>
           </li>
         ))}
       </ul>
     </Callout>
   )
+}
+
+function problemText({
+  kind,
+  side,
+  fit,
+}: {
+  kind: NetgroupKind | null
+  side: NetgroupSide
+  fit: 'ignored' | 'partial'
+}): string {
+  if (kind === null) return 'no netgroup of that name exists, so it matches nobody.'
+
+  const slots = side === 'users' ? 'user' : 'host'
+  if (fit === 'partial') {
+    // Half of it still applies, which is a different thing to be told than
+    // "this matches nobody".
+    return `it names both users and hosts, and this side reads only the ${slots} slots — the rest is ignored.`
+  }
+  return `it names ${kind === 'users' ? 'users' : 'hosts'}, and this side reads the ${slots} slots — which are empty, so it matches nobody.`
 }
 
 /**
@@ -198,7 +197,7 @@ function NetgroupSummary({
 }: {
   name: string
   side: 'users' | 'hosts'
-  resolution: Resolution
+  resolution: NetgroupResolution
 }) {
   const netgroup = resolution.status === 'found' ? resolution.netgroup : undefined
 

@@ -3,7 +3,7 @@ import { ShieldCheck, AlertTriangle } from 'lucide-react'
 import type { SudoRole } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Callout } from '@/components/ui/callout'
-import { netgroupKind, type NetgroupKind } from '@/lib/netgroup'
+import { netgroupKind, netgroupSideFit, type NetgroupKind } from '@/lib/netgroup'
 import { encodeDN } from '@/lib/utils'
 import type { Netgroup } from '@/lib/api'
 
@@ -75,11 +75,10 @@ function RuleRow({
   const inUsers = (role.sudoUser ?? []).includes(reference)
   const inHosts = (role.sudoHost ?? []).includes(reference)
 
-  // "empty" contributes only through nesting, so its own triples say nothing
-  // about which side it belongs on and no mismatch can be claimed.
+  // Only when the rule names it on exactly one side: named on both, whichever
+  // half is unused is used by the other reference.
   const ignored =
-    kind !== 'empty' &&
-    ((inUsers && !inHosts && kind === 'hosts') || (inHosts && !inUsers && kind === 'users'))
+    inUsers !== inHosts && netgroupSideFit(kind, inUsers ? 'users' : 'hosts') === 'ignored'
 
   return (
     <div className="rounded-md border px-3 py-2 text-sm">

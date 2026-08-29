@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
-import { netgroupKind, type NetgroupKind } from '@/lib/netgroup'
+import { netgroupKind, netgroupSideFit, type NetgroupKind, type NetgroupSide } from '@/lib/netgroup'
 import {
   Dialog,
   DialogContent,
@@ -60,12 +60,11 @@ export function NetgroupPicker({
 
   if (!supported) return null
 
-  const wanted: NetgroupKind = side === 'sudoUser' ? 'users' : 'hosts'
+  const wanted: NetgroupSide = side === 'sudoUser' ? 'users' : 'hosts'
   const candidates = picker.items.filter((n) => !existing.includes('+' + n.cn))
   const selectedNetgroup = candidates.find((n) => n.cn === selected)
   const selectedKind = selectedNetgroup ? netgroupKind(selectedNetgroup) : null
-  const mismatch =
-    selectedKind !== null && selectedKind !== wanted && selectedKind !== 'empty'
+  const fit = selectedKind === null ? 'ok' : netgroupSideFit(selectedKind, wanted)
 
   const close = () => {
     setOpen(false)
@@ -103,7 +102,7 @@ export function NetgroupPicker({
               candidates.map((netgroup) => {
                 const kind = netgroupKind(netgroup)
                 const isSelected = selected === netgroup.cn
-                const wrongSide = kind !== wanted && kind !== 'empty'
+                const wrongSide = netgroupSideFit(kind, wanted) === 'ignored'
                 return (
                   <button
                     key={netgroup.dn}
@@ -143,7 +142,7 @@ export function NetgroupPicker({
           </div>
           <PickerOverflow count={picker.overflow} />
 
-          {mismatch && (
+          {fit === 'ignored' && (
             <Callout variant="warning">
               <p className="font-medium">
                 This netgroup names {selectedKind === 'users' ? 'users' : 'hosts'}, and you are
@@ -154,6 +153,14 @@ export function NetgroupPicker({
                 which are empty — the rule would match nobody, without any error. You can add it
                 anyway if that is deliberate.
               </p>
+            </Callout>
+          )}
+
+          {fit === 'partial' && (
+            <Callout variant="info">
+              This netgroup names both users and hosts. Added here, sudo reads only its{' '}
+              {side === 'sudoUser' ? 'user' : 'host'} slots — the rest is ignored, which is fine if
+              that is what you meant.
             </Callout>
           )}
 

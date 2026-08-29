@@ -1,18 +1,11 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { CsvImport, type ImportField } from '@/components/csv-import'
 import { api } from '@/lib/api'
+import { NETGROUP_TRIPLE_TEXT } from '@/lib/netgroup'
 
 const RDN = /^[a-zA-Z0-9._-]+$/
 const RDN_HINT = "must contain only letters, digits, '.', '_' or '-'"
 
-/**
- * A triple in its stored spelling. Checked here only for shape — parentheses and
- * exactly two commas — because the slots themselves are free-form names, and
- * because the server parses every row with the canonical parser anyway. The
- * point of the client-side check is to catch a column mapped to the wrong thing
- * before 500 rows are sent, not to duplicate the rules.
- */
-const TRIPLE = /^\([^,()]*,[^,()]*,[^,()]*\)$/
 const TRIPLE_HINT = 'must be written “(host,user,domain)”, with both commas'
 
 const NETGROUP_FIELDS: ImportField[] = [
@@ -36,7 +29,7 @@ const NETGROUP_FIELDS: ImportField[] = [
     key: 'triples',
     label: 'Triples',
     type: 'stringArray',
-    pattern: TRIPLE,
+    pattern: NETGROUP_TRIPLE_TEXT,
     patternHint: TRIPLE_HINT,
     aliases: ['nisnetgrouptriple', 'triple', 'members'],
     example: '(,jdoe,);(,asmith,)',
