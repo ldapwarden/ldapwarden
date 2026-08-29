@@ -463,3 +463,128 @@ func TestIntegration_User_Netgroups(t *testing.T) {
 		t.Errorf("%q is listed, but it names the uid in the host slot", unrelated)
 	}
 }
+
+// TestIntegration_Netgroups_AuditRecordsTheGrant covers what the journal keeps
+// of a netgroup change.
+//
+// A netgroup's triples are the grant itself, and they exist nowhere but on the
+// entry. Recording only that "something was modified" would leave the one edit
+// this whole feature warns about — widening "(-,jdoe,)" into "(,jdoe,)", which
+// turns a rule reaching nobody into one reaching every host — indistinguishable
+// from a description typo after the fact.
+func TestIntegration_Netgroups_AuditRecordsTheGrant(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	cn := "ldapwarden-audit-" + uniqueSuffix(t)
+	dn := "cn=" + cn + "," + env.LDAP.NetgroupBaseDN()
+	t.Cleanup(func() { _ = env.LDAP.DeleteNetgroup(dn) })
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/netgroups/", map[string]any{
+		"cn":          cn,
+		"description": "before",
+		"triples":     []map[string]string{{"host": "-", "user": "jdoe", "domain": ""}},
+	}, token)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	// The widening edit, plus a description change so the diff has to carry both.
+	resp, body = doJSON(t, env, http.MethodPut, netgroupPath(dn), map[string]any{
+		"description": "after",
+		"triples":     []map[string]string{{"host": "", "user": "jdoe", "domain": ""}},
+	}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	changes := auditChangesFor(t, env, token, "netgroup.update", dn)
+	if len(changes) == 0 {
+		t.Fatal("the update recorded no field changes")
+	}
+
+	var addedOpen, removedWildcard, describedDescription bool
+	for _, change := range changes {
+		switch change.Field {
+		case "Triple added":
+			// Both halves matter: the stored spelling, and the prose that keeps a
+			// reader from mistaking an empty slot for an absent one.
+			if strings.Contains(change.New, "(,jdoe,)") && strings.Contains(change.New, "any host") {
+				addedOpen = true
+			}
+		case "Triple removed":
+			if strings.Contains(change.Old, "(-,jdoe,)") && strings.Contains(change.Old, "no host") {
+				removedWildcard = true
+			}
+		case "Description":
+			describedDescription = change.Old == "before" && change.New == "after"
+		}
+	}
+	if !addedOpen {
+		t.Errorf("the widened triple is not in the diff: %+v", changes)
+	}
+	if !removedWildcard {
+		t.Errorf("the replaced %q triple is not in the diff: %+v", ldap.NetgroupWildcard, changes)
+	}
+	if !describedDescription {
+		t.Errorf("the description change is not in the diff: %+v", changes)
+	}
+
+	// A delete is the last chance to record what the netgroup held.
+	resp, body = doJSON(t, env, http.MethodDelete, netgroupPath(dn), nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete: status=%d body=%s", resp.StatusCode, body)
+	}
+	deleted := auditChangesFor(t, env, token, "netgroup.delete", dn)
+	found := false
+	for _, change := range deleted {
+		if change.Field == "Triple removed" && strings.Contains(change.Old, "(,jdoe,)") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the delete recorded nothing of what the netgroup granted: %+v", deleted)
+	}
+}
+
+type auditFieldChange struct {
+	Field string `json:"field"`
+	Old   string `json:"old"`
+	New   string `json:"new"`
+}
+
+// auditChangesFor returns the field diff of the most recent audit row for an
+// action on a resource.
+func auditChangesFor(t *testing.T, env *testEnv, token, action, dn string) []auditFieldChange {
+	t.Helper()
+
+	resp, body := doJSON(t, env, http.MethodGet,
+		"/api/audit-logs?action="+url.QueryEscape(action)+"&limit=50", nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list audit logs: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	var page struct {
+		Data []struct {
+			ResourceDN string `json:"resourceDn"`
+			Details    struct {
+				ResourceName string             `json:"resourceName"`
+				Changes      []auditFieldChange `json:"changes"`
+			} `json:"details"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		t.Fatalf("unmarshal audit logs: %v (body=%s)", err, body)
+	}
+	for _, row := range page.Data {
+		if row.ResourceDN != dn {
+			continue
+		}
+		if row.Details.ResourceName == "" {
+			t.Errorf("audit row for %q on %q names no resource", action, dn)
+		}
+		return row.Details.Changes
+	}
+	t.Fatalf("no %q audit row for %q (body=%s)", action, dn, body)
+	return nil
+}

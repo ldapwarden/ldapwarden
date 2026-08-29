@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
@@ -155,8 +156,13 @@ func (s *Server) handleCreateNetgroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	plannedDN := "cn=" + req.CN + "," + s.ldapClient.NetgroupBaseDN()
-	if !s.auditMutating(w, r, audit.ActionNetgroupCreate, audit.ResourceNetgroup, plannedDN,
-		map[string]interface{}{"cn": req.CN}) {
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: labelWithID(req.Description, req.CN),
+	}
+	if fields := netgroupCreateFields(req); len(fields) > 0 {
+		details[audit.DetailsKeyChanges] = fields
+	}
+	if !s.auditMutating(w, r, audit.ActionNetgroupCreate, audit.ResourceNetgroup, plannedDN, details) {
 		return
 	}
 
@@ -199,7 +205,20 @@ func (s *Server) handleUpdateNetgroup(w http.ResponseWriter, r *http.Request) {
 	}
 	req.KeepMalformed = current.Malformed
 
-	if !s.auditMutating(w, r, audit.ActionNetgroupUpdate, audit.ResourceNetgroup, dn, nil) {
+	// The pre-update entry is already in hand, so the field-level diff every
+	// other resource records costs nothing here. It is worth more on a netgroup
+	// than anywhere else: the triple *is* the grant, so widening "(-,jdoe,)" to
+	// "(,jdoe,)" turns a rule that reached nobody into one that reaches every
+	// host, and without this the journal would record only that something was
+	// modified.
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: labelWithID(current.Description, current.CN),
+	}
+	if changes := netgroupUpdateChanges(current, req); len(changes) > 0 {
+		details[audit.DetailsKeyChanges] = changes
+	}
+
+	if !s.auditMutating(w, r, audit.ActionNetgroupUpdate, audit.ResourceNetgroup, dn, details) {
 		return
 	}
 
@@ -228,7 +247,8 @@ func (s *Server) handleDeleteNetgroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.auditMutating(w, r, audit.ActionNetgroupDelete, audit.ResourceNetgroup, dn, nil) {
+	if !s.auditMutating(w, r, audit.ActionNetgroupDelete, audit.ResourceNetgroup, dn,
+		netgroupDeleteDetails(current)) {
 		return
 	}
 
@@ -265,6 +285,130 @@ func (s *Server) handleDeleteNetgroup(w http.ResponseWriter, r *http.Request) {
 		"message":  "netgroup deleted",
 		"warnings": warnings,
 	})
+}
+
+// netgroupCreateFields describes a netgroup as it was created, for the audit
+// entry. Each triple is its own field: they are separate grants, and a single
+// joined line hides which one an operator added.
+func netgroupCreateFields(req ldap.CreateNetgroupRequest) []audit.FieldChange {
+	fields := []audit.FieldChange{{Field: "Name", New: req.CN}}
+	if req.Description != "" {
+		fields = append(fields, audit.FieldChange{Field: "Description", New: req.Description})
+	}
+	for _, triple := range req.Triples {
+		fields = append(fields, audit.FieldChange{Field: "Triple", New: describeTripleChange(triple)})
+	}
+	if len(req.Members) > 0 {
+		fields = append(fields, audit.FieldChange{
+			Field: "Nested netgroups", New: strings.Join(req.Members, ", ")})
+	}
+	return fields
+}
+
+// netgroupUpdateChanges diffs an update against the pre-update entry.
+//
+// Triples and nested names are diffed as additions and removals rather than as
+// one before/after blob: the attribute is multi-valued and unordered as far as
+// anything reading it is concerned, so "this grant appeared" is the fact worth
+// recording. A field absent from the request is not diffed at all, matching what
+// UpdateNetgroup will actually write.
+func netgroupUpdateChanges(before *ldap.Netgroup, req ldap.UpdateNetgroupRequest) []audit.FieldChange {
+	var changes []audit.FieldChange
+
+	if req.Description != nil && *req.Description != before.Description {
+		changes = append(changes, audit.FieldChange{
+			Field: "Description", Old: before.Description, New: *req.Description})
+	}
+
+	if req.Triples != nil {
+		// Keyed on the canonical spelling, so a triple that only moved position
+		// is not reported as removed and re-added.
+		old := make(map[string]ldap.NetgroupTriple, len(before.Triples))
+		for _, triple := range before.Triples {
+			old[triple.String()] = triple
+		}
+		next := make(map[string]ldap.NetgroupTriple, len(req.Triples))
+		for _, triple := range req.Triples {
+			next[triple.String()] = triple
+		}
+		for _, triple := range req.Triples {
+			if _, ok := old[triple.String()]; !ok {
+				changes = append(changes, audit.FieldChange{
+					Field: "Triple added", New: describeTripleChange(triple)})
+			}
+		}
+		for _, triple := range before.Triples {
+			if _, ok := next[triple.String()]; !ok {
+				changes = append(changes, audit.FieldChange{
+					Field: "Triple removed", Old: describeTripleChange(triple)})
+			}
+		}
+	}
+
+	if req.Members != nil {
+		changes = append(changes, diffStrings(before.Members, req.Members,
+			"Nested netgroup added", "Nested netgroup removed")...)
+	}
+
+	return changes
+}
+
+// netgroupDeleteDetails records what the entry held, because after the delete
+// nothing else does. A group delete can name the group and stop there — its
+// members still exist and still say so. A netgroup's triples exist nowhere but
+// on the entry being removed, and the sudo rules that named it keep pointing at
+// a string, so this row is the only surviving description of what was granted.
+func netgroupDeleteDetails(before *ldap.Netgroup) map[string]interface{} {
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: labelWithID(before.Description, before.CN),
+	}
+	var changes []audit.FieldChange
+	for _, triple := range before.Triples {
+		changes = append(changes, audit.FieldChange{
+			Field: "Triple removed", Old: describeTripleChange(triple)})
+	}
+	for _, raw := range before.Malformed {
+		// Unreadable, but still deleted, so still recorded — verbatim.
+		changes = append(changes, audit.FieldChange{Field: "Unreadable triple removed", Old: raw})
+	}
+	if len(before.Members) > 0 {
+		changes = append(changes, audit.FieldChange{
+			Field: "Nested netgroups removed", Old: strings.Join(before.Members, ", ")})
+	}
+	if len(changes) > 0 {
+		details[audit.DetailsKeyChanges] = changes
+	}
+	return details
+}
+
+// describeTripleChange pairs the stored spelling with what it means. Reading an
+// audit diff is exactly the situation where "(,jdoe,)" and "(-,jdoe,)" are one
+// character apart and opposite in effect.
+func describeTripleChange(triple ldap.NetgroupTriple) string {
+	return triple.String() + " — " + triple.Describe()
+}
+
+func diffStrings(before, after []string, added, removed string) []audit.FieldChange {
+	var changes []audit.FieldChange
+	oldSet := make(map[string]struct{}, len(before))
+	for _, value := range before {
+		oldSet[value] = struct{}{}
+	}
+	newSet := make(map[string]struct{}, len(after))
+	for _, value := range after {
+		newSet[value] = struct{}{}
+	}
+	for _, value := range after {
+		if _, ok := oldSet[value]; !ok {
+			changes = append(changes, audit.FieldChange{Field: added, New: value})
+		}
+	}
+	for _, value := range before {
+		if _, ok := newSet[value]; !ok {
+			changes = append(changes, audit.FieldChange{Field: removed, Old: value})
+		}
+	}
+	return changes
 }
 
 // validateTriples refuses "(,,)", which is legal in the schema and almost

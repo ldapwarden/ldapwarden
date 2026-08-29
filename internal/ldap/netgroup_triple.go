@@ -71,6 +71,27 @@ func (t NetgroupTriple) String() string {
 
 // IsEmpty reports a triple with nothing in any slot: "(,,)" grants everything to
 // everyone, which is almost never meant and is worth refusing at the edge.
+// Describe renders the triple as prose, spelling out what each slot means.
+//
+// "(,jdoe,)" and "(-,jdoe,)" differ by one character and mean opposite things —
+// jdoe on every host, jdoe on no host. Anywhere a person has to compare two
+// triples, the stored spelling on its own is a trap, so this is what goes next
+// to it. Mirrors describeTriple in web/src/lib/netgroup.ts.
+func (t NetgroupTriple) Describe() string {
+	return netgroupSlotLabel(t.User, "any user", "no user") +
+		" on " + netgroupSlotLabel(t.Host, "any host", "no host")
+}
+
+func netgroupSlotLabel(value, open, none string) string {
+	switch value {
+	case "":
+		return open
+	case NetgroupWildcard:
+		return none
+	}
+	return value
+}
+
 func (t NetgroupTriple) IsEmpty() bool {
 	return t.Host == "" && t.User == "" && t.Domain == ""
 }

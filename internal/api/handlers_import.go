@@ -189,7 +189,10 @@ func (s *Server) handleImportNetgroups(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		plannedDN := "cn=" + create.CN + "," + s.ldapClient.NetgroupBaseDN()
-		details := map[string]interface{}{"cn": create.CN}
+		details := map[string]interface{}{
+			audit.DetailsKeyResourceName: labelWithID(create.Description, create.CN),
+			audit.DetailsKeyChanges:      netgroupCreateFields(create),
+		}
 		if err := s.auditLogger.Log(ctx, audit.ActionNetgroupCreate, audit.ResourceNetgroup, plannedDN, details); err != nil {
 			resp.Failed++
 			resp.Results = append(resp.Results, importFailed(res, "audit unavailable; row skipped"))
