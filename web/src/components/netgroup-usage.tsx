@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Network } from 'lucide-react'
-import { api, type Netgroup } from '@/lib/api'
+import { api, type Netgroup, type NetgroupsResponse } from '@/lib/api'
 import { Callout } from '@/components/ui/callout'
 import { netgroupKind, type NetgroupKind } from '@/lib/netgroup'
 
@@ -10,13 +10,49 @@ function namedNetgroups(values: string[]): string[] {
 }
 
 /**
- * Loads every netgroup a sudo rule names, on either side.
+ * What the directory says about one "+name" on a rule.
  *
- * One list request rather than one per name: there are few netgroups, the list
- * endpoint is already paged, and a rule naming three of them should not cost
- * three round trips.
+ * "absent" is a claim, not a default: it is only reached when the whole result
+ * set for that name was seen. Anything else — still loading, or a result the
+ * server had to cut short — is "unknown", because reporting a netgroup as
+ * missing when it merely sat outside the page would condemn a rule that works.
  */
-function useNamedNetgroups(sudoUser: string[], sudoHost: string[]) {
+type Resolution =
+  | { status: 'found'; netgroup: Netgroup }
+  | { status: 'absent' }
+  | { status: 'unknown' }
+
+/**
+ * Wide enough that an exact name is never crowded out in practice, since the
+ * search also matches descriptions, triples and nested names — and small enough
+ * that a rule naming a few netgroups stays cheap. When it is not enough the
+ * answer degrades to "unknown" rather than to a wrong one.
+ */
+const NAME_LOOKUP_LIMIT = 50
+
+function resolutionOf(name: string, page: NetgroupsResponse | undefined): Resolution {
+  if (!page) return { status: 'unknown' }
+
+  const exact = page.data.find((n) => n.cn === name)
+  if (exact) return { status: 'found', netgroup: exact }
+
+  // Nothing found only means "no such netgroup" if nothing was left out.
+  // `truncated` reports the server-side size limit; comparing against `total`
+  // catches the page being narrower than the match set.
+  const complete = page.truncated !== true && page.data.length >= page.total
+  return complete ? { status: 'absent' } : { status: 'unknown' }
+}
+
+/**
+ * Resolves every netgroup a sudo rule names, on either side.
+ *
+ * One search per name rather than one page of the whole collection: a name is
+ * looked up, not hunted for in whatever the first page happened to hold. The
+ * page-based version silently reported any netgroup past its limit as
+ * non-existent, which is the worst answer available here — it condemns a rule
+ * that works, on a screen whose whole job is to say when one does not.
+ */
+function useNetgroupResolutions(sudoUser: string[], sudoHost: string[]) {
   const names = [...new Set([...namedNetgroups(sudoUser), ...namedNetgroups(sudoHost)])]
 
   const { data: config } = useQuery({
@@ -25,19 +61,23 @@ function useNamedNetgroups(sudoUser: string[], sudoHost: string[]) {
   })
   const supported = config?.capabilities?.netgroupsSupported ?? false
 
-  const { data } = useQuery({
-    queryKey: ['netgroups', 'for-rule'],
-    queryFn: ({ signal }) => api.netgroups.list({ limit: 200 }, signal),
-    enabled: supported && names.length > 0,
+  const results = useQueries({
+    queries: names.map((name) => ({
+      queryKey: ['netgroups', 'by-name', name],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        api.netgroups.list({ search: name, limit: NAME_LOOKUP_LIMIT }, signal),
+      enabled: supported,
+    })),
   })
 
-  const byName = new Map((data?.data ?? []).map((n) => [n.cn, n]))
+  const byName = new Map<string, Resolution>()
+  names.forEach((name, i) => byName.set(name, resolutionOf(name, results[i]?.data)))
+
   return {
     supported,
     names,
-    // A name with nothing behind it: the netgroup was deleted, or never existed.
-    resolve: (name: string): Netgroup | undefined => byName.get(name),
-    loaded: !!data,
+    resolve: (name: string): Resolution => byName.get(name) ?? { status: 'unknown' },
+    settled: results.every((r) => !r.isPending),
   }
 }
 
@@ -59,19 +99,22 @@ export function NetgroupUsageWarnings({
   sudoUser: string[]
   sudoHost: string[]
 }) {
-  const { supported, names, resolve, loaded } = useNamedNetgroups(sudoUser, sudoHost)
-  if (!supported || names.length === 0 || !loaded) return null
+  const { supported, names, resolve, settled } = useNetgroupResolutions(sudoUser, sudoHost)
+  if (!supported || names.length === 0 || !settled) return null
 
   const problems: { name: string; kind: NetgroupKind | null; side: 'Users' | 'Hosts' }[] = []
 
   const check = (values: string[], side: 'Users' | 'Hosts', wanted: NetgroupKind) => {
     for (const name of namedNetgroups(values)) {
-      const netgroup = resolve(name)
-      if (!netgroup) {
+      const resolution = resolve(name)
+      // An unresolved name is not reported either way: it is the one state
+      // that carries no claim.
+      if (resolution.status === 'unknown') continue
+      if (resolution.status === 'absent') {
         problems.push({ name, kind: null, side })
         continue
       }
-      const kind = netgroupKind(netgroup)
+      const kind = netgroupKind(resolution.netgroup)
       // "empty" contributes through nesting only, so its own triples say
       // nothing about which side it belongs on.
       if (kind !== wanted && kind !== 'empty') {
@@ -133,27 +176,31 @@ export function NetgroupContents({
   sudoUser: string[]
   sudoHost: string[]
 }) {
-  const { supported, names } = useNamedNetgroups(sudoUser, sudoHost)
+  const { supported, names, resolve } = useNetgroupResolutions(sudoUser, sudoHost)
   if (!supported || names.length === 0) return null
 
   return (
     <div className="space-y-2">
       {namedNetgroups(sudoUser).map((name) => (
-        <NetgroupSummary key={`u:${name}`} name={name} side="users" />
+        <NetgroupSummary key={`u:${name}`} name={name} side="users" resolution={resolve(name)} />
       ))}
       {namedNetgroups(sudoHost).map((name) => (
-        <NetgroupSummary key={`h:${name}`} name={name} side="hosts" />
+        <NetgroupSummary key={`h:${name}`} name={name} side="hosts" resolution={resolve(name)} />
       ))}
     </div>
   )
 }
 
-function NetgroupSummary({ name, side }: { name: string; side: 'users' | 'hosts' }) {
-  const { data: list } = useQuery({
-    queryKey: ['netgroups', 'for-rule'],
-    queryFn: ({ signal }) => api.netgroups.list({ limit: 200 }, signal),
-  })
-  const netgroup = list?.data.find((n) => n.cn === name)
+function NetgroupSummary({
+  name,
+  side,
+  resolution,
+}: {
+  name: string
+  side: 'users' | 'hosts'
+  resolution: Resolution
+}) {
+  const netgroup = resolution.status === 'found' ? resolution.netgroup : undefined
 
   const { data: expansion } = useQuery({
     queryKey: ['netgroup', netgroup?.dn, 'expand'],
@@ -161,7 +208,8 @@ function NetgroupSummary({ name, side }: { name: string; side: 'users' | 'hosts'
     enabled: !!netgroup,
   })
 
-  if (!netgroup) return null
+  // Absence is stated by the warning above, in the terms that matter there.
+  if (resolution.status === 'absent') return null
 
   const members = side === 'users' ? expansion?.users : expansion?.hosts
   const open = side === 'users' ? expansion?.openUser : expansion?.openHost
@@ -176,7 +224,14 @@ function NetgroupSummary({ name, side }: { name: string; side: 'users' | 'hosts'
           {side === 'users' ? 'grants to' : 'restricts to'}
         </span>
       </p>
-      {!expansion ? (
+      {resolution.status === 'unknown' ? (
+        // Said rather than left blank: this is the state where the app does not
+        // know, and a silent card would read as "nothing to report".
+        <p className="text-xs text-muted-foreground">
+          Could not be looked up — this directory holds more netgroups than a single search
+          returns. Open the netgroup itself to see what it contains.
+        </p>
+      ) : !expansion ? (
         <p className="text-xs text-muted-foreground">Resolving…</p>
       ) : matchesAll ? (
         // The case a list of names cannot state: an open slot matches
@@ -185,9 +240,7 @@ function NetgroupSummary({ name, side }: { name: string; side: 'users' | 'hosts'
           every {side === 'users' ? 'user' : 'host'} — {open?.join(', ')} leave the slot open
         </p>
       ) : members && members.length > 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {members.map((m) => m.name).join(', ')}
-        </p>
+        <p className="text-xs text-muted-foreground">{members.map((m) => m.name).join(', ')}</p>
       ) : (
         <p className="text-xs text-muted-foreground">
           nothing — this netgroup names no {side === 'users' ? 'user' : 'host'}
