@@ -119,31 +119,20 @@ func (s *Server) handleGetUserNetgroups(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	all, err := s.ldapClient.NetgroupsContainingUser(user.UID)
+	// One call, because both halves of the answer come from one graph. Asking
+	// for the effective membership and the direct membership separately read the
+	// whole netgroup collection twice per request, to derive the second from a
+	// subset of what the first had already loaded.
+	memberships, err := s.ldapClient.NetgroupMembershipsForUser(user.UID)
 	if err != nil {
 		writeServerError(w, r, "list user netgroups", err)
 		return
 	}
-	direct, err := s.ldapClient.NetgroupsForUser(user.UID)
-	if err != nil {
-		writeServerError(w, r, "list user netgroups", err)
-		return
-	}
-	isDirect := make(map[string]bool, len(direct))
-	for _, netgroup := range direct {
-		isDirect[netgroup.CN] = true
+	if memberships == nil {
+		memberships = []ldap.NetgroupMembership{}
 	}
 
-	type membership struct {
-		CN     string `json:"cn"`
-		Direct bool   `json:"direct"`
-	}
-	items := make([]membership, 0, len(all))
-	for _, name := range all {
-		items = append(items, membership{CN: name, Direct: isDirect[name]})
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{"data": items})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"data": memberships})
 }
 
 func (s *Server) handleCreateNetgroup(w http.ResponseWriter, r *http.Request) {

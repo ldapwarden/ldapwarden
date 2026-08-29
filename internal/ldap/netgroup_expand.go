@@ -235,14 +235,27 @@ func sortedKeys(from map[string]bool) []string {
 	return keys
 }
 
-// containingUser returns the netgroups that effectively contain this user, by
-// name, including those that reach them only through nesting.
+// NetgroupMembership is one netgroup that reaches a user, and how it does.
+type NetgroupMembership struct {
+	CN string `json:"cn"`
+	// Direct is false when the user is reached only through a nesting parent.
+	// The distinction is not cosmetic: "+parent" in a sudo rule grants to
+	// everyone the parent absorbs, so an indirect membership still confers the
+	// privilege — but the parent is not the entry to edit to take it away.
+	Direct bool `json:"direct"`
+}
+
+// membershipsForUser returns every netgroup that reaches this user, marking
+// those whose own triples name them.
 //
-// It walks the nesting edges upwards from the netgroups whose own triples name
-// the user, rather than expanding every netgroup and testing each result: the
-// edge walk is linear in the graph, where the other is quadratic in the number
-// of netgroups.
-func (r *netgroupResolver) containingUser(uid string) ([]string, error) {
+// It walks the nesting edges upwards from the netgroups that name the user,
+// rather than expanding every netgroup and testing each result: the edge walk is
+// linear in the graph, where the other is quadratic in the number of netgroups.
+//
+// Both answers come out of one pass because they come out of one read. Asking
+// the client for them separately meant loading the whole collection twice to
+// compute the second from a subset of the first.
+func (r *netgroupResolver) membershipsForUser(uid string) ([]NetgroupMembership, error) {
 	if uid == "" {
 		return nil, nil
 	}
@@ -255,30 +268,48 @@ func (r *netgroupResolver) containingUser(uid string) ([]string, error) {
 	for name, netgroup := range r.byName {
 		for _, triple := range netgroup.Triples {
 			if triple.NamesUser(uid) {
-				if !found[name] {
-					found[name] = true
-					queue = append(queue, name)
-				}
+				// Direct: this netgroup's own triples name the user.
+				found[name] = true
+				queue = append(queue, name)
 				break
 			}
 		}
 	}
 
 	// Anything nesting a netgroup that contains the user contains them too. The
-	// `found` set doubles as the visited set, so a cycle terminates here as well.
+	// `found` map doubles as the visited set, so a cycle terminates here as well.
 	for len(queue) > 0 {
 		name := queue[0]
 		queue = queue[1:]
 		for _, parent := range r.parents[name] {
-			if found[parent] {
+			if _, seen := found[parent]; seen {
 				continue
 			}
-			found[parent] = true
+			found[parent] = false
 			queue = append(queue, parent)
 		}
 	}
 
-	return sortedKeys(found), nil
+	names := sortedKeys(found)
+	memberships := make([]NetgroupMembership, 0, len(names))
+	for _, name := range names {
+		memberships = append(memberships, NetgroupMembership{CN: name, Direct: found[name]})
+	}
+	return memberships, nil
+}
+
+// containingUser returns the netgroups that effectively contain this user, by
+// name, including those that reach them only through nesting.
+func (r *netgroupResolver) containingUser(uid string) ([]string, error) {
+	memberships, err := r.membershipsForUser(uid)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(memberships))
+	for _, membership := range memberships {
+		names = append(names, membership.CN)
+	}
+	return names, nil
 }
 
 // ExpandNetgroup resolves one netgroup, following nesting.
@@ -297,4 +328,10 @@ func (c *Client) ExpandNetgroup(cn string) (*NetgroupExpansion, error) {
 // the one sudo needs: "+ops-oncall" grants to everyone ops-oncall absorbs.
 func (c *Client) NetgroupsContainingUser(uid string) ([]string, error) {
 	return c.newNetgroupResolver().containingUser(uid)
+}
+
+// NetgroupMembershipsForUser is NetgroupsContainingUser with direct membership
+// distinguished, for the caller that needs both. One resolver, so one read.
+func (c *Client) NetgroupMembershipsForUser(uid string) ([]NetgroupMembership, error) {
+	return c.newNetgroupResolver().membershipsForUser(uid)
 }

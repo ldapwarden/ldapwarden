@@ -283,3 +283,78 @@ func TestIntegration_UserSudoRoles_ReportsWhyARoleApplies(t *testing.T) {
 		t.Errorf("the role granted through a netgroup is missing; got %v", page.Data)
 	}
 }
+
+// TestIntegration_User_Netgroups covers GET /users/{dn}/netgroups over HTTP.
+//
+// Both halves of the answer — every netgroup that reaches the user, and which of
+// them name them directly — come out of one graph walk. The distinction is what
+// the page acts on: an indirect membership still confers whatever "+parent"
+// grants, but the parent is not the entry to edit to take it away, so reporting
+// the two alike would send an operator to the wrong screen.
+func TestIntegration_User_Netgroups(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	user := createTestUser(t, env, token)
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete, userPath(user.DN), nil, token)
+	})
+
+	suffix := uniqueSuffix(t)
+	child := "ldapwarden-child-" + suffix
+	parent := "ldapwarden-parent-" + suffix
+	unrelated := "ldapwarden-other-" + suffix
+	t.Cleanup(func() {
+		for _, cn := range []string{child, parent, unrelated} {
+			_ = env.LDAP.DeleteNetgroup("cn=" + cn + "," + env.LDAP.NetgroupBaseDN())
+		}
+	})
+
+	for _, req := range []ldap.CreateNetgroupRequest{
+		{CN: child, Triples: []ldap.NetgroupTriple{{User: user.UID}}},
+		{CN: parent, Members: []string{child}},
+		// Names the uid in the *host* slot, which is not membership.
+		{CN: unrelated, Triples: []ldap.NetgroupTriple{{Host: user.UID}}},
+	} {
+		if _, err := env.LDAP.CreateNetgroup(req); err != nil {
+			t.Fatalf("create netgroup %q: %v", req.CN, err)
+		}
+	}
+
+	resp, body := doJSON(t, env, http.MethodGet, userPath(user.DN)+"/netgroups", nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get user netgroups: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	// Read as raw JSON: the browser validates this with a Zod schema, so the
+	// field names are part of the contract, not an implementation detail.
+	var page struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		t.Fatalf("unmarshal: %v (body=%s)", err, body)
+	}
+
+	direct := map[string]bool{}
+	for _, item := range page.Data {
+		cn, ok := item["cn"].(string)
+		if !ok {
+			t.Fatalf("an entry has no %q field: %v", "cn", item)
+		}
+		flag, ok := item["direct"].(bool)
+		if !ok {
+			t.Fatalf("entry %q has no %q field: %v", cn, "direct", item)
+		}
+		direct[cn] = flag
+	}
+
+	if got, ok := direct[child]; !ok || !got {
+		t.Errorf("%q direct = %v (present %v), want true", child, got, ok)
+	}
+	if got, ok := direct[parent]; !ok || got {
+		t.Errorf("%q direct = %v (present %v), want present and false", parent, got, ok)
+	}
+	if _, ok := direct[unrelated]; ok {
+		t.Errorf("%q is listed, but it names the uid in the host slot", unrelated)
+	}
+}

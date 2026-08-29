@@ -351,3 +351,51 @@ func itoa(n int) string {
 	}
 	return string(digits)
 }
+
+// TestMembershipsForUserMarksDirect covers the flag the sudo grant depends on:
+// an indirect membership still confers what "+parent" grants, but the parent is
+// not the entry to edit to take it away, and the two must not be reported alike.
+func TestMembershipsForUserMarksDirect(t *testing.T) {
+	r := resolverFor(
+		ng("ops-oncall", nil, "ops"),
+		ng("ops", []NetgroupTriple{user("jdoe")}),
+		// Also names jdoe directly, so a netgroup can be both nested and direct.
+		ng("oncall-extra", []NetgroupTriple{user("jdoe")}, "ops"),
+		ng("unrelated", []NetgroupTriple{user("carol")}),
+		// The host slot must not count as membership.
+		ng("hosts", []NetgroupTriple{host("jdoe")}),
+	)
+
+	got, err := r.membershipsForUser("jdoe")
+	if err != nil {
+		t.Fatalf("membershipsForUser: %v", err)
+	}
+
+	want := map[string]bool{"ops": true, "oncall-extra": true, "ops-oncall": false}
+	if len(got) != len(want) {
+		t.Fatalf("memberships = %+v, want %d entries", got, len(want))
+	}
+	for _, membership := range got {
+		direct, ok := want[membership.CN]
+		if !ok {
+			t.Errorf("unexpected netgroup %q", membership.CN)
+			continue
+		}
+		if membership.Direct != direct {
+			t.Errorf("%q Direct = %v, want %v", membership.CN, membership.Direct, direct)
+		}
+	}
+
+	// Sorted, because the UI lists them as they arrive.
+	for i := 1; i < len(got); i++ {
+		if got[i-1].CN > got[i].CN {
+			t.Errorf("memberships are not sorted: %v then %v", got[i-1].CN, got[i].CN)
+		}
+	}
+
+	if got, err = r.membershipsForUser("nobody"); err != nil {
+		t.Fatalf("membershipsForUser: %v", err)
+	} else if len(got) != 0 {
+		t.Errorf("membershipsForUser(nobody) = %+v, want none", got)
+	}
+}
