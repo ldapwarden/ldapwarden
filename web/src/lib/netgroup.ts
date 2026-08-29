@@ -146,3 +146,27 @@ export function namedNetgroups(values: string[]): string[] {
  * file is submitted.
  */
 export const NETGROUP_TRIPLE_TEXT = /^\([^,()]*,[^,()]*,[^,()]*\)$/
+
+/**
+ * The modules assumed when the config endpoint is unreadable — a non-admin
+ * session, or a page rendered before it answers.
+ *
+ * It has to match the backend default in internal/config/config.go. Three
+ * components each carried their own copy, and all three were left behind when
+ * netgroups was added to that default, so a non-admin saw no Netgroups tab on a
+ * server that had it enabled.
+ */
+export const DEFAULT_MODULES = ['users', 'groups', 'sudo', 'policies', 'netgroups']
+
+/**
+ * Whether the netgroup UI should appear at all.
+ *
+ * Two independent conditions: the operator enabled the module, and the directory
+ * can actually hold netgroups. Without the second the API answers 501, so the UI
+ * would lead nowhere; without the first the operator has said they do not manage
+ * netgroups here, and showing the pickers and panels anyway makes the flag a
+ * lie — which is what it was, since it only ever hid the navigation entry.
+ */
+export function netgroupsEnabled(modules: readonly string[], supported: boolean): boolean {
+  return supported && modules.includes('netgroups')
+}

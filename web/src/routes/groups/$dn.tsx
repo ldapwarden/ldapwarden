@@ -3,6 +3,7 @@ import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { DEFAULT_MODULES } from '@/lib/netgroup'
 import { useAuth } from '@/lib/auth'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useSyncedForm } from '@/lib/form-sync'
@@ -97,7 +98,7 @@ function GroupDetailPage() {
     if (Array.isArray(modules)) {
       return new Set(modules.map(m => m.toLowerCase()))
     }
-    return new Set(['users', 'groups', 'sudo', 'policies'])
+    return new Set(DEFAULT_MODULES)
   }, [config])
 
   const showPosixGroupTabs = enabledObjects.has('posixgroup')

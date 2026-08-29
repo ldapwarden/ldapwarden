@@ -3,6 +3,8 @@ import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-rout
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, userPhotoUrl, type User as UserDetail } from '@/lib/api'
+import { DEFAULT_MODULES } from '@/lib/netgroup'
+import { useNetgroupsEnabled } from '@/lib/use-netgroups'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, expiryInstantTitle, formatExpiryDate, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
 import { hasLapsedLock, isLocked, lockoutLiftsAt } from '@/lib/account'
@@ -106,7 +108,7 @@ function UserDetailPage() {
     if (Array.isArray(modules)) {
       return new Set(modules.map(m => m.toLowerCase()))
     }
-    return new Set(['users', 'groups', 'sudo', 'policies'])
+    return new Set(DEFAULT_MODULES)
   }, [config])
 
   const showIdentityTab = enabledObjects.has('inetorgperson')
@@ -1737,13 +1739,10 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
   })
 
   // Netgroups reaching this user. Skipped where the directory has no
-  // nisNetgroup: the endpoint answers 501 and an empty card would suggest the
-  // user is in none.
-  const { data: config } = useQuery({
-    queryKey: ['admin', 'config'],
-    queryFn: ({ signal }) => api.admin.getConfig(signal),
-  })
-  const netgroupsSupported = config?.capabilities?.netgroupsSupported ?? false
+  // nisNetgroup — the endpoint answers 501 and an empty card would suggest the
+  // user is in none — and where the module is off, since there would be no
+  // Netgroups page to open from here.
+  const netgroupsSupported = useNetgroupsEnabled()
   const { data: userNetgroups } = useQuery({
     queryKey: ['user', dn, 'netgroups'],
     queryFn: ({ signal }) => api.users.getNetgroups(dn, signal),

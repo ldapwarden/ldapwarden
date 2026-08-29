@@ -131,3 +131,28 @@ func TestValidateSecrets_ConstMatchesDefault(t *testing.T) {
 		t.Errorf("Load() produced bind pass %q, want default %q", cfg.LDAP.BindPass, defaultLDAPBindPass)
 	}
 }
+
+// TestDefaultModules pins the module list a deployment gets when
+// LDAPWARDEN_MODULES is unset.
+//
+// The frontend carries the same list, as DEFAULT_MODULES in
+// web/src/lib/netgroup.ts, for the sessions that cannot read the config
+// endpoint. The two drifted apart once — netgroups was added here and the
+// frontend copies were left behind, so a non-admin lost a tab on a server that
+// had it enabled, silently. Both sides are pinned so changing one fails until
+// the other follows.
+func TestDefaultModules(t *testing.T) {
+	t.Setenv("LDAPWARDEN_MODULES", "")
+
+	cfg := Load()
+	want := []string{"users", "groups", "sudo", "policies", "netgroups"}
+	if len(cfg.App.Modules) != len(want) {
+		t.Fatalf("default modules = %v, want %v", cfg.App.Modules, want)
+	}
+	for i, module := range want {
+		if cfg.App.Modules[i] != module {
+			t.Errorf("default modules = %v, want %v", cfg.App.Modules, want)
+			break
+		}
+	}
+}

@@ -165,7 +165,7 @@ func Load() *Config {
 			AdminGroup:        getEnv("LDAPWARDEN_ADMIN_GROUP", "admins"),
 			Organization:      getEnv("LDAPWARDEN_ORGANIZATION", "Example Organization"),
 			PublicURL:         getEnv("LDAPWARDEN_PUBLIC_URL", "http://localhost:8000"),
-			Modules:           getEnvStringSlice("LDAPWARDEN_MODULES", []string{"users", "groups", "sudo", "policies"}),
+			Modules:           getEnvStringSlice("LDAPWARDEN_MODULES", []string{"users", "groups", "sudo", "policies", "netgroups"}),
 			UsersObjects:      getEnvStringSlice("LDAPWARDEN_USERS_OBJECTS", []string{"inetOrgPerson", "posixAccount", "ldapPublicKey", "shadowAccount"}),
 			GroupsObjects:     getEnvStringSlice("LDAPWARDEN_GROUPS_OBJECTS", []string{"posixGroup"}),
 			AuditNotifyEmails: getEnvStringSlice("LDAPWARDEN_AUDIT_NOTIFY_EMAILS", nil),

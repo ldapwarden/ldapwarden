@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Netgroup, NetgroupExpansion, NetgroupsResponse, NetgroupTriple } from './api'
 import {
+  DEFAULT_MODULES,
   NETGROUP_NO_MATCH,
   NETGROUP_TRIPLE_TEXT,
   describeTriple,
@@ -10,6 +11,7 @@ import {
   namedNetgroups,
   netgroupKind,
   netgroupSideFit,
+  netgroupsEnabled,
   resolveNetgroupByName,
 } from './netgroup'
 
@@ -181,5 +183,22 @@ describe('matchesAnyHost / matchesAnyUser', () => {
     expect(matchesAnyHost(expansion({ hosts: [] }))).toBe(false)
     expect(matchesAnyUser(expansion({ users: [], openUser: ['ops'] }))).toBe(true)
     expect(matchesAnyUser(expansion({ users: [] }))).toBe(false)
+  })
+})
+
+describe('netgroupsEnabled', () => {
+  it('needs both the module and the directory', () => {
+    expect(netgroupsEnabled(['users', 'netgroups'], true)).toBe(true)
+    expect(netgroupsEnabled(['users', 'netgroups'], false)).toBe(false)
+    expect(netgroupsEnabled(['users'], true)).toBe(false)
+  })
+})
+
+describe('DEFAULT_MODULES', () => {
+  // The fallback used when the config endpoint is unreadable. It drifted from
+  // the backend default once already, and the symptom was invisible: a
+  // non-admin session simply lost a tab.
+  it('matches the backend default in internal/config/config.go', () => {
+    expect(DEFAULT_MODULES).toEqual(['users', 'groups', 'sudo', 'policies', 'netgroups'])
   })
 })

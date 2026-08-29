@@ -1,5 +1,6 @@
 import { createRootRouteWithContext, Outlet, Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { encodeDN } from '@/lib/utils'
+import { DEFAULT_MODULES } from '@/lib/netgroup'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { Toaster, toast } from 'sonner'
@@ -108,7 +109,7 @@ function RootComponent() {
       return modulesValue as string[]
     }
     // Default modules if config not loaded (for non-admin users)
-    return ['users', 'groups', 'sudo', 'policies']
+    return DEFAULT_MODULES
   }, [config])
 
   // The section links, filtered by enabled module and permission. Built once so

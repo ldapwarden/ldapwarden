@@ -206,7 +206,7 @@ LDAP Warden is configured via environment variables:
 | `LDAPWARDEN_ADMIN_GROUP` | LDAP group that grants admin privileges | `admins` |
 | `LDAPWARDEN_ORGANIZATION` | Organization name (for emails) | `Example Organization` |
 | `LDAPWARDEN_PUBLIC_URL` | Public URL (for password reset links) | `http://localhost:8000` |
-| `LDAPWARDEN_MODULES` | Comma-separated list of enabled modules (tabs) | `users,groups,sudo,policies` |
+| `LDAPWARDEN_MODULES` | Comma-separated list of enabled modules (tabs) | `users,groups,sudo,policies,netgroups` |
 | `LDAPWARDEN_USERS_OBJECTS` | LDAP objectClasses for users | `inetOrgPerson,posixAccount,ldapPublicKey,shadowAccount` |
 | `LDAPWARDEN_GROUPS_OBJECTS` | LDAP objectClasses for groups | `posixGroup` |
 | `LDAPWARDEN_AUDIT_NOTIFY_EMAILS` | Comma-separated recipients that receive an email for every UI modification (audit/traceability). Empty disables. | (empty) |
@@ -267,8 +267,8 @@ LDAP Warden allows you to customize which features are visible based on your LDA
 - `groups` — Group management
 - `sudo` — Sudo roles management (requires sudoers schema)
 - `policies` — Password policies (requires ppolicy overlay)
-- `netgroups` — Netgroup management (requires `nis.schema`); **not enabled by
-  default**, add it to the list to get the tab
+- `netgroups` — Netgroup management (requires `nis.schema`); the tab hides
+  itself on a directory that does not declare `nisNetgroup`
 
 > **Directory schema prerequisites.** The `sudo` and `policies` modules need
 > the corresponding schema loaded **on your LDAP server** — the bundled compose

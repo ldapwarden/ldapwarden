@@ -11,6 +11,7 @@ import {
   type NetgroupResolution,
   type NetgroupSide,
 } from '@/lib/netgroup'
+import { useNetgroupsEnabled } from '@/lib/use-netgroups'
 
 /**
  * Wide enough that an exact name is never crowded out in practice, since the
@@ -32,11 +33,7 @@ const NAME_LOOKUP_LIMIT = 50
 function useNetgroupResolutions(sudoUser: string[], sudoHost: string[]) {
   const names = [...new Set([...namedNetgroups(sudoUser), ...namedNetgroups(sudoHost)])]
 
-  const { data: config } = useQuery({
-    queryKey: ['admin', 'config'],
-    queryFn: ({ signal }) => api.admin.getConfig(signal),
-  })
-  const supported = config?.capabilities?.netgroupsSupported ?? false
+  const supported = useNetgroupsEnabled()
 
   const results = useQueries({
     queries: names.map((name) => ({

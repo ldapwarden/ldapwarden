@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Network, AlertTriangle, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -7,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
+import { useNetgroupsEnabled } from '@/lib/use-netgroups'
 import { netgroupKind, netgroupSideFit, type NetgroupKind, type NetgroupSide } from '@/lib/netgroup'
 import {
   Dialog,
@@ -45,13 +45,10 @@ export function NetgroupPicker({
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
 
-  // Only ask once the directory is known to hold netgroups: without nis.schema
-  // the endpoint answers 501, and offering the button would promise nothing.
-  const { data: config } = useQuery({
-    queryKey: ['admin', 'config'],
-    queryFn: ({ signal }) => api.admin.getConfig(signal),
-  })
-  const supported = config?.capabilities?.netgroupsSupported ?? false
+  // Only offer the button where netgroups are actually managed: without
+  // nis.schema the endpoint answers 501, and with the module off the operator
+  // has said this is not where they are managed.
+  const supported = useNetgroupsEnabled()
 
   const picker = usePickerSearch(['netgroups', 'picker', side], api.netgroups.list, {
     sort: 'cn',

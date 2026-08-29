@@ -29,7 +29,7 @@ services:
       LDAPWARDEN_ADMIN_GROUP: "admins"
       LDAPWARDEN_ORGANIZATION: "Example Organization"
       LDAPWARDEN_PUBLIC_URL: "http://localhost:8000"
-      LDAPWARDEN_MODULES: "users,groups,sudo,policies"
+      LDAPWARDEN_MODULES: "users,groups,sudo,policies,netgroups"
       LDAPWARDEN_USERS_OBJECTS: "inetOrgPerson,posixAccount,ldapPublicKey,sambaSamAccount,shadowAccount"
       LDAPWARDEN_GROUPS_OBJECTS: "posixGroup,sambaGroupMapping"
       # Mail configuration (use host.docker.internal to reach host from container)
