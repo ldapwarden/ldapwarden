@@ -196,6 +196,7 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/", s.handleListNetgroups)
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}", s.handleGetNetgroup)
 				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}/expand", s.handleExpandNetgroup)
+				r.With(s.requirePermission(rbac.PermGroupsRead)).Get("/{dn}/sudo-roles", s.handleGetNetgroupSudoRoles)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/", s.handleCreateNetgroup)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Post("/import", s.handleImportNetgroups)
 				r.With(s.requirePermission(rbac.PermGroupsWrite)).Put("/{dn}", s.handleUpdateNetgroup)

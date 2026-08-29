@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { MultiValueField } from '@/components/ui/multi-value-field'
 import { TripleEditor } from '@/components/netgroup-triples'
 import { NetgroupExpansionPanel } from '@/components/netgroup-expansion'
+import { NetgroupSudoUsage } from '@/components/netgroup-sudo-usage'
 import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react'
 import { useState } from 'react'
 
@@ -52,6 +53,14 @@ function NetgroupDetailPage() {
   const { data: expansion } = useQuery({
     queryKey: ['netgroup', dn, 'expand'],
     queryFn: ({ signal }) => api.netgroups.expand(dn, signal),
+    enabled: !!netgroup,
+  })
+
+  // Which sudo rules point here. Its own query, and not gated on anything the
+  // form does: the answer comes from the sudo tree, not from this entry.
+  const { data: sudoRoles, isPending: sudoRolesPending } = useQuery({
+    queryKey: ['netgroup', dn, 'sudo-roles'],
+    queryFn: ({ signal }) => api.netgroups.getSudoRoles(dn, signal),
     enabled: !!netgroup,
   })
 
@@ -250,6 +259,14 @@ function NetgroupDetailPage() {
 
         <div className="space-y-4">
           <NetgroupExpansionPanel expansion={expansion} />
+
+          {netgroup && (
+            <NetgroupSudoUsage
+              netgroup={netgroup}
+              roles={sudoRoles?.data}
+              loading={sudoRolesPending}
+            />
+          )}
 
           {canDelete && (
             <Card className="border-destructive/50">

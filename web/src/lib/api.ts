@@ -1074,6 +1074,12 @@ export const api = {
     expand: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/netgroups/${encodeURIComponent(dn)}/expand`, {}, NetgroupExpansionSchema, signal),
 
+    // The sudo rules naming "+cn", on either side. The reference is a bare
+    // string the directory does not track, so this search is the only way back
+    // from a netgroup to what it grants.
+    getSudoRoles: (dn: string, signal?: AbortSignal) =>
+      fetchApi(`/netgroups/${encodeURIComponent(dn)}/sudo-roles`, {}, SudoRolesResponseSchema, signal),
+
     create: (data: {
       cn: string
       description?: string

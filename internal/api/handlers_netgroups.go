@@ -136,6 +136,48 @@ func (s *Server) handleGetUserNetgroups(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"data": memberships})
 }
 
+// handleGetNetgroupSudoRoles lists the sudo rules that name this netgroup.
+//
+// The reverse of what the sudo page shows. A netgroup exists to be referenced,
+// but the reference is a bare string in someone else's entry and the directory
+// does not track it, so from the netgroup there was no way to see what it
+// granted — the question only surfaced at delete time, in a warning. This is the
+// same read, asked before it is too late to matter.
+//
+// Governed by groups:read, like the netgroup itself and like the equivalent
+// route on a group. Writing sudo takes users:* (see the /sudo-roles block in
+// routes.go); reading which rules point here does not widen anything.
+func (s *Server) handleGetNetgroupSudoRoles(w http.ResponseWriter, r *http.Request) {
+	if !s.netgroupsAvailable(w) {
+		return
+	}
+	dn, err := resolveDN(r, s.ldapClient.NetgroupBaseDN())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	netgroup, err := s.ldapClient.GetNetgroup(dn)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "netgroup not found")
+		return
+	}
+
+	roles, err := s.ldapClient.GetNetgroupSudoRoles(netgroup.CN)
+	if err != nil {
+		writeServerError(w, r, "get netgroup sudo roles", err)
+		return
+	}
+
+	// The same shape as the user and group equivalents, so the client validates
+	// it with the schema it already has. Which side each rule names it on is
+	// derivable from sudoUser and sudoHost, which are in the payload.
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data":  roles,
+		"total": len(roles),
+	})
+}
+
 func (s *Server) handleCreateNetgroup(w http.ResponseWriter, r *http.Request) {
 	if !s.netgroupsAvailable(w) {
 		return

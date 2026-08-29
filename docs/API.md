@@ -1095,6 +1095,23 @@ Resolves `memberNisNetgroup` and answers with what the netgroup contributes.
 A separate endpoint rather than a field on the entry, because expanding reads
 the whole collection.
 
+### Sudo roles naming a netgroup
+
+```http
+GET /api/netgroups/{dn}/sudo-roles
+```
+
+**Required permission:** `groups:read`
+
+The reverse lookup. A sudo rule names a netgroup as `+name`, in `sudoUser` or in
+`sudoHost`, and nothing in the directory ties that string back to the entry — so
+this searches the sudo tree for both spellings. Answers in the same shape as
+`/users/{dn}/sudo-roles` and `/groups/{dn}/sudo-roles`.
+
+Which side a rule names it on is left in the payload rather than summarised:
+`sudoUser` reads only the netgroup's user slots and `sudoHost` only its host
+slots, so the side is what decides whether the reference does anything at all.
+
 ### Create Netgroup
 
 ```http

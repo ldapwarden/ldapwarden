@@ -588,3 +588,81 @@ func auditChangesFor(t *testing.T, env *testEnv, token, action, dn string) []aud
 	t.Fatalf("no %q audit row for %q (body=%s)", action, dn, body)
 	return nil
 }
+
+// TestIntegration_Netgroups_SudoRoles covers the reverse lookup: from a
+// netgroup, which sudo rules name it.
+//
+// The reference is a bare "+name" in a sudoRole entry and the directory does not
+// track it, so this search is the only path back. It has to find the reference
+// on both sides, because "+ops" in sudoUser and in sudoHost are the same string
+// and mean different things — and it must not be fooled by a rule that merely
+// names a *user* of that name, without the "+".
+func TestIntegration_Netgroups_SudoRoles(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	suffix := uniqueSuffix(t)
+	cn := "ldapwarden-used-" + suffix
+	dn := "cn=" + cn + "," + env.LDAP.NetgroupBaseDN()
+	if _, err := env.LDAP.CreateNetgroup(ldap.CreateNetgroupRequest{
+		CN:      cn,
+		Triples: []ldap.NetgroupTriple{{User: "jdoe"}},
+	}); err != nil {
+		t.Fatalf("create netgroup: %v", err)
+	}
+	t.Cleanup(func() { _ = env.LDAP.DeleteNetgroup(dn) })
+
+	// Named on the user side, named on the host side, and a decoy naming a plain
+	// user whose uid happens to equal the netgroup's cn.
+	inUsers := createSudoRole(t, env, token, "ldapwarden-su-"+suffix, []string{"+" + cn})
+	inHosts := createSudoRole(t, env, token, "ldapwarden-sh-"+suffix, []string{"jdoe"})
+	resp, body := doJSON(t, env, http.MethodPut, sudoPath(inHosts.DN), map[string]any{
+		"sudoHost": []string{"+" + cn},
+	}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("put sudoHost: status=%d body=%s", resp.StatusCode, body)
+	}
+	decoy := createSudoRole(t, env, token, "ldapwarden-sd-"+suffix, []string{cn})
+
+	resp, body = doJSON(t, env, http.MethodGet, netgroupPath(dn)+"/sudo-roles", nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get netgroup sudo roles: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	var page struct {
+		Data  []ldap.SudoRole `json:"data"`
+		Total int             `json:"total"`
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		t.Fatalf("unmarshal: %v (body=%s)", err, body)
+	}
+
+	found := make([]string, 0, len(page.Data))
+	for _, role := range page.Data {
+		found = append(found, role.CN)
+	}
+	if !slices.Contains(found, inUsers.CN) {
+		t.Errorf("the rule naming +%s in sudoUser is missing: %v", cn, found)
+	}
+	if !slices.Contains(found, inHosts.CN) {
+		t.Errorf("the rule naming +%s in sudoHost is missing: %v", cn, found)
+	}
+	if slices.Contains(found, decoy.CN) {
+		t.Errorf("a rule naming the plain user %q was returned; only \"+%s\" is a netgroup reference",
+			cn, cn)
+	}
+	if page.Total != len(page.Data) {
+		t.Errorf("total=%d but %d rules returned", page.Total, len(page.Data))
+	}
+
+	// The side has to be derivable from the payload: the UI reads sudoUser and
+	// sudoHost to say which half of the netgroup a rule actually applies.
+	for _, role := range page.Data {
+		if role.CN != inUsers.CN {
+			continue
+		}
+		if !slices.Contains(role.SudoUser, "+"+cn) {
+			t.Errorf("sudoUser did not survive serialisation: %+v", role)
+		}
+	}
+}

@@ -75,6 +75,7 @@ parameters the list endpoints accept.
 - `GET/POST/PUT/DELETE /api/netgroups` - Netgroup CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
 - `POST /api/netgroups/import` - Bulk create; triples arrive as `"(host,user,domain)"` text and are parsed server-side
 - `GET /api/netgroups/:dn/expand` - Effective contents, nesting followed
+- `GET /api/netgroups/:dn/sudo-roles` - Sudo rules naming `+cn`, on either side
 - `GET /api/users/:dn/netgroups` - Netgroups reaching a user, direct or nested
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
