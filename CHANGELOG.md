@@ -285,6 +285,16 @@ authenticate. The admin page now says what it knows, and
 
 ### Fixed
 
+- **Adding a host to a netgroup answered `500`** whenever that netgroup nested no
+  other netgroup — which is most of them. The page posts every field it manages,
+  so `members` arrived as an empty list, and the update asked the directory to
+  *delete* an attribute the entry never had. LDAP calls that `noSuchAttribute`,
+  result code 16. The same defect hit groups: clearing a description a group did
+  not have, or emptying an already-empty membership. Clearing an attribute is now
+  a replace with no values, which removes it if present and does nothing if not,
+  so no caller has to know whether it is there. Users, sudo roles and password
+  policies already guarded against it by checking the current entry — the two that
+  did not were the ones written later.
 - **Two accounts could be created on the same `uidNumber`**, and two groups on the
   same `gidNumber`. Nothing checked whether a number was in use — `validatePOSIXID`
   tests only the range — and OpenLDAP enforces no uniqueness on these attributes

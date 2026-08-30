@@ -181,3 +181,50 @@ func TestIntegration_Groups_Rename_RejectsDuplicateAndBadNames(t *testing.T) {
 		t.Errorf("the group was renamed by a request that should have been refused: %v", err)
 	}
 }
+
+// TestIntegration_Groups_SaveWithNothingToClear is the group half of the same
+// defect: an update that clears an attribute the entry never had asked the
+// directory to delete it, which is result code 16 and answered 500.
+func TestIntegration_Groups_SaveWithNothingToClear(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	group := createTestGroup(t, env, token)
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete, groupPath(group.DN), nil, token)
+	})
+
+	for _, tc := range []struct {
+		name string
+		body map[string]any
+	}{
+		{name: "description it does not have", body: map[string]any{"description": ""}},
+		{name: "members it does not have", body: map[string]any{"memberUid": []string{}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, body := doJSON(t, env, http.MethodPut, groupPath(group.DN), tc.body, token)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status=%d body=%s", resp.StatusCode, body)
+			}
+		})
+	}
+
+	// Clearing something present still removes it.
+	if _, err := env.LDAP.UpdateGroup(group.DN, ldap.UpdateGroupRequest{
+		MemberUIDs: []string{"jdoe"},
+	}); err != nil {
+		t.Fatalf("add a member: %v", err)
+	}
+	resp, body := doJSON(t, env, http.MethodPut, groupPath(group.DN),
+		map[string]any{"memberUid": []string{}}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("clearing a real membership: status=%d body=%s", resp.StatusCode, body)
+	}
+	stored, err := env.LDAP.GetGroup(group.DN)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(stored.MemberUIDs) != 0 {
+		t.Errorf("members survived being cleared: %v", stored.MemberUIDs)
+	}
+}

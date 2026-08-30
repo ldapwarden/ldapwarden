@@ -784,3 +784,68 @@ func TestIntegration_MissingBase_IsNotAnInternalError(t *testing.T) {
 		})
 	}
 }
+
+// TestIntegration_Netgroups_SaveWithNoNestedNames is the regression for the
+// commonest possible edit failing outright: adding a host to a netgroup that
+// nests nothing answered 500.
+//
+// The form posts every field it manages, so `members` arrives as an empty list
+// on a netgroup that has no memberNisNetgroup — and the update asked the
+// directory to *delete* an attribute that was never there. LDAP calls that
+// noSuchAttribute, result code 16, and it fell through to a generic internal
+// error naming nothing.
+func TestIntegration_Netgroups_SaveWithNoNestedNames(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	cn := "ldapwarden-nonested-" + uniqueSuffix(t)
+	dn := "cn=" + cn + "," + env.LDAP.NetgroupBaseDN()
+	t.Cleanup(func() { _ = env.LDAP.DeleteNetgroup(dn) })
+
+	// No members, and no description either: both are attributes a later save
+	// will be asked to clear.
+	if _, err := env.LDAP.CreateNetgroup(ldap.CreateNetgroupRequest{
+		CN:      cn,
+		Triples: []ldap.NetgroupTriple{{Host: "web01"}},
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Exactly what the page sends when two hosts are added.
+	resp, body := doJSON(t, env, http.MethodPut, netgroupPath(dn), map[string]any{
+		"description": "",
+		"triples": []map[string]string{
+			{"host": "web01"}, {"host": "web02"}, {"host": "web03"},
+		},
+		"members": []string{},
+	}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("adding hosts to a netgroup that nests nothing: status=%d body=%s",
+			resp.StatusCode, body)
+	}
+
+	stored, err := env.LDAP.GetNetgroup(dn)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(stored.Triples) != 3 {
+		t.Errorf("stored %d triples, want 3: %+v", len(stored.Triples), stored.Triples)
+	}
+
+	// And clearing something that *is* there still clears it — the fix must not
+	// have turned a removal into a no-op.
+	resp, body = doJSON(t, env, http.MethodPut, netgroupPath(dn), map[string]any{
+		"triples": []map[string]string{},
+		"members": []string{},
+	}, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("clearing the triples: status=%d body=%s", resp.StatusCode, body)
+	}
+	stored, err = env.LDAP.GetNetgroup(dn)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(stored.Triples) != 0 {
+		t.Errorf("triples survived being cleared: %+v", stored.Triples)
+	}
+}

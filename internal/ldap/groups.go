@@ -175,22 +175,16 @@ func (c *Client) UpdateGroup(dn string, req UpdateGroupRequest) (*Group, error) 
 	modReq := ldap.NewModifyRequest(dn, nil)
 	hasChanges := false
 
+	// Replace, never Delete: see clearing. Clearing a description a group never
+	// had, or emptying a membership that was already empty, asked the directory
+	// to remove an absent attribute and came back as an internal server error.
 	if req.Description != nil {
-		if *req.Description == "" {
-			// LDAP doesn't allow empty values, delete the attribute instead
-			modReq.Delete("description", nil)
-		} else {
-			modReq.Replace("description", []string{*req.Description})
-		}
+		modReq.Replace("description", clearing(*req.Description))
 		hasChanges = true
 	}
 
 	if req.MemberUIDs != nil {
-		if len(req.MemberUIDs) > 0 {
-			modReq.Replace("memberUid", req.MemberUIDs)
-		} else {
-			modReq.Delete("memberUid", nil)
-		}
+		modReq.Replace("memberUid", clearing(req.MemberUIDs...))
 		hasChanges = true
 	}
 

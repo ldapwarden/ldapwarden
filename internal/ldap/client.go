@@ -502,3 +502,26 @@ func (c *Client) NextGID() (int, error) {
 
 	return nextGID, nil
 }
+
+// clearing is the value set for a Modify that removes an attribute.
+//
+// LDAP has two ways to say "this attribute should be gone", and only one of them
+// is safe to send without knowing whether it is there. A delete of an absent
+// attribute is an error — noSuchAttribute, result code 16 — while a replace with
+// no values removes it if present and does nothing if not (RFC 4511 §4.6).
+//
+// The difference matters because a form sends every field it manages, including
+// the empty ones: saving a netgroup that had no nested netgroups, or a group with
+// no description, asked the directory to delete an attribute that was never
+// there and came back as an internal server error. Passing the values through
+// this helper makes the caller's intent — "make it this, which may be nothing" —
+// the thing that is sent.
+func clearing(values ...string) []string {
+	kept := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != "" {
+			kept = append(kept, value)
+		}
+	}
+	return kept
+}

@@ -277,31 +277,24 @@ func (c *Client) UpdateNetgroup(dn string, req UpdateNetgroupRequest) (*Netgroup
 	modReq := ldap.NewModifyRequest(dn, nil)
 	changed := false
 
+	// Replace, never Delete: see clearing. The netgroup form posts triples and
+	// nested names on every save, so an entry with none of one of them asked the
+	// directory to delete an attribute it did not have — which is result code 16,
+	// and surfaced as an internal server error on the ordinary act of adding a
+	// host to a netgroup that nests nothing.
 	if req.Description != nil {
-		if *req.Description == "" {
-			modReq.Delete("description", nil)
-		} else {
-			modReq.Replace("description", []string{*req.Description})
-		}
+		modReq.Replace("description", clearing(*req.Description))
 		changed = true
 	}
 
 	if req.Triples != nil || len(req.KeepMalformed) > 0 {
 		values := append(formatTriples(req.Triples), req.KeepMalformed...)
-		if len(values) == 0 {
-			modReq.Delete(netgroupTripleAttr, nil)
-		} else {
-			modReq.Replace(netgroupTripleAttr, values)
-		}
+		modReq.Replace(netgroupTripleAttr, clearing(values...))
 		changed = true
 	}
 
 	if req.Members != nil {
-		if len(req.Members) == 0 {
-			modReq.Delete(netgroupMemberAttr, nil)
-		} else {
-			modReq.Replace(netgroupMemberAttr, req.Members)
-		}
+		modReq.Replace(netgroupMemberAttr, clearing(req.Members...))
 		changed = true
 	}
 

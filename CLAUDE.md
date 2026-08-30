@@ -172,6 +172,12 @@ MVP implemented with:
   neither of which follows the name. Renaming the group named by `LDAPWARDEN_ADMIN_GROUP`
   is refused outright: admin is decided by comparing group names to that setting, so it
   would strip admin from everyone including whoever did it.
+- **Clearing an attribute is a replace with no values, never a delete.** LDAP fails a
+  delete of an attribute that is not there (`noSuchAttribute`, code 16), while a
+  replace with an empty value set removes it if present and is a no-op if not. Since
+  every detail form posts the fields it manages — including the empty ones — a delete
+  turns the ordinary act of saving into a 500 for any entry that never had the
+  attribute. Pass values through `clearing()` in `internal/ldap/client.go`.
 - **Nothing in the directory keeps a `uidNumber` unique.** OpenLDAP enforces it only
   with the `unique` overlay, which the bundled stack does not configure — so the app
   checks occupancy itself, in `reserveUIDNumber`/`reserveGIDNumber`, as late as it can
