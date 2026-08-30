@@ -341,6 +341,15 @@ export const ChangeUidResultSchema = z.object({
 })
 export type ChangeUidResult = z.infer<typeof ChangeUidResultSchema>
 
+// Result of POST /users/{dn}/change-posix-ids. The warnings are the point: the
+// directory accepts the new numbers instantly, while every file on every host
+// still carries the old ones and nothing here can reach them.
+export const ChangePosixIDsResultSchema = z.object({
+  user: UserSchema,
+  warnings: z.array(z.string()).nullish().transform((v) => v ?? []),
+})
+export type ChangePosixIDsResult = z.infer<typeof ChangePosixIDsResultSchema>
+
 // Result of a mutation that also had to clean up references (DELETE /users/{dn}).
 // The operation itself succeeded; warnings name what it could not reach.
 export const WarningsResultSchema = z.object({
@@ -946,6 +955,12 @@ export const api = {
 
     getGroups: (dn: string, signal?: AbortSignal) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/groups`, {}, GroupsResponseSchema, signal),
+
+    changePosixIds: (dn: string, ids: { uidNumber?: number; gidNumber?: number }) =>
+      fetchApi(`/users/${encodeURIComponent(dn)}/change-posix-ids`, {
+        method: 'POST',
+        body: JSON.stringify(ids),
+      }, ChangePosixIDsResultSchema),
 
     changeUid: (dn: string, newUid: string) =>
       fetchApi(`/users/${encodeURIComponent(dn)}/change-uid`, {

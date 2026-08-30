@@ -370,6 +370,45 @@ curl -X PUT "http://localhost:8000/api/users/$ENCODED_DN" \
   }'
 ```
 
+### Change a user's POSIX numbers
+
+```http
+POST /api/users/{dn}/change-posix-ids
+```
+
+**Required permission:** `users:write`
+
+```json
+{ "uidNumber": 1500, "gidNumber": 1500 }
+```
+
+Either field may be omitted to leave that number alone. Its own route rather than
+part of the update, because unlike every other attribute this app edits, these two
+are the identity the *filesystem* uses and nothing here can follow them there.
+
+A `uidNumber` already held by another account is refused with `409`: two accounts
+on one number are the same user as far as the kernel is concerned. A `gidNumber`
+matching no group is accepted — the kernel only needs the number — but reported.
+
+The answer carries what the change did **not** do, and that is the point of the
+endpoint:
+
+```json
+{
+  "user": { "uidNumber": 1500 },
+  "warnings": [
+    "files owned by uid 1200 on every host still belong to that number, not to 1500; they must be reassigned there (for example find / -uid 1200 -exec chown 1500 {} +)"
+  ]
+}
+```
+
+An entry carrying a `sambaSID` is realigned when its RID came from the old uid
+number — either equal to it, which is what this app writes by default, or Samba's
+`rid = 2*uid + 1000`. Any other RID means the SID follows a scheme this app does
+not know, so it is left untouched and reported: rewriting one allocated by a
+domain would hand the account a different principal. Either way the outcome is in
+`warnings`, because a Windows client holding the old SID sees a different account.
+
 ### Delete User
 
 ```http

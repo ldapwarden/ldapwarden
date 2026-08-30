@@ -173,6 +173,17 @@ authenticate. The admin page now says what it knows, and
   none of which is visible from here, so the app says the grant is necessary and
   not sufficient rather than implying the job is done
   (`045e0aa`, `a95a03f`, `857a251`, `dbd0090`, `0b9a8ba`).
+- **A user's `uidNumber` and `gidNumber` can be changed**, on their own control
+  rather than in the form they sit in. Every other attribute this app edits lives
+  only in the directory; these two are the identity the filesystem uses, and
+  nothing here can follow them there — files on every host keep the old numbers,
+  the account loses access to its own data, and whoever is issued the old number
+  next inherits it. So the change reports what it did not do, including the
+  `chown` left to run. A `sambaSID` whose RID came from the old number is
+  realigned; one allocated by a domain is left alone and reported, since its RID
+  belongs to a different principal. A
+  `uidNumber` another account already holds is refused: to the kernel that is one
+  user, not two.
 - **Renaming a group**, on its own control like the user rename, with the sudo
   grants that name it as `%cn` rewritten. Members are untouched: a POSIX group is
   joined by `memberUid` and by `gidNumber`, neither of which follows the name.

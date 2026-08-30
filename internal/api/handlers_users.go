@@ -798,3 +798,105 @@ func userUpdateChanges(before *ldap.User, req ldap.UpdateUserRequest) []audit.Fi
 
 	return changes
 }
+
+// handleChangePosixIDs writes a user's uidNumber and gidNumber.
+//
+// Its own route, like change-uid, and for a stronger reason than the rename: the
+// rename migrates every reference it can find, while this one cannot follow the
+// numbers where they actually matter. A uidNumber is what the filesystem stores
+// in every inode the account owns, on every host, and nothing in the directory
+// records where those are. The endpoint's job is therefore to make the change
+// safely and then say plainly what it did not do.
+func (s *Server) handleChangePosixIDs(w http.ResponseWriter, r *http.Request) {
+	dn, err := resolveDN(r, s.ldapClient.UserBaseDN())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid dn")
+		return
+	}
+
+	var req struct {
+		UIDNumber *int `json:"uidNumber"`
+		GIDNumber *int `json:"gidNumber"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.UIDNumber == nil && req.GIDNumber == nil {
+		writeError(w, http.StatusBadRequest, "no uidNumber or gidNumber given")
+		return
+	}
+
+	before, err := s.ldapClient.GetUser(dn)
+	if err != nil || before == nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	if req.UIDNumber != nil {
+		if err := validatePOSIXID("uidNumber", *req.UIDNumber, s.ldapClient.MinUID()); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		// Two accounts on one uidNumber are one user to the kernel: same files,
+		// same access, and no way to tell them apart afterwards.
+		if holder, herr := s.ldapClient.UserByUIDNumber(*req.UIDNumber); herr == nil &&
+			holder != nil && holder.DN != dn {
+			writeError(w, http.StatusConflict, fmt.Sprintf(
+				"uid number %d already belongs to %q. Two accounts sharing one is the same "+
+					"user as far as the system is concerned.", *req.UIDNumber, holder.UID))
+			return
+		}
+	}
+	if req.GIDNumber != nil {
+		if err := validatePOSIXID("gidNumber", *req.GIDNumber, s.ldapClient.MinGID()); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	changes := []audit.FieldChange{}
+	if req.UIDNumber != nil && *req.UIDNumber != before.UIDNumber {
+		changes = append(changes, audit.FieldChange{
+			Field: "UID number",
+			Old:   strconv.Itoa(before.UIDNumber),
+			New:   strconv.Itoa(*req.UIDNumber),
+		})
+	}
+	if req.GIDNumber != nil && *req.GIDNumber != before.GIDNumber {
+		changes = append(changes, audit.FieldChange{
+			Field: "GID number",
+			Old:   strconv.Itoa(before.GIDNumber),
+			New:   strconv.Itoa(*req.GIDNumber),
+		})
+	}
+	if len(changes) == 0 {
+		writeError(w, http.StatusBadRequest, "the numbers given are the ones already set")
+		return
+	}
+
+	details := map[string]interface{}{
+		audit.DetailsKeyResourceName: userDisplayName(before),
+		audit.DetailsKeyChanges:      changes,
+	}
+	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn, details) {
+		return
+	}
+
+	warnings, err := s.ldapClient.ChangePosixIDs(dn, req.UIDNumber, req.GIDNumber)
+	if err != nil {
+		writeServerError(w, r, "change posix ids", err)
+		return
+	}
+
+	user, err := s.ldapClient.GetUser(dn)
+	if err != nil {
+		writeServerError(w, r, "read user", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"user":     user,
+		"warnings": warnings,
+	})
+}

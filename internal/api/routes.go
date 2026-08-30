@@ -120,6 +120,7 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/{dn}/groups", s.handleGetUserGroups)
 				r.With(s.requirePermission(rbac.PermUsersRead)).Get("/{dn}/photo", s.handleGetUserPhoto)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/change-uid", s.handleChangeUserUID)
+				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/change-posix-ids", s.handleChangePosixIDs)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/lock", s.handleLockUser)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Post("/{dn}/unlock", s.handleUnlockUser)
 				r.With(s.requirePermission(rbac.PermUsersWrite)).Put("/{dn}/expiration", s.handleSetUserExpiration)

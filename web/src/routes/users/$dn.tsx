@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { PosixIdsChange } from '@/components/posix-ids-change'
 import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -1028,7 +1029,10 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
                 className={!user?.uidNumber ? 'text-muted-foreground italic' : ''}
                 placeholder="Not set"
               />
-              <p className="text-xs text-muted-foreground">Unique numeric user ID (read-only)</p>
+              <p className="text-xs text-muted-foreground">
+                Unique numeric user ID. It is what the filesystem stores, so it is changed on its
+                own, below.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="gidNumber">GID Number</Label>
@@ -1039,9 +1043,18 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
                 className={!user?.gidNumber ? 'text-muted-foreground italic' : ''}
                 placeholder="Not set"
               />
-              <p className="text-xs text-muted-foreground">Primary group ID (read-only)</p>
+              <p className="text-xs text-muted-foreground">Primary group ID.</p>
             </div>
           </FieldRow>
+
+          {canWrite && (
+            <PosixIdsChange
+              dn={dn}
+              uid={user.uid}
+              uidNumber={user.uidNumber}
+              gidNumber={user.gidNumber}
+            />
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="homeDirectory">Home Directory</Label>

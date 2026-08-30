@@ -70,6 +70,7 @@ parameters the list endpoints accept.
 - `GET /api/users/:dn/photo` - User photo as `image/jpeg`
 - `GET/POST/PUT/DELETE /api/groups` - Group CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
 - `POST /api/groups/:dn/change-cn` - Rename a group; rewrites the `%cn` sudo grants, refuses the admin group
+- `POST /api/users/:dn/change-posix-ids` - Change `uidNumber`/`gidNumber`; refuses a duplicate uid number, warns about file ownership
 - `GET /api/groups/:dn/members` - Membership resolved to names
 - `POST /api/admin/policy-selftest` - Prove whether ppolicy is enforced (writes a throwaway entry)
 - `POST /api/admin/scheduled-tasks/lockout-scan/trigger` - Run the lockout scan now
@@ -171,6 +172,14 @@ MVP implemented with:
   neither of which follows the name. Renaming the group named by `LDAPWARDEN_ADMIN_GROUP`
   is refused outright: admin is decided by comparing group names to that setting, so it
   would strip admin from everyone including whoever did it.
+- **A POSIX number is filesystem state, not directory state.** `uidNumber` is what
+  every inode on every host stores, and nothing in the directory records where those
+  files are — so changing it succeeds instantly and breaks access somewhere this app
+  cannot see. `ChangePosixIDs` therefore returns what the operator must still run
+  (`chown`), realigns a `sambaSID` whose RID came from the old number — equal to it,
+  or Samba's `2*uid+1000`, and nothing else, since another scheme's RID belongs to a
+  different principal — and refuses a
+  `uidNumber` another account already holds: to the kernel that is one user, not two.
 - **`memberUid` and `sudoUser` store a plain uid, not a DN**, so the directory
   cannot follow them: any operation on a user that changes or removes its uid has
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,

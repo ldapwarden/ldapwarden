@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -1399,4 +1400,156 @@ func entryToUser(entry *ldap.Entry) User {
 		PwdReset:             parseLDAPBool(entry.GetAttributeValue("pwdReset")),
 		PwdPolicySubentry:    entry.GetAttributeValue("pwdPolicySubentry"),
 	}
+}
+
+// UserByUIDNumber finds the user holding a POSIX uid number, if any.
+//
+// Two accounts sharing a uidNumber are one user as far as the kernel is
+// concerned: same file ownership, same access. The directory does not enforce
+// uniqueness, so it has to be checked before writing one.
+func (c *Client) UserByUIDNumber(uidNumber int) (*User, error) {
+	filter := fmt.Sprintf("(&(objectClass=posixAccount)(uidNumber=%d))", uidNumber)
+	entries, err := c.Search(c.UserBaseDN(), filter, defaultUserAttributes)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	user := entryToUser(entries[0])
+	return &user, nil
+}
+
+// GroupByGIDNumber finds the group holding a POSIX gid number, if any.
+func (c *Client) GroupByGIDNumber(gidNumber int) (*Group, error) {
+	filter := fmt.Sprintf("(&(objectClass=posixGroup)(gidNumber=%d))", gidNumber)
+	entries, err := c.Search(c.GroupBaseDN(), filter, defaultGroupAttributes)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	group := entryToGroup(entries[0])
+	return &group, nil
+}
+
+// alignSambaSID rewrites a SID whose RID was derived from the old uid number.
+//
+// Two derivations are recognised. The RID equal to the uid number outright, which
+// is what this app writes when it offers a default; and Samba's conventional
+// rid = 2*uid + 1000, which is what an idmap-backed domain produces. Anything
+// else means the SID follows a scheme this app does not know — a real domain SID
+// with an unrelated RID, or an allocation from elsewhere — and guessing at it
+// would corrupt the identity Windows actually uses. Those are reported instead.
+//
+// Only the RID is touched: the domain part identifies the domain, not the
+// account, and has nothing to do with the uid number.
+func alignSambaSID(sid string, oldUID, newUID int) (string, bool) {
+	cut := strings.LastIndex(sid, "-")
+	if cut < 0 {
+		return "", false
+	}
+	rid, err := strconv.Atoi(sid[cut+1:])
+	if err != nil {
+		return "", false
+	}
+
+	switch rid {
+	case oldUID:
+		return sid[:cut+1] + strconv.Itoa(newUID), true
+	case 2*oldUID + 1000:
+		return sid[:cut+1] + strconv.Itoa(2*newUID+1000), true
+	}
+	return "", false
+}
+
+// ChangePosixIDs writes a user's uidNumber and gidNumber.
+//
+// Kept off UpdateUser deliberately. Every other attribute this app edits lives
+// only in the directory; these two are the identity the *filesystem* uses, and
+// nothing here can follow them there. Files on every host stay owned by the old
+// numbers — the account loses access to its own data, and whoever is issued the
+// old number next inherits it. That is not a mistake this should be possible to
+// make from the same form as a phone number.
+//
+// A nil value leaves that attribute alone. Returns what the caller has to go and
+// fix by hand.
+func (c *Client) ChangePosixIDs(dn string, uidNumber, gidNumber *int) ([]string, error) {
+	before, err := c.GetUser(dn)
+	if err != nil {
+		return nil, err
+	}
+
+	modReq := ldap.NewModifyRequest(dn, nil)
+	changed := false
+	if uidNumber != nil && *uidNumber != before.UIDNumber {
+		modReq.Replace("uidNumber", []string{strconv.Itoa(*uidNumber)})
+		changed = true
+	}
+	if gidNumber != nil && *gidNumber != before.GIDNumber {
+		modReq.Replace("gidNumber", []string{strconv.Itoa(*gidNumber)})
+		changed = true
+	}
+	if !changed {
+		return []string{}, nil
+	}
+	if err := c.Modify(modReq); err != nil {
+		return nil, err
+	}
+
+	// Non-nil so it serialises as an empty JSON array, not null.
+	warnings := []string{}
+
+	if uidNumber != nil && *uidNumber != before.UIDNumber {
+		warnings = append(warnings, fmt.Sprintf(
+			"files owned by uid %d on every host still belong to that number, not to %d; "+
+				"they must be reassigned there (for example find / -uid %d -exec chown %d {} +)",
+			before.UIDNumber, *uidNumber, before.UIDNumber, *uidNumber))
+
+		// A sambaSID whose RID came from the old uid number now disagrees with the
+		// entry it sits on. Realigned where the derivation is recognisable, and
+		// reported where it is not — see alignSambaSID.
+		if before.SambaSID != "" {
+			aligned, ok := alignSambaSID(before.SambaSID, before.UIDNumber, *uidNumber)
+			switch {
+			case !ok:
+				warnings = append(warnings, fmt.Sprintf(
+					"this account has sambaSID %q, whose RID does not come from the old uid "+
+						"number in any scheme this app recognises; it was left alone — check it "+
+						"against your domain's", before.SambaSID))
+			default:
+				sidReq := ldap.NewModifyRequest(dn, nil)
+				sidReq.Replace("sambaSID", []string{aligned})
+				if err := c.Modify(sidReq); err != nil {
+					warnings = append(warnings, fmt.Sprintf(
+						"sambaSID should now be %q but could not be written: %v", aligned, err))
+				} else {
+					warnings = append(warnings, fmt.Sprintf(
+						"sambaSID was realigned from %q to %q; a Windows client that cached the "+
+							"old SID sees this as a different account",
+						before.SambaSID, aligned))
+				}
+			}
+		}
+	}
+
+	if gidNumber != nil && *gidNumber != before.GIDNumber {
+		warnings = append(warnings, fmt.Sprintf(
+			"files owned by group %d on every host still belong to that number, not to %d",
+			before.GIDNumber, *gidNumber))
+
+		// A primary group that names no group is legal and works — the kernel only
+		// needs the number — but it is far more often a typo than a decision.
+		if group, gerr := c.GroupByGIDNumber(*gidNumber); gerr != nil {
+			warnings = append(warnings, "could not check which group gid "+
+				strconv.Itoa(*gidNumber)+" belongs to: "+gerr.Error())
+		} else if group == nil {
+			warnings = append(warnings, fmt.Sprintf(
+				"no group in this directory has gid %d, so the account's primary group "+
+					"resolves to a bare number", *gidNumber))
+		}
+	}
+
+	return warnings, nil
 }
