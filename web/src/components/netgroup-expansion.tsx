@@ -3,6 +3,7 @@ import type { NetgroupExpansion } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Callout } from '@/components/ui/callout'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { matchesAnyHost, matchesAnyUser } from '@/lib/netgroup'
 
 /**
@@ -15,7 +16,23 @@ import { matchesAnyHost, matchesAnyUser } from '@/lib/netgroup'
  * nothing to the host list and still apply to every machine; showing an empty
  * list there would be the exact inverse of the truth.
  */
-export function NetgroupExpansionPanel({ expansion }: { expansion: NetgroupExpansion | undefined }) {
+export function NetgroupExpansionPanel({
+  expansion,
+  error,
+  onRetry,
+}: {
+  expansion: NetgroupExpansion | undefined
+  /**
+   * Why there is nothing to show, when that is the reason.
+   *
+   * Without it this panel had two states, data and skeleton, so a failed request
+   * rendered as "Resolving…" — forever, since the query stops retrying and the
+   * data never arrives. A skeleton is a promise that something is coming; making
+   * a failure wear one is the worst of the available answers.
+   */
+  error?: Error | null
+  onRetry?: () => void
+}) {
   return (
     <Card>
       <CardHeader>
@@ -23,7 +40,21 @@ export function NetgroupExpansionPanel({ expansion }: { expansion: NetgroupExpan
         <CardDescription>Nested netgroups followed, as sudo would see them</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!expansion ? (
+        {error ? (
+          <Callout variant="error">
+            <p className="font-medium">The effective contents could not be resolved.</p>
+            <p className="mt-1">{error.message}</p>
+            <p className="mt-1">
+              The netgroup's own triples and nested names are shown above and are unaffected;
+              what is missing here is what they add up to.
+            </p>
+            {onRetry && (
+              <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
+                Try again
+              </Button>
+            )}
+          </Callout>
+        ) : !expansion ? (
           <div className="space-y-2">
             <span className="sr-only" role="status">
               Resolving…

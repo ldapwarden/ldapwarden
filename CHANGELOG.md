@@ -285,6 +285,21 @@ authenticate. The admin page now says what it knows, and
 
 ### Fixed
 
+- **A failed lookup on a netgroup page rendered as a spinner that never
+  stopped.** The expansion views had two states, data and skeleton, and read only
+  `data` from the query — so once it had failed and stopped retrying, the panel
+  went on promising an answer that was never coming. The sudo-usage panel was
+  worse than that: a failed search rendered as its empty state, telling an
+  operator that no sudo rule names the netgroup when in fact nobody had looked.
+  All three now say what went wrong and offer to try again, and the empty state
+  means only what it says.
+- **A search that read a whole collection had no time limit**, so a slow
+  directory left the request hanging until the connection deadline with nothing
+  to report. Searches now carry a server-side time limit just inside that
+  deadline: the server giving up and saying so is an answer. The size limit is
+  deliberately still absent on these reads — a truncated collection would produce
+  confidently wrong answers, since a netgroup missing from the set reads as a
+  dangling reference.
 - **Adding a host to a netgroup answered `500`** whenever that netgroup nested no
   other netgroup — which is most of them. The page posts every field it manages,
   so `members` arrived as an empty list, and the update asked the directory to

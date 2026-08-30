@@ -50,7 +50,11 @@ function NetgroupDetailPage() {
   // Nesting resolved. Its own query because it reads the whole collection, and
   // because a stale expansion next to a fresh entry would be worse than a
   // moment's delay.
-  const { data: expansion } = useQuery({
+  const {
+    data: expansion,
+    error: expansionError,
+    refetch: refetchExpansion,
+  } = useQuery({
     queryKey: ['netgroup', dn, 'expand'],
     queryFn: ({ signal }) => api.netgroups.expand(dn, signal),
     enabled: !!netgroup,
@@ -58,7 +62,12 @@ function NetgroupDetailPage() {
 
   // Which sudo rules point here. Its own query, and not gated on anything the
   // form does: the answer comes from the sudo tree, not from this entry.
-  const { data: sudoRoles, isPending: sudoRolesPending } = useQuery({
+  const {
+    data: sudoRoles,
+    isPending: sudoRolesPending,
+    error: sudoRolesError,
+    refetch: refetchSudoRoles,
+  } = useQuery({
     queryKey: ['netgroup', dn, 'sudo-roles'],
     queryFn: ({ signal }) => api.netgroups.getSudoRoles(dn, signal),
     enabled: !!netgroup,
@@ -258,13 +267,19 @@ function NetgroupDetailPage() {
         </div>
 
         <div className="space-y-4">
-          <NetgroupExpansionPanel expansion={expansion} />
+          <NetgroupExpansionPanel
+            expansion={expansion}
+            error={expansionError}
+            onRetry={() => void refetchExpansion()}
+          />
 
           {netgroup && (
             <NetgroupSudoUsage
               netgroup={netgroup}
               roles={sudoRoles?.data}
               loading={sudoRolesPending}
+              error={sudoRolesError}
+              onRetry={() => void refetchSudoRoles()}
             />
           )}
 

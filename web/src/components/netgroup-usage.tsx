@@ -198,7 +198,11 @@ function NetgroupSummary({
 }) {
   const netgroup = resolution.status === 'found' ? resolution.netgroup : undefined
 
-  const { data: expansion } = useQuery({
+  const {
+    data: expansion,
+    error: expansionError,
+    refetch,
+  } = useQuery({
     queryKey: ['netgroup', netgroup?.dn, 'expand'],
     queryFn: ({ signal }) => api.netgroups.expand(netgroup!.dn, signal),
     enabled: !!netgroup,
@@ -220,7 +224,20 @@ function NetgroupSummary({
           {side === 'users' ? 'grants to' : 'restricts to'}
         </span>
       </p>
-      {resolution.status === 'unknown' ? (
+      {expansionError ? (
+        // Said, not left as "Resolving…": the query has stopped retrying, so a
+        // spinner here would promise an answer that is never coming.
+        <p className="text-xs text-destructive">
+          Could not resolve this netgroup: {expansionError.message}{' '}
+          <button
+            type="button"
+            className="underline underline-offset-2"
+            onClick={() => void refetch()}
+          >
+            Try again
+          </button>
+        </p>
+      ) : resolution.status === 'unknown' ? (
         // Said rather than left blank: this is the state where the app does not
         // know, and a silent card would read as "nothing to report".
         <p className="text-xs text-muted-foreground">

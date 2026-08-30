@@ -3,6 +3,7 @@ import { ShieldCheck, AlertTriangle } from 'lucide-react'
 import type { SudoRole } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Callout } from '@/components/ui/callout'
+import { Button } from '@/components/ui/button'
 import { netgroupKind, netgroupSideFit, type NetgroupKind } from '@/lib/netgroup'
 import { encodeDN } from '@/lib/utils'
 import type { Netgroup } from '@/lib/api'
@@ -25,10 +26,22 @@ export function NetgroupSudoUsage({
   netgroup,
   roles,
   loading,
+  error,
+  onRetry,
 }: {
   netgroup: Netgroup
   roles: SudoRole[] | undefined
   loading: boolean
+  /**
+   * Why the search produced nothing, when that is the reason.
+   *
+   * This panel's empty state is a claim — "no sudo rule names this netgroup",
+   * which an operator may act on. Without knowing the search failed, a failure
+   * rendered as that claim: confidently telling someone a netgroup grants
+   * nothing, when in fact nobody had looked.
+   */
+  error?: Error | null
+  onRetry?: () => void
 }) {
   const reference = '+' + netgroup.cn
   const kind = netgroupKind(netgroup)
@@ -46,7 +59,20 @@ export function NetgroupSudoUsage({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {loading ? (
+        {error ? (
+          <Callout variant="error">
+            <p className="font-medium">The sudo rules could not be searched.</p>
+            <p className="mt-1">{error.message}</p>
+            <p className="mt-1">
+              This is not the same as “no rule names it” — nothing was established either way.
+            </p>
+            {onRetry && (
+              <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
+                Try again
+              </Button>
+            )}
+          </Callout>
+        ) : loading ? (
           <p className="text-sm text-muted-foreground">Searching…</p>
         ) : !roles || roles.length === 0 ? (
           <p className="text-sm text-muted-foreground">

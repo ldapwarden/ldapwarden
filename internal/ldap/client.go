@@ -111,6 +111,21 @@ func (c *Client) connect() (*ldap.Conn, error) {
 	return conn, nil
 }
 
+// searchTimeLimitSeconds is the server-side time limit for a search, expressed in
+// the whole seconds the protocol allows.
+//
+// Deliberately shorter than the connection deadline: the server giving up and
+// saying so is an answer, while the client's deadline expiring is a dead
+// connection and no explanation. Never zero — that is the protocol's "no limit",
+// which is what this exists to avoid.
+func searchTimeLimitSeconds(timeout time.Duration) int {
+	seconds := int(timeout.Seconds()) - 1
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
+}
+
 // timeout is the bound applied to every LDAP operation. Zero or negative
 // disables it, which is go-ldap's own default and never what a served request
 // wants; the config default is what normally applies.
@@ -186,7 +201,13 @@ func (c *Client) Search(baseDN, filter string, attributes []string) ([]*ldap.Ent
 		baseDN,
 		ldap.ScopeWholeSubtree,
 		ldap.NeverDerefAliases,
-		0, 0, false,
+		// No size limit — the callers that read a whole collection need all of it,
+		// and a truncated read here would produce confidently wrong answers rather
+		// than a slow one (a netgroup missing from the set reads as a dangling
+		// reference). A *time* limit, though, costs nothing and bounds the wait:
+		// without it the only stop was the connection deadline, so a directory
+		// that answered slowly left the request hanging with nothing to report.
+		0, searchTimeLimitSeconds(c.timeout()), false,
 		filter,
 		attributes,
 		nil,
