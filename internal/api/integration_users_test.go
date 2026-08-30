@@ -144,12 +144,35 @@ func TestIntegration_Users_CreateRequiresFields(t *testing.T) {
 		t.Errorf("missing uid: status=%d, want 400", resp.StatusCode)
 	}
 
-	// Missing uidNumber.
+	// An omitted uidNumber is not an error any more: it means "allocate one", so
+	// the number is settled at write time instead of being replayed from a form
+	// that loaded minutes earlier. It must come back allocated, not zero.
+	uid := "zz-create-fields-" + uniqueSuffix(t)
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete,
+			userPath("uid="+uid+","+env.LDAP.UserBaseDN()), nil, token)
+	})
+	resp, body := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
+		"uid": uid, "givenName": "X", "sn": "Y", "gidNumber": env.LDAP.MinGID(),
+	}, token)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("omitted uidNumber: status=%d body=%s, want 201", resp.StatusCode, body)
+	}
+	var created ldap.User
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if created.UIDNumber < env.LDAP.MinUID() {
+		t.Errorf("uidNumber = %d, want one allocated at or above MinUID %d",
+			created.UIDNumber, env.LDAP.MinUID())
+	}
+
+	// Out of range is still refused.
 	resp, _ = doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
-		"uid": "x", "givenName": "X", "sn": "Y", "gidNumber": 60001,
+		"uid": uid + "-low", "givenName": "X", "sn": "Y", "uidNumber": 12, "gidNumber": 60001,
 	}, token)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("missing uidNumber: status=%d, want 400", resp.StatusCode)
+		t.Errorf("uidNumber below the minimum: status=%d, want 400", resp.StatusCode)
 	}
 }
 

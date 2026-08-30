@@ -130,7 +130,10 @@ function NewUserPage() {
       departmentNumber: formData.departmentNumber || undefined,
       o: formData.o || undefined,
       employeeType: formData.employeeType || undefined,
-      uidNumber: parseInt(formData.uidNumber || nextIds?.nextUid?.toString() || '0'),
+      // Left as the server's job when untouched: 0 means "allocate one". Filling
+      // it in here replayed a number read when the page loaded, which two people
+      // creating accounts at once would both have sent.
+      uidNumber: formData.uidNumber === '' ? 0 : parseInt(formData.uidNumber),
       gidNumber: resolvedGidNumber,
       homeDirectory: formData.homeDirectory || `/home/${formData.uid}`,
       loginShell: formData.loginShell,
@@ -260,7 +263,13 @@ function NewUserPage() {
                     <Wand2 className="h-4 w-4" />
                   </Button>
                 </div>
-                {nextIds && <p className="text-xs text-muted-foreground">Min: {nextIds.minUid}, Next available: {nextIds.nextUid}</p>}
+                {nextIds && (
+                  <p className="text-xs text-muted-foreground">
+                    Min: {nextIds.minUid}. Leave it as it is and the next free number is picked
+                    when the account is created, so two people creating accounts at once cannot
+                    both get {nextIds.nextUid}.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="primaryGroup" className="flex items-center gap-2">

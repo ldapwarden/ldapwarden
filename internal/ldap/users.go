@@ -537,6 +537,16 @@ func replaceExact(list []string, from, to string) []string {
 }
 
 func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
+	// Settled here, immediately before the write, rather than trusted from the
+	// request: the number in a creation form was read when the page loaded, and
+	// nothing has held it since. Two accounts on one uidNumber are one user to
+	// the kernel. A zero means the caller wants one allocated.
+	uidNumber, err := c.reserveUIDNumber(req.UIDNumber)
+	if err != nil {
+		return nil, err
+	}
+	req.UIDNumber = uidNumber
+
 	if req.CN == "" {
 		req.CN = fmt.Sprintf("%s %s", req.GivenName, req.SN)
 	}

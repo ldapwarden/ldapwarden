@@ -115,14 +115,22 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := validatePOSIXID("uidNumber", req.UIDNumber, s.ldapClient.MinUID()); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+	// Zero means "allocate one": the client had no opinion, so the number is
+	// settled server-side at write time rather than read from a form that loaded
+	// minutes ago. A number that *is* given still has to be in range, and
+	// CreateUser refuses it if another account holds it.
+	if req.UIDNumber != 0 {
+		if err := validatePOSIXID("uidNumber", req.UIDNumber, s.ldapClient.MinUID()); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
-	if err := validatePOSIXID("gidNumber", req.GIDNumber, s.ldapClient.MinGID()); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+	if req.GIDNumber != 0 {
+		if err := validatePOSIXID("gidNumber", req.GIDNumber, s.ldapClient.MinGID()); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	// UID is validated above; UserBaseDN comes from config. The DN matches

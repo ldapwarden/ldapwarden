@@ -172,6 +172,14 @@ MVP implemented with:
   neither of which follows the name. Renaming the group named by `LDAPWARDEN_ADMIN_GROUP`
   is refused outright: admin is decided by comparing group names to that setting, so it
   would strip admin from everyone including whoever did it.
+- **Nothing in the directory keeps a `uidNumber` unique.** OpenLDAP enforces it only
+  with the `unique` overlay, which the bundled stack does not configure — so the app
+  checks occupancy itself, in `reserveUIDNumber`/`reserveGIDNumber`, as late as it can
+  before the write. A number of 0 in a create request means "allocate one", which is
+  what the creation form now sends when the field is untouched: filling it in client-side
+  replayed a value read when the page loaded. This is a check-then-write, not a
+  constraint; two simultaneous creations can still collide, and the overlay is the only
+  real guarantee.
 - **A POSIX number is filesystem state, not directory state.** `uidNumber` is what
   every inode on every host stores, and nothing in the directory records where those
   files are — so changing it succeeds instantly and breaks access somewhere this app

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -284,10 +285,22 @@ func validateImportGroup(req ldap.CreateGroupRequest, minGID int) error {
 	return nil
 }
 
+// Rows are created one at a time, so a number claimed by an earlier row of the
+// same file is already in the directory by the time a later row is checked —
+// CreateUser and CreateGroup see it like any other. No separate bookkeeping is
+// needed for duplicates within one file, and adding some would be a second copy
+// of the same rule to keep in step.
+
 // importErrorMessage maps a per-row create failure to a client-safe message,
 // reusing the directory-error mapping so useful hints ("entry already exists")
 // survive without leaking raw LDAP diagnostics.
 func importErrorMessage(err error) string {
+	// The number-already-taken case first: it is the one a CSV hits most, and
+	// "failed to create entry" would send the operator looking at the wrong row.
+	var taken *ldap.ErrPosixIDTaken
+	if errors.As(err, &taken) {
+		return taken.Error()
+	}
 	if msg, _, ok := ldapErrorResponse(err); ok {
 		return msg
 	}

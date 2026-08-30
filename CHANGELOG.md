@@ -285,6 +285,18 @@ authenticate. The admin page now says what it knows, and
 
 ### Fixed
 
+- **Two accounts could be created on the same `uidNumber`**, and two groups on the
+  same `gidNumber`. Nothing checked whether a number was in use — `validatePOSIXID`
+  tests only the range — and OpenLDAP enforces no uniqueness on these attributes
+  unless the `unique` overlay is configured, which the bundled stack does not do.
+  Every creation path was affected: a number typed into the form, a CSV listing one
+  twice, and two people creating accounts at once, since the form replayed a number
+  read when the page loaded. To the kernel two accounts on one number are one user —
+  same files, same access, and nothing afterwards can tell them apart. Occupancy is
+  now checked immediately before the write, an omitted number is allocated
+  server-side at that moment, and a taken one is refused with `409` naming the
+  holder. It remains a check-then-write: see the README for the overlay that makes
+  it a constraint.
 - **Deleting a user left their uid in every group's `memberUid` and in any
   `sudoRole`'s `sudoUser`.** Recreating an account with the same username — routine
   when one is recycled — silently inherited the previous holder's groups and sudo

@@ -141,6 +141,14 @@ func (c *Client) GetGroupByCN(cn string) (*Group, error) {
 }
 
 func (c *Client) CreateGroup(req CreateGroupRequest) (*Group, error) {
+	// See reserveUIDNumber: the same check, for the same reason. Two groups on
+	// one gidNumber are one group to the kernel.
+	gidNumber, err := c.reserveGIDNumber(req.GIDNumber)
+	if err != nil {
+		return nil, err
+	}
+	req.GIDNumber = gidNumber
+
 	dn := fmt.Sprintf("cn=%s,%s", ldap.EscapeDN(req.CN), c.GroupBaseDN())
 
 	addReq := ldap.NewAddRequest(dn, nil)

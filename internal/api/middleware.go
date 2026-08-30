@@ -119,6 +119,21 @@ func writeServerError(w http.ResponseWriter, r *http.Request, action string, err
 		return
 	}
 
+	// A POSIX number already in use. Refused rather than written, because two
+	// accounts on one uidNumber are one user as far as the kernel is concerned —
+	// same files, same access, and nothing afterwards can tell them apart. The
+	// holder is named: the caller has to pick another number, and knowing which
+	// entry has it is how they do that.
+	var taken *ldap.ErrPosixIDTaken
+	if errors.As(err, &taken) {
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"%s number %d already belongs to %q. Two entries sharing one are the same %s "+
+				"as far as the system is concerned.",
+			taken.Kind, taken.Number, taken.Holder,
+			map[string]string{"uid": "user", "gid": "group"}[taken.Kind]))
+		return
+	}
+
 	// Directory-side errors that the operator can actually act on get a clear,
 	// curated message and a 4xx instead of an opaque 500 — but only a fixed
 	// message keyed off the LDAP result code, never the raw error text (which

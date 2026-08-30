@@ -192,6 +192,22 @@ LDAP Warden is configured via environment variables:
 | `LDAP_TLS_MODE` | TLS mode: `none`, `ssl`, or `starttls` | `none` |
 | `LDAP_TLS_SKIP_VERIFY` | Skip TLS certificate verification (for self-signed certs) | `false` |
 
+> **POSIX number uniqueness.** LDAP Warden refuses to create a user or group on a
+> `uidNumber`/`gidNumber` another entry already holds, and allocates one at write
+> time when the field is left alone. That closes the cases that actually happen —
+> a number typed twice, a CSV listing one twice, a creation form read minutes
+> earlier. It is still a check-then-write, not a constraint: OpenLDAP enforces no
+> uniqueness on these attributes by default, so two genuinely simultaneous
+> creations remain possible. Configure the `unique` overlay on your server if you
+> need the guarantee rather than the safeguard:
+>
+> ```
+> olcOverlay: unique
+> olcUniqueURI: ldap:///ou=People,dc=example,dc=org?uidNumber?sub
+> olcUniqueURI: ldap:///ou=Groups,dc=example,dc=org?gidNumber?sub
+> ```
+
+
 ### Session & Security
 
 | Variable | Description | Default |
