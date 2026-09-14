@@ -63,3 +63,30 @@ export function lockoutLiftsAt(user: AccountStatusFields): Date | null {
   const parsed = new Date(liftsAt)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
+
+/**
+ * The permanent-lock value `LockUser` writes, which ppolicy never lifts (see
+ * permanentLockValue in internal/ldap/users.go).
+ */
+const PERMANENT_LOCK_VALUE = '000001010000Z'
+
+/**
+ * The instant a lock was posted on the entry, or null when the stored value
+ * names none.
+ *
+ * A manual lock is not a timestamp. `pwdAccountLockedTime` = `000001010000Z` is
+ * a sentinel — the value ppolicy special-cases and never lifts — and it records
+ * nothing about when an administrator locked the account. It is also not a
+ * generalizedTime: 12 digits where the syntax wants 14, so parseLdapTimestamp
+ * rejects it and formatLdapTimestamp falls back to echoing it, which is how the
+ * page came to read "Locked at: 000001010000Z". Parsing it would be worse —
+ * "1 January 0000" is a date the directory never meant.
+ *
+ * So callers show a lock instant only when there is one; for a manual lock, the
+ * audit log is what says who locked the account and when.
+ */
+export function lockedAt(user: AccountStatusFields): Date | null {
+  const raw = user.lockout?.lockedAt ?? user.pwdAccountLockedTime
+  if (!raw || raw === PERMANENT_LOCK_VALUE) return null
+  return parseLdapTimestamp(raw)
+}

@@ -8,7 +8,7 @@ import { useEnabledModules, useEnabledObjects, useServerInfo } from '@/lib/use-s
 import { useNetgroupsEnabled } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, expiryInstantTitle, formatExpiryDate, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
-import { hasLapsedLock, isLocked, lockoutLiftsAt } from '@/lib/account'
+import { hasLapsedLock, isLocked, lockedAt, lockoutLiftsAt } from '@/lib/account'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { usePickerSearch } from '@/lib/use-picker-search'
 
@@ -2065,6 +2065,9 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
   const lockedNow = user ? isLocked(user) : false
   const lapsedLock = user ? hasLapsedLock(user) : false
   const liftsAt = user ? lockoutLiftsAt(user) : null
+  // Null for a manual lock: 000001010000Z is a sentinel, not an instant, and the
+  // directory records no date for one. See lockedAt in lib/account.ts.
+  const lockInstant = user ? lockedAt(user) : null
   const lockDetail = ((): string | null => {
     switch (user?.lockout?.state) {
       case 'manual':
@@ -2438,9 +2441,9 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                         ? 'The directory will refuse this account from the expiry date'
                         : 'User can log in normally'}
               </p>
-              {hasLockFlag && (
+              {hasLockFlag && lockInstant && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  {lapsedLock ? 'Was locked on' : 'Locked on'}: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
+                  {lapsedLock ? 'Was locked on' : 'Locked on'}: {lockInstant.toLocaleString()}
                 </p>
               )}
               {lockDetail && (
@@ -2597,7 +2600,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  This account is scheduled to expire on {formatLdapTimestamp(user.pwdEndTime!)}.
+                  This account is scheduled to expire on {formatExpiryDate(user.pwdEndTime!)}.
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-2">
@@ -2621,7 +2624,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                 <div>
                   <p className="font-medium text-warning">Scheduled Expiration</p>
                   <p className="text-sm text-muted-foreground">
-                    Account expires on: {formatLdapTimestamp(user.pwdEndTime!)}
+                    Account expires on: {formatExpiryDate(user.pwdEndTime!)}
                   </p>
                 </div>
               </div>
@@ -2639,7 +2642,11 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                         : 'Policy Locked'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Locked at: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
+                    {lockInstant
+                      ? `Locked at: ${lockInstant.toLocaleString()}`
+                      : user?.lockout?.state === 'manual'
+                        ? 'No lock date: the directory stores a permanent-lock marker, not an instant'
+                        : `Locked at: ${user?.pwdAccountLockedTime} — not a readable date`}
                     {liftsAt && ` — lifts at ${liftsAt.toLocaleString()}`}
                   </p>
                 </div>
@@ -2656,8 +2663,8 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                 <div>
                   <p className="font-medium text-warning">Lockout Expired</p>
                   <p className="text-sm text-muted-foreground">
-                    Locked at: {formatLdapTimestamp(user.pwdAccountLockedTime!)}
-                    {liftsAt && `, lifted at ${liftsAt.toLocaleString()}`}
+                    {lockInstant && `Locked at: ${lockInstant.toLocaleString()}`}
+                    {liftsAt && `${lockInstant ? ', lifted' : 'Lifted'} at ${liftsAt.toLocaleString()}`}
                   </p>
                 </div>
               </div>
