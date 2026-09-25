@@ -21,7 +21,7 @@ import { actionTone, toneStyle } from '@/lib/tones'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/list-search'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import { useSearchHotkey } from '@/lib/use-hotkey'
-import { encodeDN } from '@/lib/utils'
+import { resourceLink } from '@/lib/audit-links'
 import { ChevronDown, ChevronRight, Download, ExternalLink, ScrollText, Search } from 'lucide-react'
 import { Fragment, useCallback, useState, useRef } from 'react'
 
@@ -117,21 +117,6 @@ export const Route = createFileRoute('/audit-logs')({
   component: AuditLogsPage,
 })
 
-
-// resourceLink maps an entry back to the page for its resource. Deletions get no
-// link: the entry is precisely the record that the target no longer exists.
-function resourceLink(log: AuditLog): { to: string; dn: string } | null {
-  if (!log.resourceDn || log.action.includes('delete')) return null
-  const route: Record<string, string> = {
-    user: '/users/$dn',
-    group: '/groups/$dn',
-    sudorole: '/sudo-roles/$dn',
-    pwdpolicy: '/password-policies/$dn',
-    netgroup: '/netgroups/$dn',
-  }
-  const to = route[log.resourceType]
-  return to ? { to, dn: encodeDN(log.resourceDn) } : null
-}
 
 // changesOf pulls the structured diff out of details. The handlers store it
 // under details.changes; anything else in details is shown separately.

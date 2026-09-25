@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
 import { Skeleton } from '@/components/ui/skeleton'
 import { encodeDN } from '@/lib/utils'
+import { resourceLink } from '@/lib/audit-links'
 import { useServerInfo } from '@/lib/use-server-info'
 import { actionTone, toneStyle, type Tone } from '@/lib/tones'
 import { taskCheckedLabel, taskLabel, taskNotifiedLabel } from '@/lib/scheduled-tasks'
@@ -288,7 +289,7 @@ function DashboardPage() {
                         >
                           {log.action}
                         </span>
-                        <span className="min-w-0 flex-1 truncate">{describeTarget(log)}</span>
+                        <ActivityTarget log={log} />
                         <span className="shrink-0 text-xs text-muted-foreground">
                           {relativeTime(log.createdAt)}
                         </span>
@@ -442,11 +443,30 @@ function ListSkeleton({ rows }: { rows: number }) {
 }
 
 
-// describeTarget reads as "<actor> → <resource>": who did it and to what.
-function describeTarget(log: AuditLog): string {
+// ActivityTarget reads as "<actor> → <resource>": who did it and to what. The
+// resource links to its page, as in the audit log, unless the entry records its
+// deletion.
+function ActivityTarget({ log }: { log: AuditLog }) {
   const name = log.details?.resourceName
   const target = typeof name === 'string' && name !== '' ? name : log.resourceDn
-  return target ? `${log.actorUid} → ${target}` : log.actorUid
+  const link = resourceLink(log)
+  return (
+    <span className="min-w-0 flex-1 truncate">
+      {log.actorUid}
+      {target && (
+        <>
+          {' → '}
+          {link ? (
+            <Link to={link.to} params={{ dn: link.dn }} className="hover:underline">
+              {target}
+            </Link>
+          ) : (
+            target
+          )}
+        </>
+      )}
+    </span>
+  )
 }
 
 function daysUntil(iso: string): number {
