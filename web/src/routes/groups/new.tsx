@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { encodeDN } from '@/lib/utils'
 import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -50,10 +51,12 @@ function NewGroupPage() {
       gidNumber: formData.gidNumber === '' ? 0 : parseInt(formData.gidNumber),
       description: formData.description || undefined,
     }),
-    onSuccess: () => {
+    onSuccess: (group) => {
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       toast.success('Group created successfully')
-      router.navigate({ to: '/groups' })
+      // To the new entry, not the list: the next step is almost always on it
+      // (groups, keys, members), and the list would mean searching for it again.
+      router.navigate({ to: '/groups/$dn', params: { dn: encodeDN(group.dn) } })
     },
     onError: (error: Error) => {
       toast.error(error.message)

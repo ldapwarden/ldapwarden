@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { encodeDN } from '@/lib/utils'
 import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -39,10 +40,12 @@ function NewNetgroupPage() {
 
   const createMutation = useMutation({
     mutationFn: () => api.netgroups.create({ cn, description: description || undefined, triples }),
-    onSuccess: () => {
+    onSuccess: (netgroup) => {
       queryClient.invalidateQueries({ queryKey: ['netgroups'] })
       toast.success('Netgroup created')
-      router.navigate({ to: '/netgroups' })
+      // To the new entry, not the list: the next step is almost always on it
+      // (groups, keys, members), and the list would mean searching for it again.
+      router.navigate({ to: '/netgroups/$dn', params: { dn: encodeDN(netgroup.dn) } })
     },
     onError: (error: Error) => toast.error(error.message),
   })

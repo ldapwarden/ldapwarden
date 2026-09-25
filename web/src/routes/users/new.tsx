@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { encodeDN } from '@/lib/utils'
 import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -146,11 +147,13 @@ function NewUserPage() {
       createPrimaryGroup: !primaryGroup || undefined,
       expirationDate: formData.expirationDate || undefined,
     }),
-    onSuccess: () => {
+    onSuccess: (user) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       toast.success('User created successfully')
-      router.navigate({ to: '/users' })
+      // To the new entry, not the list: the next step is almost always on it
+      // (groups, keys, members), and the list would mean searching for it again.
+      router.navigate({ to: '/users/$dn', params: { dn: encodeDN(user.dn) } })
     },
     onError: (error: Error) => {
       toast.error(error.message)
