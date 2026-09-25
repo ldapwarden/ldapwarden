@@ -229,8 +229,9 @@ function SudoRolesPage() {
                 Name
               </SortableHeader>
               <TableHead>Users</TableHead>
-              <TableHead>Hosts</TableHead>
-              <TableHead>Commands</TableHead>
+              {/* Below md: name, who and order; the rest is on the role's page. */}
+              <TableHead className="hidden md:table-cell">Hosts</TableHead>
+              <TableHead className="hidden md:table-cell">Commands</TableHead>
               <SortableHeader
                 field="sudoOrder"
                 activeField={sortField}
@@ -244,7 +245,11 @@ function SudoRolesPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canDelete ? 7 : 5} />
+              <TableSkeletonRows
+                rows={Math.min(pageSize, 8)}
+                columns={canDelete ? 7 : 5}
+                hideBelowMd={canDelete ? [3, 4] : [2, 3]}
+              />
             ) : (
               <>
                 {sortedRoles.map((role) => (
@@ -274,13 +279,13 @@ function SudoRolesPage() {
                     {role.sudoUser && role.sudoUser.length > 3 && ` +${role.sudoUser.length - 3}`}
                   </span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <span className="text-sm text-muted-foreground" title={role.sudoHost?.join(', ') || undefined}>
                     {role.sudoHost?.length ? role.sudoHost.slice(0, 2).join(', ') : '-'}
                     {role.sudoHost && role.sudoHost.length > 2 && ` +${role.sudoHost.length - 2}`}
                   </span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <span className="text-sm text-muted-foreground font-mono" title={role.sudoCommand?.join(', ') || undefined}>
                     {role.sudoCommand?.length ? role.sudoCommand.slice(0, 2).join(', ') : '-'}
                     {role.sudoCommand && role.sudoCommand.length > 2 && ` +${role.sudoCommand.length - 2}`}

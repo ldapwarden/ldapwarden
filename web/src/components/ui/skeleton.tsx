@@ -28,17 +28,20 @@ export function TableSkeletonRows({
   rows = 8,
   columns,
   label = 'Loading…',
+  hideBelowMd = [],
 }: {
   rows?: number
   columns: number
   label?: string
+  /** Column indexes the table hides below md, so the placeholder matches. */
+  hideBelowMd?: number[]
 }) {
   return (
     <>
       {Array.from({ length: rows }, (_, row) => (
         <TableRow key={row}>
           {Array.from({ length: columns }, (_, column) => (
-            <TableCell key={column}>
+            <TableCell key={column} className={hideBelowMd.includes(column) ? 'hidden md:table-cell' : undefined}>
               {row === 0 && column === 0 && <span className="sr-only" role="status">{label}</span>}
               <Skeleton
                 className="h-4"

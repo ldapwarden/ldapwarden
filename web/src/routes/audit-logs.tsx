@@ -355,12 +355,14 @@ function AuditLogsPage() {
               <TableHead>Actor</TableHead>
               <TableHead>Action</TableHead>
               <TableHead>Resource</TableHead>
-              <TableHead>Change</TableHead>
+              {/* Below md the row keeps who, what and when; the change is one tap
+                  away in the expanded details. */}
+              <TableHead className="hidden md:table-cell">Change</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={6} />
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={6} hideBelowMd={[5]} />
             ) : (
               <>
                 {logs.map((log) => {
@@ -419,7 +421,7 @@ function AuditLogsPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="align-top text-sm text-muted-foreground">
+                        <TableCell className="hidden md:table-cell align-top text-sm text-muted-foreground">
                           {summarise(changes, extras)}
                         </TableCell>
                       </TableRow>

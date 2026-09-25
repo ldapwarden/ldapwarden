@@ -212,14 +212,19 @@ function NetgroupsPage() {
               >
                 Name
               </SortableHeader>
-              <TableHead>Description</TableHead>
+              {/* Below md: name and contents, the column that says what it grants. */}
+              <TableHead className="hidden md:table-cell">Description</TableHead>
               <TableHead>Contents</TableHead>
-              <TableHead>Nests</TableHead>
+              <TableHead className="hidden md:table-cell">Nests</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={columns} />
+              <TableSkeletonRows
+                rows={Math.min(pageSize, 8)}
+                columns={columns}
+                hideBelowMd={canDelete ? [2, 4] : [1, 3]}
+              />
             ) : (
               <>
                 {netgroups.map((netgroup) => (
@@ -246,11 +251,11 @@ function NetgroupsPage() {
                         <span className="font-medium">{netgroup.cn}</span>
                       </Link>
                     </TableCell>
-                    <TableCell>{netgroup.description || '-'}</TableCell>
+                    <TableCell className="hidden md:table-cell">{netgroup.description || '-'}</TableCell>
                     <TableCell>
                       <ContentsCell netgroup={netgroup} />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                       {netgroup.members?.length
                         ? netgroup.members.join(', ')
                         : '-'}
