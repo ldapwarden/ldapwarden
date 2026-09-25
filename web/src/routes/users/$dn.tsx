@@ -1,4 +1,6 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { DNLine } from '@/components/dn-line'
+import { DetailLoadError } from '@/components/detail-load-error'
 import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { PosixIdsChange } from '@/components/posix-ids-change'
@@ -153,11 +155,7 @@ function UserDetailPage() {
   }
 
   if (error) {
-    return (
-      <Callout variant="error">
-        Failed to load user: {error.message}
-      </Callout>
-    )
+    return <DetailLoadError error={error} noun="user" list="/users" listLabel="users" />
   }
 
   return (
@@ -179,7 +177,7 @@ function UserDetailPage() {
               </span>
             )}
           </div>
-          <p className="break-all text-sm text-muted-foreground">{user?.dn}</p>
+          <DNLine dn={user?.dn} />
         </div>
       </div>
 

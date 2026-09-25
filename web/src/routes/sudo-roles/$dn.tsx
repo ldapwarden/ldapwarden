@@ -1,7 +1,8 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
-import { Callout } from '@/components/ui/callout'
+import { DNLine } from '@/components/dn-line'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { recallListSearch } from '@/lib/list-memory'
+import { DetailLoadError } from '@/components/detail-load-error'
 import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
@@ -153,11 +154,7 @@ function SudoRoleDetailPage() {
   }
 
   if (error) {
-    return (
-      <Callout variant="error">
-        Failed to load sudo role: {error.message}
-      </Callout>
-    )
+    return <DetailLoadError error={error} noun="sudo role" list="/sudo-roles" listLabel="sudo roles" />
   }
 
   return (
@@ -168,7 +165,7 @@ function SudoRoleDetailPage() {
         <ShieldCheck className="h-8 w-8 text-muted-foreground" />
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{role?.cn}</h1>
-          <p className="break-all text-sm text-muted-foreground">{role?.dn}</p>
+          <DNLine dn={role?.dn} />
         </div>
       </div>
 

@@ -1,4 +1,6 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { DNLine } from '@/components/dn-line'
+import { DetailLoadError } from '@/components/detail-load-error'
 import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
@@ -120,7 +122,7 @@ function NetgroupDetailPage() {
 
   if (isLoading) return <DetailSkeleton cards={2} />
   if (error) {
-    return <Callout variant="error">Failed to load netgroup: {error.message}</Callout>
+    return <DetailLoadError error={error} noun="netgroup" list="/netgroups" listLabel="netgroups" />
   }
 
   return (
@@ -131,7 +133,7 @@ function NetgroupDetailPage() {
         <BackToList to="/netgroups" label="Back to netgroups" />
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">{netgroup?.cn}</h1>
-          <p className="break-all text-sm text-muted-foreground">{netgroup?.dn}</p>
+          <DNLine dn={netgroup?.dn} />
         </div>
       </div>
 

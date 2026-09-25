@@ -1,4 +1,6 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { DNLine } from '@/components/dn-line'
+import { DetailLoadError } from '@/components/detail-load-error'
 import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
@@ -197,11 +199,7 @@ function GroupDetailPage() {
   }
 
   if (error) {
-    return (
-      <Callout variant="error">
-        Failed to load group: {error.message}
-      </Callout>
-    )
+    return <DetailLoadError error={error} noun="group" list="/groups" listLabel="groups" />
   }
 
   return (
@@ -210,7 +208,7 @@ function GroupDetailPage() {
         <BackToList to="/groups" label="Back to groups" />
         <div>
           <h1 className="text-2xl font-bold">{group?.cn}</h1>
-          <p className="break-all text-sm text-muted-foreground">{group?.dn}</p>
+          <DNLine dn={group?.dn} />
         </div>
       </div>
 

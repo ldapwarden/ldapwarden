@@ -1,5 +1,6 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
-import { Callout } from '@/components/ui/callout'
+import { DNLine } from '@/components/dn-line'
+import { DetailLoadError } from '@/components/detail-load-error'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { showOutcome } from '@/lib/outcome'
 import { FormActions } from '@/components/form-actions'
@@ -119,9 +120,7 @@ function PasswordPolicyDetailPage() {
 
   if (error || !policy) {
     return (
-      <Callout variant="error">
-        Failed to load password policy: {error?.message || 'Not found'}
-      </Callout>
+      <DetailLoadError error={error} noun="password policy" list="/password-policies" listLabel="password policies" />
     )
   }
 
@@ -133,7 +132,7 @@ function PasswordPolicyDetailPage() {
           <BackToList to="/password-policies" label="Back to password policies" />
           <div>
             <h1 className="text-2xl font-bold">{policy.cn}</h1>
-            <p className="text-sm text-muted-foreground font-mono">{policy.dn}</p>
+            <DNLine dn={policy.dn} />
           </div>
         </div>
       </div>
