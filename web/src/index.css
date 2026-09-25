@@ -91,8 +91,10 @@
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
 
-    /* Status hues, dark enough to read as text on the light background. */
-    --success: 142 72% 29%;
+    /* Status hues, dark enough to read as text on the light background — and on
+       their own tints, which is where they mostly sit: at 29% success reached
+       only 4.1:1 on `bg-success/15`. At 26% the lowest pairing is 4.8:1. */
+    --success: 142 72% 26%;
     --success-foreground: 0 0% 100%;
     --warning: 32 81% 32%;
     --warning-foreground: 0 0% 100%;
@@ -195,7 +197,10 @@
     tint strength come from the theme, so one class covers light and dark.
   */
   .tone {
-    --tone-text-l: 30%;
+    /* 26%, not 30%: at 30% teal, lime, cyan and emerald fell to 3.9–4.5:1 on
+       their tint, under AA for the small text badges carry. At 26% the worst
+       hue (teal) is 4.9:1. Dark mode already cleared it everywhere. */
+    --tone-text-l: 26%;
     --tone-tint: 12%;
     background-color: hsl(var(--tone) 50% / var(--tone-tint));
     color: hsl(var(--tone) var(--tone-text-l));
