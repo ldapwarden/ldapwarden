@@ -703,9 +703,11 @@ Content-Type: application/json
 
 **Required fields:**
 - `cn` - Group name
-- `gidNumber` - POSIX GID
 
 **Optional fields:**
+- `gidNumber` - POSIX GID. Omitted or `0`, the next free number is allocated
+  when the entry is written; a number that is given is refused with `409` if
+  another group holds it
 - `description` - Group description
 - `memberUid` - Array of member usernames
 

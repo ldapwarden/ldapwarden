@@ -164,6 +164,132 @@ func TestIntegration_CreateGroup_RefusesATakenGIDNumber(t *testing.T) {
 	}
 }
 
+// TestIntegration_Groups_CreateAllocatesGID: a creation that leaves gidNumber
+// out gets one allocated at write time, rather than replaying a number the form
+// read when the page loaded — which two people creating groups at once would
+// both have sent.
+func TestIntegration_Groups_CreateAllocatesGID(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	var created []ldap.Group
+	t.Cleanup(func() {
+		for _, g := range created {
+			_, _ = doJSON(t, env, http.MethodDelete, groupPath(g.DN), nil, token)
+		}
+	})
+
+	// Twice in a row, from the same "page load": both must get a number, and
+	// not the same one.
+	for i := 0; i < 2; i++ {
+		resp, body := doJSON(t, env, http.MethodPost, "/api/groups/",
+			map[string]any{"cn": "autogid-" + uniqueSuffix(t)}, token)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create #%d without gidNumber: status=%d body=%s", i+1, resp.StatusCode, body)
+		}
+		var g ldap.Group
+		if err := json.Unmarshal(body, &g); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		created = append(created, g)
+		if g.GIDNumber < env.LDAP.MinGID() {
+			t.Errorf("allocated gidNumber %d is below the minimum %d", g.GIDNumber, env.LDAP.MinGID())
+		}
+	}
+	if created[0].GIDNumber == created[1].GIDNumber {
+		t.Errorf("both groups were allocated gidNumber %d", created[0].GIDNumber)
+	}
+}
+
+// TestIntegration_CreateUser_AllocatesPrimaryGroupGID: an account created with
+// a group of its own and no gidNumber gets one allocated, carried by both the
+// account and the group. Before, the form sent a nextGid read at page load,
+// and a zero would have been written to the account as is: gidNumber 0 is
+// root's group on every host.
+func TestIntegration_CreateUser_AllocatesPrimaryGroupGID(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	uid := "zz-pg-" + uniqueSuffix(t)
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete,
+			userPath("uid="+uid+","+env.LDAP.UserBaseDN()), nil, token)
+		_, _ = doJSON(t, env, http.MethodDelete,
+			groupPath("cn="+uid+","+env.LDAP.GroupBaseDN()), nil, token)
+	})
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
+		"uid": uid, "givenName": "Primary", "sn": "Probe", "createPrimaryGroup": true,
+	}, token)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: status=%d body=%s", resp.StatusCode, body)
+	}
+	var created ldap.User
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if created.GIDNumber < env.LDAP.MinGID() {
+		t.Fatalf("account gidNumber = %d, want an allocated one >= %d", created.GIDNumber, env.LDAP.MinGID())
+	}
+	group, err := env.LDAP.GetGroupByCN(uid)
+	if err != nil {
+		t.Fatalf("the primary group was not created: %v", err)
+	}
+	if group.GIDNumber != created.GIDNumber {
+		t.Errorf("group gidNumber = %d, account's = %d; they must be the same number",
+			group.GIDNumber, created.GIDNumber)
+	}
+}
+
+// Without a group of its own to create, a zero gidNumber has nothing to be
+// allocated for: refused, rather than written as root's group.
+func TestIntegration_CreateUser_RefusesZeroGIDWithoutPrimaryGroup(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	uid := "zz-nogid-" + uniqueSuffix(t)
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete,
+			userPath("uid="+uid+","+env.LDAP.UserBaseDN()), nil, token)
+	})
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
+		"uid": uid, "givenName": "No", "sn": "Gid",
+	}, token)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400 (body=%s)", resp.StatusCode, body)
+	}
+	if u, _ := env.LDAP.GetUser("uid=" + uid + "," + env.LDAP.UserBaseDN()); u != nil {
+		t.Errorf("the account was created anyway, gidNumber %d", u.GIDNumber)
+	}
+}
+
+// A primary group asked for on a number another group holds is refused before
+// anything is written. The account used to be created first and the group
+// second, so the refusal came after the account existed.
+func TestIntegration_CreateUser_RefusesATakenPrimaryGroupGID(t *testing.T) {
+	env := setupTestServer(t)
+	token := loginAs(t, env, "admin", "admin123").Token
+
+	holder := createTestGroup(t, env, token)
+	uid := "zz-pgdup-" + uniqueSuffix(t)
+	t.Cleanup(func() {
+		_, _ = doJSON(t, env, http.MethodDelete,
+			userPath("uid="+uid+","+env.LDAP.UserBaseDN()), nil, token)
+	})
+
+	resp, body := doJSON(t, env, http.MethodPost, "/api/users/", map[string]any{
+		"uid": uid, "givenName": "Dup", "sn": "Primary",
+		"gidNumber": holder.GIDNumber, "createPrimaryGroup": true,
+	}, token)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status=%d, want 409 (body=%s)", resp.StatusCode, body)
+	}
+	if u, _ := env.LDAP.GetUser("uid=" + uid + "," + env.LDAP.UserBaseDN()); u != nil {
+		t.Errorf("the account was written before the refusal")
+	}
+}
+
 // usersWithUIDNumber counts the accounts carrying a number, asked of the
 // directory rather than of the app: the whole point is that the directory used
 // to hold two.

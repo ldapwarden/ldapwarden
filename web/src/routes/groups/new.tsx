@@ -43,7 +43,10 @@ function NewGroupPage() {
   const createMutation = useMutation({
     mutationFn: () => api.groups.create({
       cn: formData.cn,
-      gidNumber: parseInt(formData.gidNumber || nextIds?.nextGid?.toString() || '0'),
+      // Left as the server's job when untouched: 0 means "allocate one". Filling
+      // it in here replayed a number read when the page loaded, which two people
+      // creating groups at once would both have sent.
+      gidNumber: formData.gidNumber === '' ? 0 : parseInt(formData.gidNumber),
       description: formData.description || undefined,
     }),
     onSuccess: () => {
@@ -112,15 +115,24 @@ function NewGroupPage() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  aria-label="Auto-generate next available GID"
-                  title="Auto-generate next available GID"
-                  onClick={() => nextIds && setFormData({ ...formData, gidNumber: nextIds.nextGid.toString() })}
-                  disabled={!nextIds}
+                  aria-label="Use the next free GID"
+                  title="Use the next free GID"
+                  // Back to automatic, rather than copying nextGid into the field:
+                  // a copied number is the stale one the server would then have
+                  // to refuse if someone took it in the meantime.
+                  onClick={() => setFormData({ ...formData, gidNumber: '' })}
+                  disabled={formData.gidNumber === ''}
                 >
                   <Wand2 className="h-4 w-4" />
                 </Button>
               </div>
-              {nextIds && <p className="text-xs text-muted-foreground">Min: {nextIds.minGid}, Next available: {nextIds.nextGid}</p>}
+              {nextIds && (
+                <p className="text-xs text-muted-foreground">
+                  Min: {nextIds.minGid}. Leave it as it is and the next free number is picked
+                  when the group is created, so two people creating groups at once cannot
+                  both get {nextIds.nextGid}.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

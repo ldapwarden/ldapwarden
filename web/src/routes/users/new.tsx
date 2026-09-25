@@ -76,14 +76,16 @@ function NewUserPage() {
 
   const groupsNotListed = Math.max(0, (allGroups?.total ?? 0) - (allGroups?.data.length ?? 0))
 
-  // Resolve gidNumber from primary group selection or next available
+  // The selected primary group's gidNumber, or 0 when the account gets a new
+  // group of its own: the server allocates that one at write time, like the
+  // uidNumber, rather than taking a nextGid read when the page loaded.
   const resolvedGidNumber = useMemo(() => {
     if (primaryGroup) {
       const group = allGroups?.data?.find(g => g.cn === primaryGroup)
       if (group) return group.gidNumber
     }
-    return nextIds?.nextGid ?? 0
-  }, [primaryGroup, allGroups?.data, nextIds])
+    return 0
+  }, [primaryGroup, allGroups?.data])
 
   // Membership candidates come from the directory. Headroom covers the groups
   // already picked, which are filtered out below.
@@ -255,10 +257,13 @@ function NewUserPage() {
                     type="button"
                     variant="outline"
                     size="icon"
-                    aria-label="Auto-generate next available UID"
-                    title="Auto-generate next available UID"
-                    onClick={() => nextIds && setFormData({ ...formData, uidNumber: nextIds.nextUid.toString() })}
-                    disabled={!nextIds}
+                    aria-label="Use the next free UID"
+                    title="Use the next free UID"
+                    // Back to automatic, rather than copying nextUid into the field:
+                    // a copied number is the stale one the server would then have
+                    // to refuse if someone took it in the meantime.
+                    onClick={() => setFormData({ ...formData, uidNumber: '' })}
+                    disabled={formData.uidNumber === ''}
                   >
                     <Wand2 className="h-4 w-4" />
                   </Button>

@@ -183,8 +183,10 @@ MVP implemented with:
   with the `unique` overlay, which the bundled stack does not configure — so the app
   checks occupancy itself, in `reserveUIDNumber`/`reserveGIDNumber`, as late as it can
   before the write. A number of 0 in a create request means "allocate one", which is
-  what the creation form now sends when the field is untouched: filling it in client-side
-  replayed a value read when the page loaded. This is a check-then-write, not a
+  what the user and group creation forms send when the field is untouched: filling it in
+  client-side replayed a value read when the page loaded. For an account's gidNumber, 0 is
+  only accepted with `createPrimaryGroup`, whose number is reserved before the account is
+  written — otherwise it would be stored as is, and 0 is root's group. This is a check-then-write, not a
   constraint; two simultaneous creations can still collide, and the overlay is the only
   real guarantee.
 - **A POSIX number is filesystem state, not directory state.** `uidNumber` is what

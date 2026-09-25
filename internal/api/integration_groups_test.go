@@ -110,11 +110,12 @@ func TestIntegration_Groups_CreateRequiresFields(t *testing.T) {
 		t.Errorf("missing cn: status=%d, want 400", resp.StatusCode)
 	}
 
-	// Missing gidNumber.
-	resp, _ = doJSON(t, env, http.MethodPost, "/api/groups/",
-		map[string]any{"cn": "noid"}, token)
+	// A gidNumber that is given must be in range: 0 is the only value below
+	// the minimum with a meaning, and it is "allocate one".
+	resp, body := doJSON(t, env, http.MethodPost, "/api/groups/",
+		map[string]any{"cn": "lowid-" + uniqueSuffix(t), "gidNumber": 5}, token)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("missing gidNumber: status=%d, want 400", resp.StatusCode)
+		t.Errorf("gidNumber below the minimum: status=%d, want 400 (body=%s)", resp.StatusCode, body)
 	}
 }
 

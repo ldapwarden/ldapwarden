@@ -131,6 +131,13 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+	} else if !req.CreatePrimaryGroup {
+		// 0 can only mean "allocate one" for a group this request creates. For an
+		// existing primary group it would be written as is — gidNumber 0 is root's
+		// group on every host.
+		writeError(w, http.StatusBadRequest,
+			"gidNumber is required unless createPrimaryGroup is set")
+		return
 	}
 
 	// UID is validated above; UserBaseDN comes from config. The DN matches

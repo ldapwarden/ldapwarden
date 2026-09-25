@@ -96,9 +96,15 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validatePOSIXID("gidNumber", req.GIDNumber, s.ldapClient.MinGID()); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+	// 0 means "allocate one", as for users: the number is settled at write time
+	// by reserveGIDNumber rather than read from a form that loaded minutes ago.
+	// A number that *is* given still has to be in range, and CreateGroup refuses
+	// it if another group holds it.
+	if req.GIDNumber != 0 {
+		if err := validatePOSIXID("gidNumber", req.GIDNumber, s.ldapClient.MinGID()); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	plannedDN := "cn=" + req.CN + "," + s.ldapClient.GroupBaseDN()

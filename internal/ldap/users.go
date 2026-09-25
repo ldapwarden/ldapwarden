@@ -547,6 +547,18 @@ func (c *Client) CreateUser(req CreateUserRequest) (*User, error) {
 	}
 	req.UIDNumber = uidNumber
 
+	// The primary group this request creates, settled the same way and before
+	// the account is written: the account carries the number too, so a taken
+	// one must be refused while nothing exists yet, not after. A zero asks for
+	// one to be allocated.
+	if req.CreatePrimaryGroup {
+		gidNumber, err := c.reserveGIDNumber(req.GIDNumber)
+		if err != nil {
+			return nil, err
+		}
+		req.GIDNumber = gidNumber
+	}
+
 	if req.CN == "" {
 		req.CN = fmt.Sprintf("%s %s", req.GivenName, req.SN)
 	}
