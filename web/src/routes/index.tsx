@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
 import { Skeleton } from '@/components/ui/skeleton'
 import { encodeDN } from '@/lib/utils'
+import { useServerInfo } from '@/lib/use-server-info'
 import { actionTone, toneStyle, type Tone } from '@/lib/tones'
 import { taskCheckedLabel, taskLabel, taskNotifiedLabel } from '@/lib/scheduled-tasks'
 import {
@@ -65,6 +66,10 @@ function DashboardPage() {
     enabled: canReadSettings,
   })
 
+  const serverInfo = useServerInfo()
+  const enforcement = serverInfo?.capabilities?.policyEnforcement ?? 'unknown'
+  const isAdmin = session?.roleName === 'admin'
+
   if (error) {
     return <Callout variant="error">Failed to load the dashboard: {error.message}</Callout>
   }
@@ -118,6 +123,51 @@ function DashboardPage() {
           The directory stopped short of counting every entry, so these figures are lower bounds.
           Raise the search size limit for the account LDAP Warden binds with
           (<code>olcSizeLimit</code> on OpenLDAP) to see exact counts.
+        </Callout>
+      )}
+
+      {/* The locked and expired figures below describe attributes, not what the
+          directory does with them: ppolicy honours neither unless a policy applies,
+          and that is not detectable from an ordinary bind. Said here, next to the
+          numbers, rather than only on the admin page. */}
+      {serverInfo && enforcement === 'not-enforced' && (
+        <Callout variant="error">
+          <p className="font-medium">The directory does not enforce locks or expiry.</p>
+          <p className="mt-1">
+            The policy self-test showed a locked account authenticating anyway, so accounts
+            counted as locked or expired here can still log in.
+            {isAdmin && (
+              <>
+                {' '}
+                <Link to="/admin" hash="directory-enforcement" className="font-medium underline">
+                  See directory enforcement
+                </Link>
+              </>
+            )}
+          </p>
+        </Callout>
+      )}
+      {/* Unknown is the default, and only an admin can settle it — so they are
+          always told. Anyone else only when there are locked or expired accounts
+          whose figure it makes uncertain. */}
+      {serverInfo && enforcement === 'unknown' && (isAdmin || cannotLogIn > 0) && (
+        <Callout variant="warning">
+          <p className="font-medium">Whether locks and expiry are enforced is not known yet.</p>
+          <p className="mt-1">
+            Nothing readable from this bind tells a directory that honours them from one that
+            ignores them, so accounts counted as locked or expired may still be able to log in.
+            {isAdmin ? (
+              <>
+                {' '}
+                <Link to="/admin" hash="directory-enforcement" className="font-medium underline">
+                  Run the policy self-test
+                </Link>{' '}
+                to find out.
+              </>
+            ) : (
+              ' An administrator can settle it with the policy self-test.'
+            )}
+          </p>
         </Callout>
       )}
 

@@ -587,7 +587,8 @@ function DirectoryEnforcementCard({
   const StateIcon = state.icon
 
   return (
-    <Card>
+    // Anchored: the dashboard links here when enforcement is unknown or absent.
+    <Card id="directory-enforcement" className="scroll-mt-20">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
