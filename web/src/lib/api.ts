@@ -580,6 +580,11 @@ export const NetgroupExpansionSchema = z.object({
   dangling: z.array(z.string()).optional(),
 })
 
+export const PolicyDeleteResponseSchema = z.object({
+  message: z.string(),
+  warnings: z.array(z.string()).default([]),
+})
+
 export const GroupDeleteResponseSchema = z.object({
   message: z.string(),
   warnings: z.array(z.string()).default([]),
@@ -1314,8 +1319,11 @@ export const api = {
         body: JSON.stringify(data),
       }, PasswordPolicySchema),
 
+    // Answers with warnings: accounts naming the policy in pwdPolicySubentry,
+    // a DN the directory does not follow, stop getting it in silence.
     delete: (dn: string) =>
-      fetchApi(`/password-policies/${encodeURIComponent(dn)}`, { method: 'DELETE' }),
+      fetchApi(`/password-policies/${encodeURIComponent(dn)}`, { method: 'DELETE' },
+        PolicyDeleteResponseSchema),
   },
 
   schema: {

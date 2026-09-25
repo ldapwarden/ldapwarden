@@ -2,7 +2,9 @@ package ldap
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-ldap/ldap/v3"
 )
@@ -305,6 +307,41 @@ func (c *Client) UpdatePasswordPolicy(dn string, req UpdatePasswordPolicyRequest
 // DeletePasswordPolicy deletes a password policy
 func (c *Client) DeletePasswordPolicy(dn string) error {
 	return c.Delete(dn)
+}
+
+// PasswordPolicyDeleteLeftovers lists what deleting a policy leaves pointing at
+// nothing, for the caller to report. Called before the delete.
+//
+// pwdPolicySubentry is a DN the directory does not follow: an account naming a
+// deleted policy stops getting it, silently, and this app can then no longer
+// read the lockout duration it needs to tell an active lockout from a lifted
+// one. LDAP_DEFAULT_POLICY_DN is the same reference held in configuration.
+func (c *Client) PasswordPolicyDeleteLeftovers(dn string) []string {
+	// Non-nil so it serialises as an empty JSON array, not null.
+	warnings := []string{}
+
+	entries, err := c.Search(c.UserBaseDN(),
+		fmt.Sprintf("(pwdPolicySubentry=%s)", ldap.EscapeFilter(dn)), []string{"uid"})
+	if err != nil {
+		warnings = append(warnings, "could not check which accounts name this policy: "+err.Error())
+	} else if len(entries) > 0 {
+		uids := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			uids = append(uids, entry.GetAttributeValue("uid"))
+		}
+		sort.Strings(uids)
+		warnings = append(warnings, fmt.Sprintf(
+			"%d account(s) still name this policy in pwdPolicySubentry (%s); they no longer get it, "+
+				"and their lockouts can no longer be resolved here",
+			len(uids), strings.Join(uids, ", ")))
+	}
+
+	if c.config.DefaultPolicyDN != "" && strings.EqualFold(c.config.DefaultPolicyDN, dn) {
+		warnings = append(warnings,
+			"LDAP_DEFAULT_POLICY_DN names this policy; point it at the policy olcPPolicyDefault now "+
+				"uses, or lockouts on accounts without their own policy resolve as unknown")
+	}
+	return warnings
 }
 
 func entryToPasswordPolicy(entry *ldap.Entry) PasswordPolicy {

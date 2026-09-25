@@ -115,7 +115,7 @@ function NetgroupDetailPage() {
       showOutcome({ title: `Netgroup ${netgroup?.cn ?? ''} deleted: references left behind`, items: res.warnings })
       router.navigate({ to: '/netgroups' })
     },
-    onError: (error: Error) => toast.error(error.message),
+    // No toast: the confirm dialog stays open and shows the error itself.
   })
 
   if (isLoading) return <DetailSkeleton cards={2} />

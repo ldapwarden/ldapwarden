@@ -1,4 +1,7 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { Callout } from '@/components/ui/callout'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { showOutcome } from '@/lib/outcome'
 import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
@@ -15,16 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Callout } from '@/components/ui/callout'
 import { Trash2 } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { useState } from 'react'
 import { decodeDN } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -86,14 +80,14 @@ function PasswordPolicyDetailPage() {
 
   const deleteMutation = useMutation({
     mutationFn: () => api.passwordPolicies.delete(dn),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['password-policies'] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success('Password policy deleted')
+      showOutcome({ title: `Policy ${policy?.cn ?? ''} deleted: references left behind`, items: res.warnings })
       navigate({ to: '/password-policies' })
     },
-    onError: (error) => {
-      toast.error(error.message)
-    },
+    // No toast: the confirm dialog stays open and shows the error itself.
   })
 
   // Populate the form from server data once it loads (and re-sync on refetch
@@ -428,29 +422,25 @@ function PasswordPolicyDetailPage() {
         </div>
       )}
 
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Password Policy</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{policy.cn}"?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deleteMutation.mutate()}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open)
+          if (!open) deleteMutation.reset()
+        }}
+        title="Delete password policy"
+        description={
+          <>
+            Delete {policy.cn}? Accounts that name it in pwdPolicySubentry are left as they are
+            and stop getting it; they are listed once the policy is gone. This cannot be undone.
+          </>
+        }
+        confirmText={policy.cn}
+        confirmLabel="Delete Policy"
+        error={deleteMutation.error?.message}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </div>
   )
 }

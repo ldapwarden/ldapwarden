@@ -107,10 +107,15 @@ func (s *Server) handleDeletePasswordPolicy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	warnings := s.ldapClient.PasswordPolicyDeleteLeftovers(dn)
+
 	if err := s.ldapClient.DeletePasswordPolicy(dn); err != nil {
 		writeServerError(w, r, "delete password policy", err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "password policy deleted"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":  "password policy deleted",
+		"warnings": warnings,
+	})
 }

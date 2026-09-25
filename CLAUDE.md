@@ -226,6 +226,11 @@ MVP implemented with:
   module, directory capability and the permission the list endpoint requires. The
   nav bar, the mobile menu and the command palette all read it; never gate a link
   to a section anywhere else. The admin page is `useIsAdmin()`, the route's own test.
+- A detail form ends in `<FormActions>`: Save is disabled until the form is dirty
+  (the value `useSyncedForm` already returns for the unsaved-changes guard), and
+  Discard puts the stored values back. An action that cannot be walked back —
+  deleting a user or a policy, renaming — asks for the name typed, via
+  `ConfirmDialog`'s `confirmText`; its error shows in the dialog, not a toast too.
 - Mutation outcomes are reported by a **toast**. Inline `Callout`s are for
   page-level load failures, field validation and persistent notices — not for
   confirming a save.

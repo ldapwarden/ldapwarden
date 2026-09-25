@@ -1,7 +1,10 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { Callout } from '@/components/ui/callout'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { recallListSearch } from '@/lib/list-memory'
 import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -17,8 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { MultiValueField } from '@/components/ui/multi-value-field'
 import { NetgroupPicker, NetgroupResolutionNotice } from '@/components/netgroup-picker'
 import { NetgroupUsageWarnings, NetgroupContents } from '@/components/netgroup-usage'
-import { Callout } from '@/components/ui/callout'
-import { ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
+import { ShieldCheck, Plus, Users, Terminal, Clock, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/sudo-roles/$dn')({
@@ -36,6 +38,19 @@ function SudoRoleDetailPage() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canWrite = hasPermission('users:write')
+  // What DELETE /api/sudo-roles/:dn requires, as on the list.
+  const canDelete = hasPermission('users:delete')
+  const navigate = useNavigate()
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const deleteMutation = useMutation({
+    mutationFn: () => api.sudoRoles.delete(dn),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
+      toast.success('Sudo role deleted')
+      navigate({ to: '/sudo-roles', search: recallListSearch('/sudo-roles') as never })
+    },
+    // No toast: the confirm dialog stays open and shows the error itself.
+  })
 
   const { data: role, isLoading, error } = useQuery({
     queryKey: ['sudo-role', dn],
@@ -153,7 +168,7 @@ function SudoRoleDetailPage() {
         <ShieldCheck className="h-8 w-8 text-muted-foreground" />
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{role?.cn}</h1>
-          <p className="text-sm text-muted-foreground">{role?.dn}</p>
+          <p className="break-all text-sm text-muted-foreground">{role?.dn}</p>
         </div>
       </div>
 
@@ -462,16 +477,44 @@ function SudoRoleDetailPage() {
           </Card>
         </div>
 
-        {canWrite && (
-          <div className="flex justify-end gap-2">
-            <FormActions
-              dirty={isDirty}
-              pending={updateMutation.isPending}
-              onDiscard={serverForm ? () => setFormData(serverForm) : undefined}
-            />
+        {(canWrite || canDelete) && (
+          <div className="flex flex-wrap justify-between gap-2">
+            {/* Delete lived on the list only: an operator reviewing a rule had
+                to go back and find its row to remove it. */}
+            {canDelete ? (
+              <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            ) : (
+              <span />
+            )}
+            {canWrite && (
+              <div className="flex gap-2">
+                <FormActions
+                  dirty={isDirty}
+                  pending={updateMutation.isPending}
+                  onDiscard={serverForm ? () => setFormData(serverForm) : undefined}
+                />
+              </div>
+            )}
           </div>
         )}
       </form>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open)
+          if (!open) deleteMutation.reset()
+        }}
+        title="Delete sudo role"
+        description={`Delete ${role?.cn ?? 'this sudo role'}? Everyone it grants to loses those commands on the hosts it names. This cannot be undone.`}
+        confirmLabel="Delete Sudo Role"
+        error={deleteMutation.error?.message}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </div>
   )
 }

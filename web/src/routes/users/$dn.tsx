@@ -2130,12 +2130,12 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
     ]
     // The applied policy may be outside the page we fetched. Without an option
     // for it the select would show a different policy than the one in force.
-    const applied = user?.pwdPolicySubentry
+    const applied = user.pwdPolicySubentry
     if (applied && !listed.some((policy) => policy.dn === applied)) {
       options.push({ value: applied, label: extractCN(applied) })
     }
     return options
-  }, [passwordPolicies?.data, user?.pwdPolicySubentry, defaultPolicyDn])
+  }, [passwordPolicies?.data, user.pwdPolicySubentry, defaultPolicyDn])
 
   // The policy in force: the entry's own subentry, or the directory default the
   // lockout resolver reports. Looked up in the page already fetched for the
@@ -2200,15 +2200,18 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
     },
   })
 
+  // Both ask first, as the bulk actions do: a lock turns the account away from
+  // every service the directory backs, and an unlock is not an undo — it also
+  // clears the failed-bind record ppolicy kept.
+  const [lockDialog, setLockDialog] = useState<'lock' | 'unlock' | null>(null)
+
   const lockMutation = useMutation({
     mutationFn: () => api.users.lock(dn),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', dn] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      setLockDialog(null)
       toast.success('Account locked')
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
     },
   })
 
@@ -2217,10 +2220,8 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', dn] })
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      setLockDialog(null)
       toast.success('Account unlocked')
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
     },
   })
 
@@ -2251,9 +2252,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
       showOutcome({ title: `User ${user.uid} deleted: references left behind`, items: res.warnings })
       router.navigate({ to: '/users' })
     },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
+    // No toast: the confirm dialog stays open and shows the error itself.
   })
 
   const sendPasswordResetMutation = useMutation({
@@ -2476,26 +2475,41 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
           {canWrite && !(isSelf && !hasLockFlag) && (
             <div className="flex gap-2 flex-wrap">
               {hasLockFlag ? (
-                <Button
-                  variant="default"
-                  onClick={() => unlockMutation.mutate()}
-                  disabled={unlockMutation.isPending}
-                >
+                <Button variant="default" onClick={() => setLockDialog('unlock')}>
                   <Unlock className="h-4 w-4 mr-1" />
-                  {unlockMutation.isPending ? 'Unlocking...' : 'Unlock Account'}
+                  Unlock Account
                 </Button>
               ) : (
-                <Button
-                  variant="destructive"
-                  onClick={() => lockMutation.mutate()}
-                  disabled={lockMutation.isPending}
-                >
+                <Button variant="destructive" onClick={() => setLockDialog('lock')}>
                   <Lock className="h-4 w-4 mr-1" />
-                  {lockMutation.isPending ? 'Locking...' : 'Lock Account'}
+                  Lock Account
                 </Button>
               )}
             </div>
           )}
+
+          <ConfirmDialog
+            open={lockDialog !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setLockDialog(null)
+                lockMutation.reset()
+                unlockMutation.reset()
+              }
+            }}
+            title={lockDialog === 'unlock' ? 'Unlock account' : 'Lock account'}
+            description={
+              lockDialog === 'unlock'
+                ? `Unlock ${user.uid}? Any lockout the password policy applied after failed sign-ins is cleared too, along with the record of those attempts.`
+                : `Lock ${user.uid}? The account will be refused by every service that authenticates against this directory until someone unlocks it.`
+            }
+            confirmLabel={lockDialog === 'unlock' ? 'Unlock' : 'Lock'}
+            pendingLabel={lockDialog === 'unlock' ? 'Unlocking...' : 'Locking...'}
+            confirmVariant={lockDialog === 'unlock' ? 'default' : 'destructive'}
+            error={(lockDialog === 'unlock' ? unlockMutation.error : lockMutation.error)?.message}
+            isPending={lockMutation.isPending || unlockMutation.isPending}
+            onConfirm={() => (lockDialog === 'unlock' ? unlockMutation.mutate() : lockMutation.mutate())}
+          />
 
           {/* The controls above write attributes the directory only honours while a
               password policy applies to the entry. When we know it does not, say so
@@ -2932,7 +2946,15 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
                   </Button>
                 }
                 title="Delete User"
-                description={`Are you sure you want to delete user "${user.displayName || user.uid}"? This action cannot be undone.`}
+                description={
+                  <>
+                    Delete {user.displayName || user.uid} ({user.uid})? The account is removed, and
+                    its uid is taken out of every group&apos;s members, every sudo rule and every
+                    netgroup that names it — what cannot be reached is listed afterwards. This
+                    cannot be undone.
+                  </>
+                }
+                confirmText={user.uid}
                 confirmLabel="Delete User"
                 error={deleteMutation.error?.message}
                 isPending={deleteMutation.isPending}

@@ -166,9 +166,7 @@ function GroupDetailPage() {
       showOutcome({ title: `Group ${group?.cn ?? ''} deleted: references left behind`, items: res.warnings })
       router.navigate({ to: '/groups' })
     },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
+    // No toast: the confirm dialog stays open and shows the error itself.
   })
 
   const handleSubmit = (e: React.FormEvent, description: string) => {

@@ -1373,6 +1373,19 @@ curl "http://localhost:8000/api/password-policies?sort=pwdMinLength&order=desc" 
 }
 ```
 
+### Delete a Password Policy
+
+```http
+DELETE /api/password-policies/{dn}
+```
+
+**Required permission:** `settings:write`
+
+Answers with `warnings` naming what is left pointing at nothing: accounts whose
+`pwdPolicySubentry` still names the policy — a DN the directory does not follow,
+so they stop getting it in silence — and `LDAP_DEFAULT_POLICY_DN` if it names it.
+Collected before the delete; reported, not rewritten.
+
 ### Assigning a Policy to a User
 
 A user's policy is the `pwdPolicySubentry` attribute, set through
