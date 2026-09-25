@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Save, Wand2 } from 'lucide-react'
+import { Save, Wand2 } from 'lucide-react'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
@@ -77,9 +78,7 @@ function NewGroupPage() {
     <div className="space-y-4">
       <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Back to groups" onClick={() => router.navigate({ to: '/groups' })}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to="/groups" label="Back to groups" />
         <h1 className="text-2xl font-bold">Create New Group</h1>
       </div>
 

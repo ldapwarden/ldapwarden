@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -19,7 +20,7 @@ import { MultiValueField } from '@/components/ui/multi-value-field'
 import { TripleEditor } from '@/components/netgroup-triples'
 import { NetgroupExpansionPanel } from '@/components/netgroup-expansion'
 import { NetgroupSudoUsage } from '@/components/netgroup-sudo-usage'
-import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react'
+import { Save, Trash2, Plus } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/netgroups/$dn')({
@@ -126,14 +127,7 @@ function NetgroupDetailPage() {
       <UnsavedChangesGuard when={isDirty} />
 
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Back to netgroups"
-          onClick={() => router.navigate({ to: '/netgroups' })}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to="/netgroups" label="Back to netgroups" />
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">{netgroup?.cn}</h1>
           <p className="break-all text-sm text-muted-foreground">{netgroup?.dn}</p>

@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -32,7 +33,7 @@ import { Callout } from '@/components/ui/callout'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { GroupRenameCard } from '@/components/group-rename'
 import { AccountStatus } from '@/components/account-status'
-import { ArrowLeft, Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
+import { Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
 // Tabs this page can show. Which ones are actually rendered depends on the
@@ -207,9 +208,7 @@ function GroupDetailPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Back to groups" onClick={() => router.navigate({ to: '/groups' })}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to="/groups" label="Back to groups" />
         <div>
           <h1 className="text-2xl font-bold">{group?.cn}</h1>
           <p className="break-all text-sm text-muted-foreground">{group?.dn}</p>

@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
+import { BackToList } from '@/components/back-to-list'
+import type { ListPath } from '@/lib/list-memory'
 import { useRouter } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import Papa from 'papaparse'
@@ -15,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft, Upload, CheckCircle2, XCircle, Download } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Download } from 'lucide-react'
 
 export type FieldType = 'string' | 'number' | 'stringArray'
 
@@ -60,7 +62,7 @@ export function CsvImport({
   title: string
   noun: string
   fields: ImportField[]
-  backTo: string
+  backTo: ListPath
   submit: (rows: ImportRow[]) => Promise<ImportResult>
   /**
    * Anything about the file format that a column list cannot convey, shown
@@ -133,9 +135,7 @@ export function CsvImport({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Back" onClick={() => router.navigate({ to: backTo })}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to={backTo} label="Back to the list" />
         <h1 className="text-2xl font-bold">{title}</h1>
       </div>
 

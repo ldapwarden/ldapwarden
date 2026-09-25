@@ -1,5 +1,6 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { BackToList } from '@/components/back-to-list'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
@@ -14,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Callout } from '@/components/ui/callout'
-import { ArrowLeft, Save, Trash2 } from 'lucide-react'
+import { Save, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -134,11 +135,7 @@ function PasswordPolicyDetailPage() {
       <UnsavedChangesGuard when={isDirty} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-4">
-          <Link to="/password-policies">
-            <Button variant="ghost" size="icon" aria-label="Back to password policies">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+          <BackToList to="/password-policies" label="Back to password policies" />
           <div>
             <h1 className="text-2xl font-bold">{policy.cn}</h1>
             <p className="text-sm text-muted-foreground font-mono">{policy.dn}</p>

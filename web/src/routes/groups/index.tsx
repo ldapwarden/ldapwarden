@@ -1,4 +1,5 @@
 import { TableSkeletonRows } from '@/components/ui/skeleton'
+import { useRememberListSearch } from '@/lib/list-memory'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -48,6 +49,7 @@ export const Route = createFileRoute('/groups/')({
 function GroupsPage() {
   const { hasPermission } = useAuth()
   const searchParams = Route.useSearch()
+  useRememberListSearch('/groups', searchParams)
   const navigate = Route.useNavigate()
   const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
     listSearchValues<SortField>(searchParams, 'cn')

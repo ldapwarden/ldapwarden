@@ -220,6 +220,8 @@ MVP implemented with:
 - View state (search, sort, page, size, active tab, audit filters) lives in the
   URL via `validateSearch`, so every view is a shareable link. Helpers:
   `lib/list-search.ts`, `lib/use-url-search-input.ts`.
+  A list page registers that state with `useRememberListSearch`, and the back
+  arrow of its detail and create pages is `<BackToList>`, which returns to it.
 - **Which sections exist is decided once**, in `useSections()` (`lib/sections.ts`):
   module, directory capability and the permission the list endpoint requires. The
   nav bar, the mobile menu and the command palette all read it; never gate a link

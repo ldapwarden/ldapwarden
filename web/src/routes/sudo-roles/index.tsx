@@ -1,4 +1,5 @@
 import { TableSkeletonRows } from '@/components/ui/skeleton'
+import { useRememberListSearch } from '@/lib/list-memory'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api, type SudoRole } from '@/lib/api'
@@ -51,6 +52,7 @@ function SudoRolesPage() {
   const { hasPermission } = useAuth()
   const queryClient = useQueryClient()
   const searchParams = Route.useSearch()
+  useRememberListSearch('/sudo-roles', searchParams)
   const navigate = Route.useNavigate()
   const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
     listSearchValues<SortField>(searchParams, 'cn')

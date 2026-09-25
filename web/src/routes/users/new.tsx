@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -17,7 +18,7 @@ import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { PickerOverflow } from '@/components/ui/picker-overflow'
 import { useCreationFormDirty } from '@/lib/form-sync'
 import { usePickerSearch } from '@/lib/use-picker-search'
-import { ArrowLeft, Save, Wand2, Users, X, CalendarClock } from 'lucide-react'
+import { Save, Wand2, Users, X, CalendarClock } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
 // The primary-group dropdown is not searched, so it takes a generous bound —
@@ -176,9 +177,7 @@ function NewUserPage() {
     <div className="space-y-4">
       <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Back to users" onClick={() => router.navigate({ to: '/users' })}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to="/users" label="Back to users" />
         <h1 className="text-2xl font-bold">Create New User</h1>
       </div>
 

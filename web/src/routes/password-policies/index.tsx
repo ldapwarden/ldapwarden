@@ -1,4 +1,5 @@
 import { TableSkeletonRows } from '@/components/ui/skeleton'
+import { useRememberListSearch } from '@/lib/list-memory'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api, type PasswordPolicy } from '@/lib/api'
@@ -52,6 +53,7 @@ function PasswordPoliciesPage() {
   const { hasPermission } = useAuth()
   const queryClient = useQueryClient()
   const searchParams = Route.useSearch()
+  useRememberListSearch('/password-policies', searchParams)
   const navigate = Route.useNavigate()
   const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
     listSearchValues<SortField>(searchParams, 'cn')

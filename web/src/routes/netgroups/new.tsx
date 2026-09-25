@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, type NetgroupTriple } from '@/lib/api'
@@ -12,7 +13,7 @@ import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useCreationFormDirty } from '@/lib/form-sync'
 import { TripleEditor } from '@/components/netgroup-triples'
 import { netgroupKind, netgroupKindLabel } from '@/lib/netgroup'
-import { ArrowLeft, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/netgroups/new')({
@@ -67,14 +68,7 @@ function NewNetgroupPage() {
       <UnsavedChangesGuard when={isDirty} />
 
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Back to netgroups"
-          onClick={() => router.navigate({ to: '/netgroups' })}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to="/netgroups" label="Back to netgroups" />
         <h1 className="text-2xl font-bold">Create Netgroup</h1>
       </div>
 

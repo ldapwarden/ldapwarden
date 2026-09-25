@@ -1,4 +1,5 @@
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
@@ -79,11 +80,7 @@ function NewPasswordPolicyPage() {
     <div className="space-y-6">
       <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
-        <Link to="/password-policies">
-          <Button variant="ghost" size="icon" aria-label="Back to password policies">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+        <BackToList to="/password-policies" label="Back to password policies" />
         <h1 className="text-2xl font-bold">New Password Policy</h1>
       </div>
 

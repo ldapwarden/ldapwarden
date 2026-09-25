@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { BackToList } from '@/components/back-to-list'
 import { PosixIdsChange } from '@/components/posix-ids-change'
 import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -27,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select } from '@/components/ui/select'
-import { ArrowLeft, Save, Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy, Network } from 'lucide-react'
+import { Save, Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy, Network } from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -70,7 +71,6 @@ export const Route = createFileRoute('/users/$dn')({
 function UserDetailPage() {
   const { dn: encodedDN } = Route.useParams()
   const dn = decodeDN(encodedDN)
-  const router = useRouter()
   const { hasPermission, session } = useAuth()
   const canWrite = hasPermission('users:write')
   const canDelete = hasPermission('users:delete')
@@ -162,9 +162,7 @@ function UserDetailPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Back to users" onClick={() => router.navigate({ to: '/users' })}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to="/users" label="Back to users" />
         <Avatar
           src={user?.jpegPhoto}
           fallback={user?.displayName || user?.cn}

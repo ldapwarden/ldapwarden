@@ -1,5 +1,6 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
-import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { BackToList } from '@/components/back-to-list'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -16,7 +17,7 @@ import { MultiValueField } from '@/components/ui/multi-value-field'
 import { NetgroupPicker, NetgroupResolutionNotice } from '@/components/netgroup-picker'
 import { NetgroupUsageWarnings, NetgroupContents } from '@/components/netgroup-usage'
 import { Callout } from '@/components/ui/callout'
-import { ArrowLeft, Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
+import { Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/sudo-roles/$dn')({
@@ -31,7 +32,6 @@ export const Route = createFileRoute('/sudo-roles/$dn')({
 function SudoRoleDetailPage() {
   const { dn: encodedDN } = Route.useParams()
   const dn = decodeDN(encodedDN)
-  const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canWrite = hasPermission('users:write')
@@ -148,9 +148,7 @@ function SudoRoleDetailPage() {
     <div className="space-y-4">
       <UnsavedChangesGuard when={isDirty} />
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Back to sudo roles" onClick={() => router.navigate({ to: '/sudo-roles' })}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <BackToList to="/sudo-roles" label="Back to sudo roles" />
         <ShieldCheck className="h-8 w-8 text-muted-foreground" />
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{role?.cn}</h1>
