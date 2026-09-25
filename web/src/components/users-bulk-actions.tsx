@@ -43,9 +43,16 @@ interface GroupOption {
 export function UsersBulkActions({
   selected,
   onClear,
+  canDelete,
 }: {
   selected: BulkUser[]
   onClear: () => void
+  /**
+   * users:delete, which DELETE /api/users/:dn requires. The bar itself is shown
+   * on users:write for lock, groups and expiry; without this, a role holding
+   * write but not delete was offered a Delete that failed on every row.
+   */
+  canDelete: boolean
 }) {
   const queryClient = useQueryClient()
   const [running, setRunning] = useState(false)
@@ -136,10 +143,12 @@ export function UsersBulkActions({
           <CalendarClock className="h-4 w-4 mr-1" />
           Set expiration
         </Button>
-        <Button variant="destructive" size="sm" disabled={running} onClick={() => setDeleteOpen(true)}>
-          <Trash2 className="h-4 w-4 mr-1" />
-          Delete
-        </Button>
+        {canDelete && (
+          <Button variant="destructive" size="sm" disabled={running} onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
+        )}
       </BulkActionBar>
 
       <ConfirmDialog

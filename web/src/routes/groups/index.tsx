@@ -95,6 +95,9 @@ function GroupsPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const canWrite = hasPermission('groups:write')
+  // Selection exists for the bulk delete alone, so it follows the permission
+  // DELETE /api/groups/:dn requires, not the one that creates groups.
+  const canDelete = hasPermission('groups:delete')
 
   const {
     selected,
@@ -178,7 +181,7 @@ function GroupsPage() {
         </Callout>
       )}
 
-      {canWrite && (
+      {canDelete && (
         <BulkDeleteActions
           selected={selectedGroups}
           onClear={clearSelection}
@@ -196,7 +199,7 @@ function GroupsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              {canWrite && (
+              {canDelete && (
                 <TableHead className="w-10">
                   <Checkbox
                     aria-label="Select all groups"
@@ -242,12 +245,12 @@ function GroupsPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canWrite ? 5 : 4} />
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canDelete ? 5 : 4} />
             ) : (
               <>
                 {groups.map((group) => (
               <TableRow key={group.dn} data-state={selected.has(group.dn) ? 'selected' : undefined}>
-                {canWrite && (
+                {canDelete && (
                   <TableCell className="w-10">
                     <Checkbox
                       aria-label={`Select ${group.cn}`}
@@ -278,7 +281,7 @@ function GroupsPage() {
             {groups.length === 0 && (
               q ? (
                 <TableEmptyState
-                  colSpan={canWrite ? 5 : 4}
+                  colSpan={canDelete ? 5 : 4}
                   icon={Search}
                   title={`No groups match \u201c${q}\u201d`}
                   description="Search matches the group name and description."
@@ -289,7 +292,7 @@ function GroupsPage() {
                 </TableEmptyState>
               ) : (
                 <TableEmptyState
-                  colSpan={canWrite ? 5 : 4}
+                  colSpan={canDelete ? 5 : 4}
                   icon={Users}
                   title="No groups yet"
                   description={

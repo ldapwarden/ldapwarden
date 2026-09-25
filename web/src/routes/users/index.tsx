@@ -137,6 +137,7 @@ function UsersPage() {
   )
 
   const canWrite = hasPermission('users:write')
+  const canDelete = hasPermission('users:delete')
 
   const handleSort = (field: SortField) => {
     patchSearch(nextSort({ sort: sortField, dir: sortDirection }, field))
@@ -249,6 +250,7 @@ function UsersPage() {
         <UsersBulkActions
           selected={selectedUsers}
           onClear={clearSelection}
+          canDelete={canDelete}
         />
       )}
 
