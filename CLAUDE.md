@@ -243,5 +243,9 @@ MVP implemented with:
 - Colours come from theme tokens (`text-success`, `bg-warning/10`, the `.tone`
   class for categorical tints). Never use raw palette utilities such as
   `bg-green-100`: they only work in light mode.
+  A surface that is light whatever the theme (the sign-in card) takes the
+  `light` class, which re-declares the light tokens for its subtree; never
+  force `bg-white text-gray-900` by hand, which leaves everything inside on
+  dark-theme tokens.
 - Loading states use the skeletons in `components/ui/skeleton.tsx`, rendered
   inside the real table so nothing shifts when data arrives.

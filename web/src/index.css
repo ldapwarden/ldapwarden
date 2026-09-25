@@ -61,7 +61,12 @@
 }
 
 @layer base {
-  :root {
+  /* `.light` re-declares the light theme on a subtree, for a surface that is
+     light whatever the theme — the sign-in card on its fixed dark backdrop.
+     Custom properties set on an element win over the ones it inherits, so
+     everything inside reads its tokens from here even under `.dark`. */
+  :root,
+  .light {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -108,6 +113,11 @@
     --tone-indigo: 239 84%;
     --tone-teal: 173 80%;
     --tone-slate: 215 16%;
+  }
+
+  .light {
+    color-scheme: light;
+    color: hsl(var(--foreground));
   }
 
   .dark {

@@ -139,16 +139,17 @@ function LoginPage() {
       `}</style>
 
       {/* Login card */}
-      {/* The card is intentionally always white (it sits on a fixed dark
-          gradient, theme-independent). Force dark text so inputs, labels and
-          description stay readable in dark mode — otherwise they inherit the
-          dark-theme light foreground and vanish on the white surface. */}
-      <Card className="relative z-10 w-full max-w-md mx-4 bg-white/95 text-gray-900 backdrop-blur-xs shadow-2xl">
+      {/* The card is light whatever the theme: it sits on a fixed dark
+          gradient. `light` scopes the light tokens to it. Forcing white and
+          dark text by hand left everything inside on dark-theme tokens — the
+          error and session-expired callouts at about 2:1, and a Sign In button
+          as white as the card. */}
+      <Card className="light relative z-10 w-full max-w-md mx-4 bg-card/95 text-card-foreground backdrop-blur-xs shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <img src="/ldapwarden-logo.svg" alt="LDAP Warden" className="h-24 w-auto" />
           </div>
-          <CardDescription className="text-gray-600">Sign in with your LDAP credentials</CardDescription>
+          <CardDescription>Sign in with your LDAP credentials</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -169,7 +170,6 @@ function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username or email"
-                className="placeholder:text-gray-500"
                 autoComplete="username"
                 required
                 autoFocus
@@ -182,7 +182,6 @@ function LoginPage() {
                 value={password}
                 onValueChange={setPassword}
                 placeholder="Enter your password"
-                className="placeholder:text-gray-500"
                 autoComplete="current-password"
                 required
               />
