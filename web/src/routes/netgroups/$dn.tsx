@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -20,7 +21,7 @@ import { MultiValueField } from '@/components/ui/multi-value-field'
 import { TripleEditor } from '@/components/netgroup-triples'
 import { NetgroupExpansionPanel } from '@/components/netgroup-expansion'
 import { NetgroupSudoUsage } from '@/components/netgroup-sudo-usage'
-import { Save, Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/netgroups/$dn')({
@@ -250,11 +251,13 @@ function NetgroupDetailPage() {
           </Card>
 
           {canWrite && (
-            <div className="flex justify-end">
-              <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
-                <Save className="h-4 w-4 mr-1" />
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
+            <div className="flex justify-end gap-2">
+              <FormActions
+                dirty={isDirty}
+                pending={updateMutation.isPending}
+                onDiscard={serverForm ? () => setForm(serverForm) : undefined}
+                submit={() => updateMutation.mutate()}
+              />
             </div>
           )}
         </div>

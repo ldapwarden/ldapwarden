@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -33,7 +34,7 @@ import { Callout } from '@/components/ui/callout'
 import { ReadOnlyNotice } from '@/components/read-only-notice'
 import { GroupRenameCard } from '@/components/group-rename'
 import { AccountStatus } from '@/components/account-status'
-import { Save, UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
+import { UserPlus, UserMinus, Users, Search, Info, Shield, Trash2, ShieldCheck, Plus, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
 // Tabs this page can show. Which ones are actually rendered depends on the
@@ -363,11 +364,12 @@ function InformationTab({
           </div>
 
           {canWrite && (
-            <div className="flex justify-end pt-4">
-              <Button type="submit" disabled={updateMutation.isPending}>
-                <Save className="h-4 w-4 mr-1" />
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
+            <div className="flex justify-end gap-2 pt-4">
+              <FormActions
+                dirty={isDirty}
+                pending={updateMutation.isPending}
+                onDiscard={() => setForm({ description: group.description || '' })}
+              />
             </div>
           )}
         </CardContent>
@@ -583,16 +585,28 @@ function MembersTab({
   )
 }
 
+function groupSambaForm(group: { sambaSID?: string; sambaGroupType?: string; displayName?: string }) {
+  return {
+    sambaSID: group.sambaSID || '',
+    sambaGroupType: group.sambaGroupType || '',
+    displayName: group.displayName || '',
+  }
+}
+
 // Samba Tab (sambaGroupMapping)
 function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<ReturnType<typeof api.groups.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, hasObjectClass: boolean }) {
   const queryClient = useQueryClient()
   const [isAddingObjectClass, setIsAddingObjectClass] = useState(false)
 
-  const [formData, setFormData] = useState({
-    sambaSID: group.sambaSID || '',
-    sambaGroupType: group.sambaGroupType || '',
-    displayName: group.displayName || '',
-  })
+  const [formData, setFormData] = useState(() => groupSambaForm(group))
+  // As on the user's Samba tab: synced only once the entry carries the object
+  // class, since in add mode the server copy is all empty strings and adopting
+  // it would wipe the defaults just filled in.
+  const isDirty = useSyncedForm(
+    hasObjectClass && !isAddingObjectClass ? groupSambaForm(group) : undefined,
+    formData,
+    setFormData,
+  )
 
   // Initialize form with default values when entering add mode
   const handleAddSambaGroup = () => {
@@ -669,6 +683,7 @@ function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<
 
   return (
     <form onSubmit={handleSubmit}>
+      <UnsavedChangesGuard when={isDirty} />
       <Card>
         <CardHeader>
           <CardTitle>{isAddingObjectClass ? 'Add Samba Group Mapping' : 'Samba Group Mapping'}</CardTitle>
@@ -724,19 +739,23 @@ function SambaTab({ group, dn, canWrite, hasObjectClass }: { group: NonNullable<
 
           {canWrite && (
             <div className="flex justify-end gap-2 pt-4">
-              {isAddingObjectClass && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddingObjectClass(false)}
-                >
-                  Cancel
-                </Button>
-              )}
-              <Button type="submit" disabled={updateMutation.isPending}>
-                <Save className="h-4 w-4 mr-1" />
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
+              {/* In add mode the defaults are the change: nothing is stored yet to
+                  compare them with, so Save stays available. */}
+              <FormActions
+                dirty={isDirty || isAddingObjectClass}
+                pending={updateMutation.isPending}
+                onDiscard={isAddingObjectClass ? undefined : () => setFormData(groupSambaForm(group))}
+              >
+                {isAddingObjectClass && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddingObjectClass(false)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </FormActions>
             </div>
           )}
         </CardContent>

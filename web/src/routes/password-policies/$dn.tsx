@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -15,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Callout } from '@/components/ui/callout'
-import { Save, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -416,10 +417,14 @@ function PasswordPolicyDetailPage() {
             <Trash2 className="h-4 w-4 mr-1" />
             Delete
           </Button>
-          <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
-            <Save className="h-4 w-4 mr-1" />
-            {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-          </Button>
+          <div className="flex gap-2">
+            <FormActions
+              dirty={isDirty}
+              pending={updateMutation.isPending}
+              onDiscard={serverForm ? () => setFormData(serverForm) : undefined}
+              submit={() => updateMutation.mutate()}
+            />
+          </div>
         </div>
       )}
 

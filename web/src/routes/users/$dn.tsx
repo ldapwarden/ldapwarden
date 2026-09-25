@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { PosixIdsChange } from '@/components/posix-ids-change'
 import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-router'
@@ -28,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select } from '@/components/ui/select'
-import { Save, Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy, Network } from 'lucide-react'
+import { Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy, Network } from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -814,11 +815,16 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
             </div>
 
             {canWrite && (
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={updateMutation.isPending}>
-                  <Save className="h-4 w-4 mr-1" />
-                  {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-                </Button>
+              <div className="flex justify-end gap-2 pt-4">
+                <FormActions
+                  dirty={textFieldsDirty || photoChanged}
+                  pending={updateMutation.isPending}
+                  onDiscard={() => {
+                    setFormData(identityForm(user))
+                    setPhoto(user.jpegPhoto || '')
+                    setPhotoChanged(false)
+                  }}
+                />
               </div>
             )}
           </CardContent>
@@ -1095,11 +1101,12 @@ function PosixTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof 
           </div>
 
           {canWrite && (
-            <div className="flex justify-end pt-4">
-              <Button type="submit" disabled={updateMutation.isPending}>
-                <Save className="h-4 w-4 mr-1" />
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
+            <div className="flex justify-end gap-2 pt-4">
+              <FormActions
+                dirty={isDirty}
+                pending={updateMutation.isPending}
+                onDiscard={() => setFormData(posixForm(user))}
+              />
             </div>
           )}
         </CardContent>
@@ -1463,19 +1470,23 @@ function SambaTab({ user, dn, canWrite, hasObjectClass }: { user: NonNullable<Re
 
           {canWrite && (
             <div className="flex justify-end gap-2 pt-4">
-              {isAddingObjectClass && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddingObjectClass(false)}
-                >
-                  Cancel
-                </Button>
-              )}
-              <Button type="submit" disabled={updateMutation.isPending}>
-                <Save className="h-4 w-4 mr-1" />
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
+              {/* In add mode the defaults are the change: nothing is stored yet to
+                  compare them with, so Save stays available. */}
+              <FormActions
+                dirty={isDirty || isAddingObjectClass}
+                pending={updateMutation.isPending}
+                onDiscard={isAddingObjectClass ? undefined : () => setFormData(sambaForm(user))}
+              >
+                {isAddingObjectClass && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddingObjectClass(false)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </FormActions>
             </div>
           )}
         </CardContent>
@@ -1707,19 +1718,23 @@ function ShadowTab({ user, dn, canWrite, hasObjectClass, isSelf }: { user: NonNu
 
           {canWrite && (
             <div className="flex justify-end gap-2 pt-4">
-              {isAddingObjectClass && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddingObjectClass(false)}
-                >
-                  Cancel
-                </Button>
-              )}
-              <Button type="submit" disabled={updateMutation.isPending}>
-                <Save className="h-4 w-4 mr-1" />
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
+              {/* In add mode the defaults are the change: nothing is stored yet to
+                  compare them with, so Save stays available. */}
+              <FormActions
+                dirty={isDirty || isAddingObjectClass}
+                pending={updateMutation.isPending}
+                onDiscard={isAddingObjectClass ? undefined : () => setFormData(shadowForm(user))}
+              >
+                {isAddingObjectClass && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddingObjectClass(false)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </FormActions>
             </div>
           )}
         </CardContent>

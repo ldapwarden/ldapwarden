@@ -1,4 +1,5 @@
 import { DetailSkeleton } from '@/components/ui/skeleton'
+import { FormActions } from '@/components/form-actions'
 import { BackToList } from '@/components/back-to-list'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -17,7 +18,7 @@ import { MultiValueField } from '@/components/ui/multi-value-field'
 import { NetgroupPicker, NetgroupResolutionNotice } from '@/components/netgroup-picker'
 import { NetgroupUsageWarnings, NetgroupContents } from '@/components/netgroup-usage'
 import { Callout } from '@/components/ui/callout'
-import { Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
+import { ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/sudo-roles/$dn')({
@@ -462,11 +463,12 @@ function SudoRoleDetailPage() {
         </div>
 
         {canWrite && (
-          <div className="flex justify-end">
-            <Button type="submit" disabled={updateMutation.isPending}>
-              <Save className="h-4 w-4 mr-1" />
-              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
+          <div className="flex justify-end gap-2">
+            <FormActions
+              dirty={isDirty}
+              pending={updateMutation.isPending}
+              onDiscard={serverForm ? () => setFormData(serverForm) : undefined}
+            />
           </div>
         )}
       </form>
