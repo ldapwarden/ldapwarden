@@ -154,9 +154,15 @@ function GroupDetailPage() {
 
   const deleteMutation = useMutation({
     mutationFn: () => api.groups.delete(dn),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['groups'] })
+      queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
       toast.success('Group deleted')
+      // Sudo grants to "%cn" and primary members hold the gidNumber: neither
+      // goes away with the entry, and the directory will not say so.
+      if (res.warnings.length > 0) {
+        toast.warning(res.warnings.join(' | '), { duration: 15000 })
+      }
       router.navigate({ to: '/groups' })
     },
     onError: (error: Error) => {
@@ -987,7 +993,7 @@ function SecurityTab({
                   </Button>
                 }
                 title="Delete Group"
-                description={`Are you sure you want to delete group "${group.cn}"? This action cannot be undone.`}
+                description={`Are you sure you want to delete group "${group.cn}"? Sudo rules granting to %${group.cn} and accounts using it as their primary group are left as they are; they will be listed once the group is gone. This action cannot be undone.`}
                 confirmLabel="Delete Group"
                 error={deleteMutation.error?.message}
                 isPending={deleteMutation.isPending}

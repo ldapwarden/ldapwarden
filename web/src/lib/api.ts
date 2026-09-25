@@ -580,6 +580,11 @@ export const NetgroupExpansionSchema = z.object({
   dangling: z.array(z.string()).optional(),
 })
 
+export const GroupDeleteResponseSchema = z.object({
+  message: z.string(),
+  warnings: z.array(z.string()).default([]),
+})
+
 export const NetgroupDeleteResponseSchema = z.object({
   message: z.string(),
   warnings: z.array(z.string()).default([]),
@@ -1072,8 +1077,11 @@ export const api = {
         body: JSON.stringify(data),
       }, GroupSchema),
 
+    // Answers with warnings: sudo grants to "%cn" and primary members hold the
+    // gidNumber, and neither follows the entry when it is deleted.
     delete: (dn: string) =>
-      fetchApi(`/groups/${encodeURIComponent(dn)}`, { method: 'DELETE' }),
+      fetchApi(`/groups/${encodeURIComponent(dn)}`, { method: 'DELETE' },
+        GroupDeleteResponseSchema),
 
     import: (rows: ImportRow[]) =>
       fetchApi('/groups/import', { method: 'POST', body: JSON.stringify({ rows }) }, ImportResultSchema),

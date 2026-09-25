@@ -795,6 +795,13 @@ curl -X DELETE "http://localhost:8000/api/groups/$ENCODED_DN" \
   -b cookies.txt
 ```
 
+Answers with `warnings` naming what is left pointing at nothing: sudo roles that
+still grant to `%cn` or run as the group, and accounts whose primary group is
+still its `gidNumber`. Collected before the delete; reported, not rewritten.
+
+Refuses the group named by `LDAPWARDEN_ADMIN_GROUP` with `409 Conflict`: admin
+is decided by that group's name, so deleting it would strip admin from everyone.
+
 ### List Group Members
 
 ```http

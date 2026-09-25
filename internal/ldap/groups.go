@@ -201,6 +201,59 @@ func (c *Client) DeleteGroup(dn string) error {
 	return c.Delete(dn)
 }
 
+// GroupDeleteLeftovers lists what deleting a group leaves pointing at nothing,
+// for the caller to report. Called before the delete, while the name still
+// resolves.
+//
+// Nothing here is rewritten: unlike a rename there is no new name to move the
+// references to, and removing a group is a legitimate thing to do. What the
+// directory will not say on its own is that sudo still grants to "%cn", that a
+// role still runs as the group, and that accounts still carry its gidNumber as
+// their primary group — a number the next group to take it inherits, members
+// included. memberUid needs nothing: it lives on the group entry and goes with it.
+func (c *Client) GroupDeleteLeftovers(cn string, gidNumber int) []string {
+	// Non-nil so it serialises as an empty JSON array, not null.
+	warnings := []string{}
+
+	if roles, err := c.GetGroupSudoRoles(cn); err != nil {
+		warnings = append(warnings, "could not check which sudo roles grant to this group: "+err.Error())
+	} else {
+		for _, role := range roles {
+			warnings = append(warnings, fmt.Sprintf(
+				"sudo role %q still grants to %%%s, which now matches nobody", role.CN, cn))
+		}
+	}
+
+	if roles, err := c.sudoRolesRunningAsGroup(cn); err != nil {
+		warnings = append(warnings, "could not check sudoRunAsGroup references: "+err.Error())
+	} else {
+		for _, role := range roles {
+			warnings = append(warnings, fmt.Sprintf(
+				"sudo role %q runs as group %q, which no longer exists here; "+
+					"check whether it meant this group or one local to the hosts",
+				role.CN, cn))
+		}
+	}
+
+	entries, err := c.Search(c.UserBaseDN(),
+		fmt.Sprintf("(&(objectClass=posixAccount)(gidNumber=%d))", gidNumber), []string{"uid"})
+	if err != nil {
+		warnings = append(warnings, "could not check which accounts use this group as their primary group: "+err.Error())
+	} else if len(entries) > 0 {
+		uids := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			uids = append(uids, entry.GetAttributeValue("uid"))
+		}
+		sort.Strings(uids)
+		warnings = append(warnings, fmt.Sprintf(
+			"%d account(s) still have gidNumber %d as their primary group (%s); "+
+				"a group created later with that number would take them in",
+			len(uids), gidNumber, strings.Join(uids, ", ")))
+	}
+
+	return warnings
+}
+
 func (c *Client) AddGroupMember(groupDN, memberUID string) error {
 	group, err := c.GetGroup(groupDN)
 	if err != nil {

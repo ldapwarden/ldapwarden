@@ -161,16 +161,38 @@ func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	group, err := s.ldapClient.GetGroup(dn)
+	if err != nil || group == nil {
+		writeError(w, http.StatusNotFound, "group not found")
+		return
+	}
+
+	// Refused for the same reason as a rename: administrator access is decided
+	// by comparing group names against LDAPWARDEN_ADMIN_GROUP, so deleting that
+	// group takes admin away from everyone, whoever did it included.
+	if strings.EqualFold(group.CN, s.config.App.AdminGroup) {
+		writeError(w, http.StatusConflict,
+			"This is the administrator group named by LDAPWARDEN_ADMIN_GROUP. Deleting it here "+
+				"would remove administrator access from everyone, with no way to undo it from "+
+				"this app. Change the setting first, then restart.")
+		return
+	}
+
 	if !s.auditMutating(w, r, audit.ActionGroupDelete, audit.ResourceGroup, dn, s.groupNameDetails(dn)) {
 		return
 	}
+
+	warnings := s.ldapClient.GroupDeleteLeftovers(group.CN, group.GIDNumber)
 
 	if err := s.ldapClient.DeleteGroup(dn); err != nil {
 		writeServerError(w, r, "delete group", err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "group deleted"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":  "group deleted",
+		"warnings": warnings,
+	})
 }
 
 type memberRequest struct {

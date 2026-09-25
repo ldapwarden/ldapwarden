@@ -70,6 +70,7 @@ parameters the list endpoints accept.
 - `GET /api/users/:dn/photo` - User photo as `image/jpeg`
 - `GET/POST/PUT/DELETE /api/groups` - Group CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
 - `POST /api/groups/:dn/change-cn` - Rename a group; rewrites the `%cn` sudo grants, refuses the admin group
+- `DELETE /api/groups/:dn` - Reports the `%cn` grants and primary members it leaves behind, and refuses the admin group too
 - `POST /api/users/:dn/change-posix-ids` - Change `uidNumber`/`gidNumber`; refuses a duplicate uid number, warns about file ownership
 - `GET /api/groups/:dn/members` - Membership resolved to names
 - `POST /api/admin/policy-selftest` - Prove whether ppolicy is enforced (writes a throwaway entry)
