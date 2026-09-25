@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
+import { Select } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -18,7 +18,7 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { Checkbox } from '@/components/ui/checkbox'
 import { UsersBulkActions } from '@/components/users-bulk-actions'
-import { Plus, Search, Users, Upload } from 'lucide-react'
+import { CheckCircle2, Plus, Search, Users, Upload } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { useCallback, useMemo, useState, useRef } from 'react'
 import { encodeDN } from '@/lib/utils'
@@ -40,10 +40,24 @@ import { Callout } from '@/components/ui/callout'
 const SORT_FIELDS = ['uid', 'displayName', 'mail', 'employeeType', 'groupsCount'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
+// Which accounts the list shows. Absent means active only, the everyday view;
+// `inactive` is the locked-or-expired set the dashboard's card links to.
+const STATUS_FILTERS = ['all', 'inactive'] as const
+type StatusFilter = (typeof STATUS_FILTERS)[number]
+
 // UsersSearch is the view state this page keeps in the URL, so a filtered,
 // sorted, paged view is a link someone can bookmark or paste into a ticket.
 interface UsersSearch extends ListSearch<SortField> {
-  inactive?: boolean
+  status?: StatusFilter
+}
+
+function parseStatus(raw: Record<string, unknown>): StatusFilter | undefined {
+  if (typeof raw.status === 'string' && (STATUS_FILTERS as readonly string[]).includes(raw.status)) {
+    return raw.status as StatusFilter
+  }
+  // `?inactive=true` was the "Show inactive" toggle; links made with it still
+  // mean "everyone".
+  return asBoolean(raw.inactive) ? 'all' : undefined
 }
 
 export const Route = createFileRoute('/users/')({
@@ -54,7 +68,7 @@ export const Route = createFileRoute('/users/')({
   },
   validateSearch: (raw: Record<string, unknown>): UsersSearch => ({
     ...listSearchValidator(SORT_FIELDS)(raw),
-    inactive: asBoolean(raw.inactive),
+    status: parseStatus(raw),
   }),
   component: UsersPage,
 })
@@ -65,7 +79,7 @@ function UsersPage() {
   const navigate = Route.useNavigate()
   const { q, sort: sortField, dir: sortDirection, page: currentPage, size: pageSize } =
     listSearchValues<SortField>(searchParams, 'uid')
-  const showInactive = searchParams.inactive ?? false
+  const statusFilter = searchParams.status
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
 
@@ -91,12 +105,12 @@ function UsersPage() {
   // side, so a page costs one page worth of rows regardless of how large the
   // directory is.
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['users', { search: q, showInactive, sortField, sortDirection, currentPage, pageSize }],
+    queryKey: ['users', { search: q, statusFilter, sortField, sortDirection, currentPage, pageSize }],
     queryFn: ({ signal }) =>
       api.users.list(
         {
           search: q,
-          status: showInactive ? undefined : 'active',
+          status: statusFilter === 'all' ? undefined : (statusFilter ?? 'active'),
           sort: sortField,
           order: sortDirection,
           limit: pageSize,
@@ -162,8 +176,8 @@ function UsersPage() {
     clearSelection()
   }
 
-  const handleShowInactiveChange = (checked: boolean) => {
-    patchSearch({ inactive: checked || undefined, page: undefined })
+  const handleStatusChange = (status: StatusFilter | undefined) => {
+    patchSearch({ status, page: undefined })
     clearSelection()
   }
 
@@ -204,18 +218,19 @@ function UsersPage() {
             className="pl-8"
           />
         </div>
-        <Switch
-          checked={showInactive}
-          onCheckedChange={handleShowInactiveChange}
-          labelPosition="end"
-          labelClassName="font-normal text-muted-foreground"
-          label={
-            <>
-              Show inactive
-              {inactiveCount > 0 && <span className="ml-1 text-xs">({inactiveCount})</span>}
-            </>
-          }
-          className="select-none"
+        <Select
+          aria-label="Account status"
+          className="w-auto"
+          value={statusFilter ?? 'active'}
+          onChange={(e) => {
+            const value = e.target.value
+            handleStatusChange(value === 'active' ? undefined : (value as StatusFilter))
+          }}
+          options={[
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: `Locked or expired${inactiveCount > 0 ? ` (${inactiveCount})` : ''}` },
+            { value: 'all', label: 'All accounts' },
+          ]}
         />
         <span className="text-sm text-muted-foreground">
           {total} user{total !== 1 ? 's' : ''}
@@ -351,27 +366,39 @@ function UsersPage() {
               </TableRow>
             ))}
             {users.length === 0 && (
-              q || showInactive === false ? (
+              q ? (
                 <TableEmptyState
                   colSpan={canWrite ? 7 : 6}
                   icon={Search}
-                  title={q ? `No users match \u201c${q}\u201d` : 'No active users'}
-                  description={
-                    q
-                      ? 'Search matches uid, name and email.'
-                      : 'Every account is locked or expired. Turn on "Show inactive" to see them.'
-                  }
+                  title={`No users match \u201c${q}\u201d`}
+                  description="Search matches uid, name and email."
                 >
-                  {q && (
-                    <Button variant="outline" size="sm" onClick={() => setSearchInput('')}>
-                      Clear search
-                    </Button>
-                  )}
-                  {!q && (
-                    <Button variant="outline" size="sm" onClick={() => handleShowInactiveChange(true)}>
-                      Show inactive
-                    </Button>
-                  )}
+                  <Button variant="outline" size="sm" onClick={() => setSearchInput('')}>
+                    Clear search
+                  </Button>
+                </TableEmptyState>
+              ) : statusFilter === 'inactive' ? (
+                // The good outcome of the dashboard's "Locked or expired" link.
+                <TableEmptyState
+                  colSpan={canWrite ? 7 : 6}
+                  icon={CheckCircle2}
+                  title="No locked or expired accounts"
+                  description="Every account can currently log in."
+                >
+                  <Button variant="outline" size="sm" onClick={() => handleStatusChange(undefined)}>
+                    Show active accounts
+                  </Button>
+                </TableEmptyState>
+              ) : statusFilter === undefined && inactiveCount > 0 ? (
+                <TableEmptyState
+                  colSpan={canWrite ? 7 : 6}
+                  icon={Search}
+                  title="No active users"
+                  description="Every account is locked or expired."
+                >
+                  <Button variant="outline" size="sm" onClick={() => handleStatusChange('inactive')}>
+                    Show locked or expired
+                  </Button>
                 </TableEmptyState>
               ) : (
                 <TableEmptyState

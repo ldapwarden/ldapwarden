@@ -141,7 +141,7 @@ function DashboardPage() {
           icon={Lock}
           tone={cannotLogIn > 0 ? 'rose' : 'slate'}
           to="/users"
-          search={{ inactive: true }}
+          search={{ status: 'inactive' }}
           hint={users ? `${users.locked} locked, ${users.expired} expired` : undefined}
         />
         <StatCard
