@@ -18,7 +18,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { BulkDeleteActions } from '@/components/bulk-delete-actions'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Pencil, Trash2, Search, ShieldCheck } from 'lucide-react'
+import { Plus, Trash2, Search, ShieldCheck } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { TableEmptyState } from '@/components/ui/empty-state'
@@ -141,27 +141,34 @@ function SudoRolesPage() {
     clearSelection()
   }
 
+  // The header stays when the list fails to load: the page is still the
+  // page, and creating an entry does not depend on listing them.
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h1 className="text-2xl font-bold">Sudo Roles</h1>
+      {canWrite && (
+        <Link to="/sudo-roles/new">
+          <Button>
+            <Plus className="h-4 w-4 mr-1" />
+            New Sudo Role
+          </Button>
+        </Link>
+      )}
+    </div>
+  )
+
   if (error) {
     return (
-      <Callout variant="error">
-        Failed to load sudo roles: {error.message}
-      </Callout>
+      <div className="space-y-4">
+        {header}
+        <Callout variant="error">Failed to load sudo roles: {error.message}</Callout>
+      </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Sudo Roles</h1>
-        {canWrite && (
-          <Link to="/sudo-roles/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              New Sudo Role
-            </Button>
-          </Link>
-        )}
-      </div>
+      {header}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-48 flex-1 max-w-sm">
@@ -232,12 +239,12 @@ function SudoRolesPage() {
               >
                 Order
               </SortableHeader>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              {canDelete && <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canDelete ? 7 : 6} />
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canDelete ? 7 : 5} />
             ) : (
               <>
                 {sortedRoles.map((role) => (
@@ -280,31 +287,24 @@ function SudoRolesPage() {
                   </span>
                 </TableCell>
                 <TableCell>{role.sudoOrder || '-'}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Link to="/sudo-roles/$dn" params={{ dn: encodeDN(role.dn) }}>
-                      <Button variant="ghost" size="icon" aria-label="Edit sudo role">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                    {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Delete sudo role"
-                        onClick={() => setDeleteRole(role)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
+                {canDelete && (
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Delete sudo role"
+                      onClick={() => setDeleteRole(role)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {sortedRoles.length === 0 && (
               q ? (
                 <TableEmptyState
-                  colSpan={canDelete ? 7 : 6}
+                  colSpan={canDelete ? 7 : 5}
                   icon={Search}
                   title={`No sudo roles match \u201c${q}\u201d`}
                   description="Search matches the role name and description."
@@ -315,7 +315,7 @@ function SudoRolesPage() {
                 </TableEmptyState>
               ) : (
                 <TableEmptyState
-                  colSpan={canDelete ? 7 : 6}
+                  colSpan={canDelete ? 7 : 5}
                   icon={ShieldCheck}
                   title="No sudo roles yet"
                   description={

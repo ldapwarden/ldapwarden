@@ -19,7 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { BulkDeleteActions } from '@/components/bulk-delete-actions'
 import { Badge } from '@/components/ui/badge'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Pencil, Trash2, Search, KeyRound } from 'lucide-react'
+import { Plus, Trash2, Search, KeyRound } from 'lucide-react'
 import { SortableHeader } from '@/components/ui/sortable-header'
 import { Callout } from '@/components/ui/callout'
 import { TableEmptyState } from '@/components/ui/empty-state'
@@ -146,27 +146,34 @@ function PasswordPoliciesPage() {
     clearSelection()
   }
 
+  // The header stays when the list fails to load: the page is still the
+  // page, and creating an entry does not depend on listing them.
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h1 className="text-2xl font-bold">Password Policies</h1>
+      {canWrite && (
+        <Link to="/password-policies/new">
+          <Button>
+            <Plus className="h-4 w-4 mr-1" />
+            New Policy
+          </Button>
+        </Link>
+      )}
+    </div>
+  )
+
   if (error) {
     return (
-      <Callout variant="error">
-        Failed to load password policies: {error.message}
-      </Callout>
+      <div className="space-y-4">
+        {header}
+        <Callout variant="error">Failed to load password policies: {error.message}</Callout>
+      </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Password Policies</h1>
-        {canWrite && (
-          <Link to="/password-policies/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              New Policy
-            </Button>
-          </Link>
-        )}
-      </div>
+      {header}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-48 flex-1 max-w-sm">
@@ -244,12 +251,12 @@ function PasswordPoliciesPage() {
               </SortableHeader>
               <TableHead>Lockout</TableHead>
               <TableHead>History</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              {canWrite && <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canWrite ? 7 : 6} />
+              <TableSkeletonRows rows={Math.min(pageSize, 8)} columns={canWrite ? 7 : 5} />
             ) : (
               <>
                 {sortedPolicies.map((policy) => (
@@ -286,8 +293,9 @@ function PasswordPoliciesPage() {
                 </TableCell>
                 <TableCell>
                   {policy.pwdLockout ? (
-                    <Badge variant="destructive">
-                      {policy.pwdMaxFailure || 0} attempts
+                    // Lockout being on is the protection working, not an alarm.
+                    <Badge variant="outline">
+                      after {policy.pwdMaxFailure || 0} attempts
                     </Badge>
                   ) : (
                     <Badge variant="secondary">Disabled</Badge>
@@ -296,31 +304,24 @@ function PasswordPoliciesPage() {
                 <TableCell>
                   {policy.pwdInHistory ? `${policy.pwdInHistory} passwords` : '-'}
                 </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Link to="/password-policies/$dn" params={{ dn: encodeDN(policy.dn) }}>
-                      <Button variant="ghost" size="icon" aria-label="Edit password policy">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                    {canWrite && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Delete password policy"
-                        onClick={() => setDeletePolicy(policy)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
+                {canWrite && (
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Delete password policy"
+                      onClick={() => setDeletePolicy(policy)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {sortedPolicies.length === 0 && (
               q ? (
                 <TableEmptyState
-                  colSpan={canWrite ? 7 : 6}
+                  colSpan={canWrite ? 7 : 5}
                   icon={Search}
                   title={`No policies match \u201c${q}\u201d`}
                   description="Search matches the policy name and description."
@@ -331,7 +332,7 @@ function PasswordPoliciesPage() {
                 </TableEmptyState>
               ) : (
                 <TableEmptyState
-                  colSpan={canWrite ? 7 : 6}
+                  colSpan={canWrite ? 7 : 5}
                   icon={KeyRound}
                   title="No password policies yet"
                   description={

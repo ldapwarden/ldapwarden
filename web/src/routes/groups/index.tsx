@@ -129,35 +129,42 @@ function GroupsPage() {
     clearSelection()
   }
 
+  // The header stays when the list fails to load: the page is still the
+  // page, and creating an entry does not depend on listing them.
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h1 className="text-2xl font-bold">Groups</h1>
+      {canWrite && (
+        <div className="flex items-center gap-2">
+          <Link to="/groups/import">
+            <Button variant="outline">
+              <Upload className="h-4 w-4 mr-1" />
+              Import CSV
+            </Button>
+          </Link>
+          <Link to="/groups/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-1" />
+              New Group
+            </Button>
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+
   if (error) {
     return (
-      <Callout variant="error">
-        Failed to load groups: {error.message}
-      </Callout>
+      <div className="space-y-4">
+        {header}
+        <Callout variant="error">Failed to load groups: {error.message}</Callout>
+      </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Groups</h1>
-        {canWrite && (
-          <div className="flex items-center gap-2">
-            <Link to="/groups/import">
-              <Button variant="outline">
-                <Upload className="h-4 w-4 mr-1" />
-                Import CSV
-              </Button>
-            </Link>
-            <Link to="/groups/new">
-              <Button>
-                <Plus className="h-4 w-4 mr-1" />
-                New Group
-              </Button>
-            </Link>
-          </div>
-        )}
-      </div>
+      {header}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-48 flex-1 max-w-sm">
@@ -195,7 +202,7 @@ function GroupsPage() {
       {/* Dim the table while a refetch is in flight: keepPreviousData leaves the
           old rows on screen, which would otherwise look like nothing happened
           after a sort or page change. */}
-      <div className={`border rounded-lg ${isFetching ? 'opacity-60 transition-opacity' : ''}`}>
+      <div className={`border rounded-lg ${isFetching && !isLoading ? 'opacity-60 transition-opacity' : ''}`}>
         <Table>
           <TableHeader>
             <TableRow>

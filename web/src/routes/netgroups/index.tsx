@@ -118,33 +118,44 @@ function NetgroupsPage() {
     clearSelection()
   }
 
+  // The header stays when the list fails to load: the page is still the
+  // page, and creating an entry does not depend on listing them.
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h1 className="text-2xl font-bold">Netgroups</h1>
+      {canWrite && (
+        <div className="flex items-center gap-2">
+          <Link to="/netgroups/import">
+            <Button variant="outline">
+              <Upload className="h-4 w-4 mr-1" />
+              Import CSV
+            </Button>
+          </Link>
+          <Link to="/netgroups/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-1" />
+              New Netgroup
+            </Button>
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+
   if (error) {
-    return <Callout variant="error">Failed to load netgroups: {error.message}</Callout>
+    return (
+      <div className="space-y-4">
+        {header}
+        <Callout variant="error">Failed to load netgroups: {error.message}</Callout>
+      </div>
+    )
   }
 
   const columns = canDelete ? 5 : 4
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Netgroups</h1>
-        {canWrite && (
-          <div className="flex items-center gap-2">
-            <Link to="/netgroups/import">
-              <Button variant="outline">
-                <Upload className="h-4 w-4 mr-1" />
-                Import CSV
-              </Button>
-            </Link>
-            <Link to="/netgroups/new">
-              <Button>
-                <Plus className="h-4 w-4 mr-1" />
-                New Netgroup
-              </Button>
-            </Link>
-          </div>
-        )}
-      </div>
+      {header}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-48 flex-1 max-w-sm">
