@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { runBulk, bulkSummary } from '@/lib/bulk'
-import { BulkResultDialog, type BulkOutcome } from '@/components/bulk-result-dialog'
+import { runBulk, bulkSummary, warningsOf } from '@/lib/bulk'
+import { BulkResultDialog, type BulkOutcome, type BulkWarning } from '@/components/bulk-result-dialog'
 import { BulkActionBar } from '@/components/bulk-action-bar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,14 +59,19 @@ export function UsersBulkActions({
   const [lockMode, setLockMode] = useState<'lock' | 'unlock' | null>(null)
   const [groupMode, setGroupMode] = useState<'add' | 'remove' | null>(null)
   const [expirationOpen, setExpirationOpen] = useState(false)
-  // Set when a run had failures, so they can be listed rather than summarised.
+  // Set when a run had failures or left something behind, so they can be listed
+  // rather than summarised.
   const [outcome, setOutcome] = useState<BulkOutcome<BulkUser> | null>(null)
 
   const invalidateUsers = () => queryClient.invalidateQueries({ queryKey: ['users'] })
   const invalidateGroups = () => queryClient.invalidateQueries({ queryKey: ['groups'] })
   const invalidateSudo = () => queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
 
-  // Run a bulk action, report it, refresh and clear the selection.
+  // Run a bulk action, report it, refresh and clear the selection. Warnings a
+  // worker's endpoint answers with (delete strips the uid from groups and sudo
+  // roles, and says what it could not reach) are collected per user and listed
+  // in the result dialog: a bulk run is exactly where a silent leftover would go
+  // unnoticed, and a toast is gone before anyone has read it.
   async function run(
     verb: string,
     worker: (u: BulkUser) => Promise<unknown>,
@@ -75,19 +80,26 @@ export function UsersBulkActions({
     setRunning(true)
     setProgress({ done: 0, total: selected.length })
     try {
-      const result = await runBulk(selected, worker, {
+      const warned: BulkWarning<BulkUser>[] = []
+      const result = await runBulk(selected, async (u) => {
+        const warnings = warningsOf(await worker(u))
+        if (warnings.length > 0) warned.push({ item: u, warnings })
+      }, {
         onProgress: (done, total) => setProgress({ done, total }),
       })
       invalidateUsers()
       if (opts.touchesGroups) invalidateGroups()
       if (opts.touchesSudo) invalidateSudo()
       const summary = bulkSummary(verb, 'user', result)
+      // The toast reports the shape; the dialog says which items failed and why,
+      // and what the ones that went through left behind.
       if (result.failed.length === 0) {
         toast.success(summary)
       } else {
-        // The toast reports the shape; the dialog says which items failed and why.
         toast.error(summary)
-        setOutcome({ verb, noun: 'user', succeeded: result.succeeded, failed: result.failed })
+      }
+      if (result.failed.length > 0 || warned.length > 0) {
+        setOutcome({ verb, noun: 'user', succeeded: result.succeeded, failed: result.failed, warned })
       }
       onClear()
     } finally {
@@ -163,23 +175,9 @@ export function UsersBulkActions({
         pendingLabel="Deleting..."
         isPending={running}
         onConfirm={async () => {
-          // Each delete also strips the uid from groups and sudo roles. Collect
-          // what that turned up: the accounts are gone regardless, and a bulk run
-          // is exactly where a silent leftover would go unnoticed.
-          const notes: string[] = []
-          await run(
-            'Deleted',
-            async (u) => {
-              const res = await api.users.delete(u.dn)
-              if (res.warnings.length > 0) {
-                notes.push(`${u.uid}: ${res.warnings.join('; ')}`)
-              }
-            },
-            { touchesGroups: true, touchesSudo: true },
-          )
-          if (notes.length > 0) {
-            toast.warning(`Reference cleanup — ${notes.join(' | ')}`, { duration: 15000 })
-          }
+          // Each delete also strips the uid from groups and sudo roles; what it
+          // could not reach comes back as warnings, which run() lists.
+          await run('Deleted', (u) => api.users.delete(u.dn), { touchesGroups: true, touchesSudo: true })
           setDeleteOpen(false)
         }}
       />

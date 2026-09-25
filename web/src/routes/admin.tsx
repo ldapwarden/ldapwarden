@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useState } from 'react'
 import type { PolicySelfTest, TriggerTaskResponse } from '@/lib/api'
 import { toast } from 'sonner'
+import { showOutcome } from '@/lib/outcome'
 import { taskCheckedLabel, taskLabel, taskNotifiedLabel } from '@/lib/scheduled-tasks'
 
 export const Route = createFileRoute('/admin')({
@@ -86,9 +87,12 @@ function AdminPage() {
       `${taskLabel(taskName)} completed: ${taskCheckedLabel(taskName, result.usersChecked)}, ` +
         taskNotifiedLabel(result.notificationsSent),
     )
-    if (result.errors?.length) {
-      toast.warning(result.errors.join('; '), { duration: 12000 })
-    }
+    showOutcome({
+      title: `${taskLabel(taskName)} completed with errors`,
+      description: 'The run finished, but these steps failed. The accounts they concern were not handled.',
+      items: result.errors ?? [],
+      tone: 'error',
+    })
   }
 
   const triggerUsersMutation = useMutation({
@@ -546,11 +550,8 @@ function DirectoryEnforcementCard({
       } else {
         toast.warning('The self-test could not reach a conclusion')
       }
-      if (!res.cleanedUp) {
-        toast.error(`The probe entry could not be removed — delete ${res.probeDn} by hand`, {
-          duration: 20000,
-        })
-      }
+      // A probe left behind is reported in the result below, which stays on the
+      // page: a toast was gone before anyone had copied the DN to delete.
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -662,6 +663,17 @@ function DirectoryEnforcementCard({
                 <li key={i}>{step}</li>
               ))}
             </ul>
+          </Callout>
+        )}
+
+        {result && !result.cleanedUp && (
+          <Callout variant="error">
+            <p className="font-medium">The probe entry could not be removed.</p>
+            <p className="mt-1 text-xs">
+              It is a locked account with a random password, so it grants nothing, but it is
+              yours to delete by hand:
+            </p>
+            <p className="mt-1 text-xs font-mono break-all">{result.probeDn}</p>
           </Callout>
         )}
       </CardContent>

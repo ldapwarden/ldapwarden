@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { showOutcome } from '@/lib/outcome'
 import { api } from '@/lib/api'
 import { encodeDN } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -48,11 +49,7 @@ export function GroupRenameCard({ dn, cn }: { dn: string; cn: string }) {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       toast.success(`Group renamed to ${res.group.cn}`)
-      if (res.warnings.length > 0) {
-        toast.warning(`Some references need checking: ${res.warnings.join('; ')}`, {
-          duration: 12000,
-        })
-      }
+      showOutcome({ title: `Group renamed to ${res.group.cn}: references to check`, items: res.warnings })
       close()
       // The DN changed with the name, so this page's address did too.
       router.navigate({ to: '/groups/$dn', params: { dn: encodeDN(res.group.dn) } })

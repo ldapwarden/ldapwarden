@@ -222,6 +222,12 @@ MVP implemented with:
 - Mutation outcomes are reported by a **toast**. Inline `Callout`s are for
   page-level load failures, field validation and persistent notices — not for
   confirming a save.
+- **What an operation leaves for the operator to do** — the `warnings` a rename,
+  delete or POSIX change answers with — never goes in a toast: it expires, usually
+  while the page navigates away. Pass it to `showOutcome()` (`lib/outcome.ts`),
+  which queues a dialog mounted at the root that survives the navigation, can be
+  copied and waits to be dismissed; it is a no-op on an empty list. Bulk actions
+  list theirs per item in `BulkResultDialog`'s `warned` section.
 - Colours come from theme tokens (`text-success`, `bg-warning/10`, the `.tone`
   class for categorical tints). Never use raw palette utilities such as
   `bg-green-100`: they only work in light mode.

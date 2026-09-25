@@ -2,6 +2,7 @@ import { DetailSkeleton } from '@/components/ui/skeleton'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { showOutcome } from '@/lib/outcome'
 import { api, type NetgroupTriple } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { decodeDN } from '@/lib/utils'
@@ -109,9 +110,7 @@ function NetgroupDetailPage() {
       // Sudo names a netgroup by "+name" and nothing ties that string to the
       // entry, so the rules that named it now match nobody. Said out loud,
       // because the directory will not.
-      if (res.warnings.length > 0) {
-        toast.warning(res.warnings.join(' | '), { duration: 15000 })
-      }
+      showOutcome({ title: `Netgroup ${netgroup?.cn ?? ''} deleted: references left behind`, items: res.warnings })
       router.navigate({ to: '/netgroups' })
     },
     onError: (error: Error) => toast.error(error.message),

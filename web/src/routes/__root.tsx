@@ -45,6 +45,7 @@ import { useCommandHotkey } from '@/lib/use-hotkey'
 import { RouteError } from '@/components/route-error'
 import { LoadingScreen } from '@/components/loading-screen'
 import { SessionExpiryNotice } from '@/components/session-expiry-notice'
+import { OutcomeHost } from '@/components/outcome-dialog'
 import { useCallback, useState, useMemo, useEffect } from 'react'
 
 interface RouterContext {
@@ -388,6 +389,7 @@ function RootComponent() {
         <TanStackRouterDevtools />
       </Suspense>
       <Toaster richColors position="top-right" theme={theme} />
+      <OutcomeHost />
     </div>
   )
 }

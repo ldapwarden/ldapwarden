@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { showOutcome } from '@/lib/outcome'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,9 +69,12 @@ export function PosixIdsChange({
       toast.success('POSIX numbers changed')
       // Not a toast: this is the list of things still to do on the hosts, and a
       // toast is gone before anyone has written them down.
-      if (res.warnings.length > 0) {
-        toast.warning(res.warnings.join(' — '), { duration: 30000 })
-      }
+      showOutcome({
+        title: 'POSIX numbers changed: finish on the hosts',
+        description:
+          'The directory is updated. Files on disk still carry the old numbers, and nothing here can reach them.',
+        items: res.warnings,
+      })
       close()
     },
     onError: (error: Error) => toast.error(error.message),

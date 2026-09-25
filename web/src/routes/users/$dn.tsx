@@ -3,6 +3,7 @@ import { PosixIdsChange } from '@/components/posix-ids-change'
 import { createFileRoute, redirect, useRouter, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { showOutcome } from '@/lib/outcome'
 import { api, userPhotoUrl, type User as UserDetail } from '@/lib/api'
 import { useEnabledModules, useEnabledObjects, useServerInfo } from '@/lib/use-server-info'
 import { useNetgroupsEnabled } from '@/lib/use-server-info'
@@ -2040,9 +2041,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success(`Username changed to ${res.user.uid}`)
-      if (res.warnings.length > 0) {
-        toast.warning(`Some references were not migrated: ${res.warnings.join('; ')}`, { duration: 12000 })
-      }
+      showOutcome({ title: `Username changed to ${res.user.uid}: references not migrated`, items: res.warnings })
       setChangeUidOpen(false)
       // The DN changed; move to the renamed user's page.
       router.navigate({ to: '/users/$dn', params: { dn: encodeDN(res.user.dn) } })
@@ -2236,9 +2235,7 @@ function SecurityTab({ user, dn, canWrite, canDelete, showPoliciesModule, canExp
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       queryClient.invalidateQueries({ queryKey: ['sudo-roles'] })
       toast.success('User deleted')
-      if (res.warnings.length > 0) {
-        toast.warning(`Reference cleanup: ${res.warnings.join('; ')}`, { duration: 12000 })
-      }
+      showOutcome({ title: `User ${user.uid} deleted: references left behind`, items: res.warnings })
       router.navigate({ to: '/users' })
     },
     onError: (error: Error) => {

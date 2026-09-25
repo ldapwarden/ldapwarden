@@ -2,6 +2,7 @@ import { DetailSkeleton } from '@/components/ui/skeleton'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { showOutcome } from '@/lib/outcome'
 import { api } from '@/lib/api'
 import { useEnabledModules, useEnabledObjects } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
@@ -160,9 +161,7 @@ function GroupDetailPage() {
       toast.success('Group deleted')
       // Sudo grants to "%cn" and primary members hold the gidNumber: neither
       // goes away with the entry, and the directory will not say so.
-      if (res.warnings.length > 0) {
-        toast.warning(res.warnings.join(' | '), { duration: 15000 })
-      }
+      showOutcome({ title: `Group ${group?.cn ?? ''} deleted: references left behind`, items: res.warnings })
       router.navigate({ to: '/groups' })
     },
     onError: (error: Error) => {
