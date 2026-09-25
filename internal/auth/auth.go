@@ -47,7 +47,7 @@ type SessionStore interface {
 
 // PingSessionStore reports whether sessions can be read and written. The store is
 // reached through the interface rather than handed to the API layer, which has no
-// other reason to know a Redis client exists.
+// other reason to know where sessions are kept.
 func (s *AuthService) PingSessionStore(ctx context.Context) error {
 	return s.sessionStore.Ping(ctx)
 }

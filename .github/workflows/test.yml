@@ -71,7 +71,7 @@ jobs:
       # describe. The directory is built here rather than pulled (see
       # ldap/Dockerfile).
       - name: Start services
-        run: docker compose up -d --wait postgres redis openldap
+        run: docker compose up -d --wait postgres openldap
 
       - name: Run integration tests
         env:

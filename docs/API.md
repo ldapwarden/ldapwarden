@@ -124,8 +124,8 @@ guess which one is down:
 {
   "status": "degraded",
   "checks": {
-    "database": "ok",
-    "sessions": "dial tcp 127.0.0.1:6379: connect: connection refused",
+    "database": "failed to connect to `host=localhost user=ldapwarden database=ldapwarden`",
+    "sessions": "failed to connect to `host=localhost user=ldapwarden database=ldapwarden`",
     "directory": "ok"
   }
 }
@@ -133,7 +133,9 @@ guess which one is down:
 
 - `database` — PostgreSQL. `auditMutating` refuses every mutation when the audit log
   is unavailable, so an app that cannot reach it is read-only.
-- `sessions` — Redis. Sessions live only there, so it cannot authenticate anyone.
+- `sessions` — the session store, in PostgreSQL next to the audit log, so it fails
+  with `database`. Kept as its own check because it gates something else: without
+  it nobody can sign in.
 - `directory` — LDAP: the configured base DN is read, which proves the bind
   credentials work *and* that the tree is reachable.
 

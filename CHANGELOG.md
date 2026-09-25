@@ -10,8 +10,8 @@ of it.
 ## Unreleased
 
 Read **Upgrading** first: this release changes where an account's expiry is
-stored, moves the bundled Docker Compose stack to OpenLDAP 2.6, and turns the new
-netgroups module on by default. The first two are not automatic.
+stored, moves the bundled Docker Compose stack to OpenLDAP 2.6, turns the new
+netgroups module on by default, and drops Redis. The first two are not automatic.
 
 ### Upgrading
 
@@ -57,7 +57,7 @@ docker volume rm ldapwarden_openldap_data ldapwarden_openldap_config
 `livenessProbe`, `HEALTHCHECK` or uptime monitor pointing at it — a probe left on
 `/health` gets a `404`, and a failing liveness probe restarts the container. Point
 load balancers and `readinessProbe`s at the new `/readyz` instead, which checks
-PostgreSQL, Redis and the directory rather than only that the process answers.
+PostgreSQL and the directory rather than only that the process answers.
 
 **4. Two API responses changed shape.** `GET /api/admin/config` renames
 `capabilities.scheduledAccountExpiry` to `capabilities.scheduledExpirySupported`
@@ -87,6 +87,15 @@ directory; where the object class is absent the tab hides itself rather than
 leading to a dead page. Set the variable explicitly to keep the old set. If you
 already set it, it is honoured as before — add `netgroups` to it to get the tab
 (`9835390`).
+
+**8. Redis is no longer used.** It held the sessions and nothing else; they now
+live in PostgreSQL, in a `sessions` table migration 007 creates on startup. Stop
+the Redis service and drop `REDIS_URL` — the app logs a notice while it is still
+set, and ignores it. Everyone signs in again once after the upgrade, since the
+sessions in Redis are not carried over. Expired sessions are purged by the
+existing hourly cleanup (`LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP`). The bundled
+compose file no longer has a `redis` service; its old volume is left in place
+(`docker volume rm ldapwarden_redis_data`).
 
 **Prerequisite, unchanged but easy to miss:** ppolicy enforces neither locking nor
 expiry unless a policy applies to the entry (`olcPPolicyDefault` on the overlay,
@@ -213,7 +222,7 @@ authenticate. The admin page now says what it knows, and
   (`69ecea2`).
 - **`GET /healthz` and `GET /readyz`**, the Kubernetes names, split the way the
   convention intends: liveness reports only that the process answers, readiness
-  pings PostgreSQL, Redis and the directory and returns `503` naming whichever is
+  pings PostgreSQL, the session store and the directory and returns `503` naming whichever is
   down. `/healthz` replaces `/health`, which answered `200` whatever had failed
   underneath it — see Upgrading.
 - Password fields that can be revealed, with a generator and a strength meter

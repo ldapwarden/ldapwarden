@@ -13,7 +13,6 @@ import (
 type ConfigResponse struct {
 	Server   ServerConfigResponse   `json:"server"`
 	Database DatabaseConfigResponse `json:"database"`
-	Redis    RedisConfigResponse    `json:"redis"`
 	LDAP     LDAPConfigResponse     `json:"ldap"`
 	Session  SessionConfigResponse  `json:"session"`
 	App      AppConfigResponse      `json:"app"`
@@ -57,10 +56,6 @@ type ServerConfigResponse struct {
 }
 
 type DatabaseConfigResponse struct {
-	URL ConfigValue `json:"url"`
-}
-
-type RedisConfigResponse struct {
 	URL ConfigValue `json:"url"`
 }
 
@@ -121,9 +116,6 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		},
 		Database: DatabaseConfigResponse{
 			URL: getConfigValueMasked("DATABASE_URL", cfg.Database.URL, "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable"),
-		},
-		Redis: RedisConfigResponse{
-			URL: getConfigValueMasked("REDIS_URL", cfg.Redis.URL, "redis://localhost:6379"),
 		},
 		LDAP: LDAPConfigResponse{
 			URL:             getConfigValue("LDAP_URL", cfg.LDAP.URL, "ldap://localhost:389"),

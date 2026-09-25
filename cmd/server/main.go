@@ -14,7 +14,6 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/ldapwarden/ldapwarden/internal/api"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
@@ -70,18 +69,12 @@ func run() error {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	log.Printf("Connecting to Redis at %s", cfg.Redis.URL)
-	redisOpts, err := redis.ParseURL(cfg.Redis.URL)
-	if err != nil {
-		return fmt.Errorf("parse redis URL: %w", err)
+	// Sessions used to live in Redis. A deployment upgraded without editing its
+	// environment still sets REDIS_URL; say it is ignored rather than leave the
+	// operator wondering whether the Redis they still run matters.
+	if os.Getenv("REDIS_URL") != "" {
+		log.Println("REDIS_URL is set but no longer used: sessions are stored in PostgreSQL. Redis can be removed.")
 	}
-	redisClient := redis.NewClient(redisOpts)
-	defer func() { _ = redisClient.Close() }()
-
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("ping redis: %w", err)
-	}
-	log.Println("Connected to Redis")
 
 	log.Printf("Connecting to LDAP at %s", cfg.LDAP.URL)
 	ldapClient := ldap.NewClient(cfg.LDAP)
@@ -104,7 +97,7 @@ func run() error {
 		return fmt.Errorf("LDAPWARDEN_TRUSTED_PROXIES: %w", err)
 	}
 
-	sessionStore := auth.NewRedisSessionStore(redisClient)
+	sessionStore := auth.NewPostgresSessionStore(pool)
 	authService := auth.NewAuthService(ldapClient, sessionStore, cfg.Session.TTL, cfg.App.AdminGroup)
 	rbacService := rbac.NewRBAC(cfg.App.AdminGroup)
 	mailer := mail.NewMailer(&cfg.Mail, cfg.App.Organization, cfg.App.PublicURL)
@@ -112,7 +105,7 @@ func run() error {
 	passwordResetService := passwordreset.NewService(pool)
 
 	// Initialize scheduler for background tasks
-	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger, passwordResetService)
+	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger, passwordResetService, sessionStore)
 	if err := sched.Start(ctx); err != nil {
 		log.Printf("Warning: failed to start scheduler: %v", err)
 	}

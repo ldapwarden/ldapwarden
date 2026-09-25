@@ -6,7 +6,7 @@ See [docs/SPEC.md](docs/SPEC.md) for full architecture and requirements.
 ## Quick Start
 
 ```bash
-# 1. Start infrastructure (PostgreSQL, Redis, OpenLDAP)
+# 1. Start infrastructure (PostgreSQL, OpenLDAP)
 docker compose up -d
 
 # 2. Install frontend dependencies
@@ -86,7 +86,7 @@ parameters the list endpoints accept.
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
 - `GET /api/audit-logs/export` - Audit logs as CSV, same filters
 - `GET /healthz` - Liveness (process only); replaced the old `/health`
-- `GET /readyz` - Readiness: pings Postgres, Redis and LDAP; 503 when any is down
+- `GET /readyz` - Readiness: pings Postgres (database and sessions) and LDAP; 503 when any is down
 
 ## Test Accounts (LDAP)
 - admin / admin123 (system admin)
@@ -97,7 +97,7 @@ parameters the list endpoints accept.
 MVP implemented with:
 - Dashboard, User/Group CRUD with form-based editing
 - LDAP bind authentication
-- Redis session management
+- Sessions in PostgreSQL (`internal/auth/session_store.go`); there is no Redis
 - Basic RBAC (admin/readonly roles)
 - Audit logging with per-attribute diffs and CSV export
 - Docker Compose deployment

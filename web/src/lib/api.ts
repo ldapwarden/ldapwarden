@@ -690,9 +690,6 @@ export const ConfigResponseSchema = z.object({
   database: z.object({
     url: ConfigValueSchema,
   }),
-  redis: z.object({
-    url: ConfigValueSchema,
-  }),
   ldap: z.object({
     url: ConfigValueSchema,
     baseDn: ConfigValueSchema,

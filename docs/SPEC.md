@@ -26,8 +26,10 @@ We want to build a tool similar to "LDAP Account Manager" (https://www.ldap-acco
 ## Architecture
 
 ### Data Flow
-- PostgreSQL: App config, user sessions, audit logs, RBAC rules, cached schema
-- Redis: Session store, rate limiting, schema cache invalidation
+- PostgreSQL: user sessions, audit logs, scheduled task history, notification
+  and lockout tracking
+- No Redis: it once held sessions and nothing else, and was dropped. Rate
+  limiting is in-process (httprate), so it is per instance.
 - LDAP: Source of truth for directory objects (never duplicated in PG)
 
 ### Component Diagram
@@ -35,11 +37,10 @@ We want to build a tool similar to "LDAP Account Manager" (https://www.ldap-acco
 │   React UI  │────▶│   Go API    │────▶│  OpenLDAP   │
 └─────────────┘     └──────┬──────┘     └─────────────┘
                           │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-       ┌──────────┐            ┌──────────┐
-       │ Postgres │            │  Redis   │
-       └──────────┘            └──────────┘
+                          ▼
+                    ┌──────────┐
+                    │ Postgres │
+                    └──────────┘
 
 ### Key Design Decisions
 - **No LDAP data duplication**: All directory data stays in LDAP
@@ -53,7 +54,6 @@ We want to build a tool similar to "LDAP Account Manager" (https://www.ldap-acco
 - Chi router
 - pgx for PostgreSQL, queries written by hand (no ORM, no generator)
 - go-ldap for LDAP operations
-- Redis client: go-redis
 - oapi-codegen for OpenAPI spec generation
 
 **Project Structure**
@@ -123,7 +123,7 @@ web/                # React app
 ### Core Tables
 - `ldap_connections` - Backend server configs (URL, bind DN, TLS settings)
 - `users` - Local app users (for non-LDAP auth scenarios, API keys)
-- `sessions` - Active sessions (or use Redis exclusively)
+- `sessions` - Active sessions (the whole session as JSON, keyed by token hash)
 - `roles` / `permissions` - RBAC definitions
 - `audit_logs` - All operations with actor, action, target, timestamp
 - `schema_cache` - Parsed LDAP schema (JSON), refreshed on demand
@@ -137,7 +137,7 @@ web/                # React app
 
 ## Schema Management
 - Auto-detect LDAP schema on connection
-- Cache schema in Redis with TTL
+- Cache the schema in process
 - Map objectClasses to UI form templates
 - Support for:
   - inetOrgPerson, posixAccount, posixGroup (core)
@@ -150,7 +150,7 @@ web/                # React app
 
 **MVP**
 - LDAP bind authentication
-- Session management via Redis
+- Session management in PostgreSQL
 - Basic RBAC (admin / read-only / custom roles)
 - Audit logging for all operations
 - TLS 1.2+ for LDAP connections
@@ -294,7 +294,7 @@ _Note: Password expiration checks are handled via Workflow & Automation schedule
 # Prerequisites: Docker, Go 1.23+, Node 22+, pnpm
 
 # Start infrastructure
-docker compose up -d postgres redis openldap
+docker compose up -d postgres openldap
 
 # Run backend
 cd cmd/server && go run .
@@ -313,7 +313,6 @@ cd web && pnpm dev
 
 **Environment Variables**
 - `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
 - `LDAP_URL` - Default LDAP server (can be overridden in UI)
 - `SESSION_SECRET` - Secret for session signing
 - `LOG_LEVEL` - debug/info/warn/error

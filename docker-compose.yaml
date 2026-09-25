@@ -7,7 +7,6 @@ services:
       SERVER_HOST: "0.0.0.0"
       SERVER_PORT: "8000"
       DATABASE_URL: "postgres://ldapwarden:ldapwarden@postgres:5432/ldapwarden?sslmode=disable"
-      REDIS_URL: "redis://redis:6379"
       LDAP_URL: "ldap://openldap:389"
       LDAP_BASE_DN: "dc=example,dc=org"
       LDAP_BIND_DN: "cn=admin,dc=example,dc=org"
@@ -52,8 +51,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       openldap:
         condition: service_healthy
     restart: unless-stopped
@@ -76,19 +73,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ldapwarden"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: ldapwarden-redis
-    ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -152,7 +136,9 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
+  # redis_data is gone with the Redis service: sessions now live in PostgreSQL.
+  # An existing volume is left alone; remove it with
+  #   docker volume rm ldapwarden_redis_data
   # Renamed when the directory moved from OpenLDAP 2.4 to 2.6: the old
   # openldap_data / openldap_config volumes hold a cn=config written by the
   # osixia image, which points at module paths that do not exist here. Starting

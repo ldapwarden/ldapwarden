@@ -22,7 +22,6 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
@@ -39,13 +38,12 @@ type testEnv struct {
 	Server *httptest.Server
 	LDAP   *ldap.Client
 	Pool   *pgxpool.Pool
-	Redis  *redis.Client
 	Config *config.Config
 }
 
 // setupTestServer boots the full HTTP stack against the services declared in
 // docker-compose.yaml. The test is skipped when LDAPWARDEN_TEST_INTEGRATION is
-// not "1" or any of postgres / redis / OpenLDAP cannot be reached.
+// not "1" or either of postgres / OpenLDAP cannot be reached.
 func setupTestServer(t *testing.T) *testEnv {
 	t.Helper()
 	return setupTestServerWith(t, nil)
@@ -63,7 +61,6 @@ func setupTestServerWith(t *testing.T, adjust func(*config.Config)) *testEnv {
 
 	// Point at the host ports docker-compose publishes for the bundled stack.
 	setEnvIfUnset(t, "DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable")
-	setEnvIfUnset(t, "REDIS_URL", "redis://localhost:6379")
 	setEnvIfUnset(t, "LDAP_URL", "ldap://localhost:389")
 	// Tests rely on the bundled compose credentials; bypass ValidateSecrets.
 	setEnvIfUnset(t, "LDAPWARDEN_DEV_MODE", "1")
@@ -96,36 +93,23 @@ func setupTestServerWith(t *testing.T, adjust func(*config.Config)) *testEnv {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	redisOpts, err := redis.ParseURL(cfg.Redis.URL)
-	if err != nil {
-		pool.Close()
-		t.Fatalf("redis URL parse: %v", err)
-	}
-	redisClient := redis.NewClient(redisOpts)
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		_ = redisClient.Close()
-		pool.Close()
-		t.Skipf("redis unreachable at %s: %v", cfg.Redis.URL, err)
-	}
-
 	ldapClient := ldap.NewClient(cfg.LDAP)
 	// Force a bind via a base-DN lookup so we fail fast if LDAP is down or seed
 	// data is missing.
 	if _, err := ldapClient.GetEntry(cfg.LDAP.BaseDN, []string{"dc"}); err != nil {
 		ldapClient.Close()
-		_ = redisClient.Close()
 		pool.Close()
 		t.Skipf("LDAP unreachable at %s: %v", cfg.LDAP.URL, err)
 	}
 
-	sessionStore := auth.NewRedisSessionStore(redisClient)
+	sessionStore := auth.NewPostgresSessionStore(pool)
 	authService := auth.NewAuthService(ldapClient, sessionStore, cfg.Session.TTL, cfg.App.AdminGroup)
 	rbacService := rbac.NewRBAC(cfg.App.AdminGroup)
 	mailer := mail.NewMailer(&cfg.Mail, cfg.App.Organization, cfg.App.PublicURL)
 	auditLogger := audit.NewLogger(pool, mailer, cfg.App.AuditNotifyEmails)
 	passwordResetService := passwordreset.NewService(pool)
 	// scheduler is constructed but never Start()-ed: tests don't need cron jobs.
-	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger, passwordResetService)
+	sched := scheduler.New(cfg, ldapClient, mailer, pool, auditLogger, passwordResetService, sessionStore)
 
 	server := NewServer(ldapClient, authService, auditLogger, rbacService, cfg, mailer, passwordResetService, sched, nil)
 	httpSrv := httptest.NewServer(server)
@@ -133,7 +117,6 @@ func setupTestServerWith(t *testing.T, adjust func(*config.Config)) *testEnv {
 	t.Cleanup(func() {
 		httpSrv.Close()
 		ldapClient.Close()
-		_ = redisClient.Close()
 		pool.Close()
 	})
 
@@ -141,7 +124,6 @@ func setupTestServerWith(t *testing.T, adjust func(*config.Config)) *testEnv {
 		Server: httpSrv,
 		LDAP:   ldapClient,
 		Pool:   pool,
-		Redis:  redisClient,
 		Config: cfg,
 	}
 }

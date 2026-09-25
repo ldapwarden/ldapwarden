@@ -50,10 +50,10 @@ test-web:
 	cd web && pnpm test
 
 # Run integration tests against docker-compose services
-# --wait replaces the hand-rolled polling loops: all three services declare a
+# --wait replaces the hand-rolled polling loops: both services declare a
 # healthcheck, and the directory's is the same ldapsearch this used to run.
 test-integration:
-	@docker compose up -d --wait postgres redis openldap
+	@docker compose up -d --wait postgres openldap
 	LDAPWARDEN_TEST_INTEGRATION=1 go test -tags integration -race -count=1 -v ./...
 
 # Clean build artifacts
@@ -64,7 +64,7 @@ clean:
 # Show help
 help:
 	@echo "Available targets:"
-	@echo "  infra          - Start PostgreSQL, Redis, OpenLDAP containers"
+	@echo "  infra          - Start PostgreSQL and OpenLDAP containers"
 	@echo "  infra-down     - Stop all containers"
 	@echo "  dev-backend    - Run Go backend server"
 	@echo "  dev-frontend   - Run React frontend dev server"

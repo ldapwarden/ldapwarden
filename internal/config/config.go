@@ -21,7 +21,6 @@ const (
 type Config struct {
 	Server         ServerConfig
 	Database       DatabaseConfig
-	Redis          RedisConfig
 	LDAP           LDAPConfig
 	Session        SessionConfig
 	App            AppConfig
@@ -32,7 +31,7 @@ type Config struct {
 type ScheduledTasksConfig struct {
 	UsersExpiration     string // Cron format, empty = disabled
 	PasswordsExpiration string // Cron format, empty = disabled
-	TokensCleanup       string // Cron format, empty = disabled. Purges expired password_reset_tokens rows.
+	TokensCleanup       string // Cron format, empty = disabled. Purges expired password_reset_tokens and sessions rows.
 	// LockoutScan looks for accounts the directory locked by itself. Its interval
 	// is a correctness property, not a preference: ppolicy keeps a lockout visible
 	// for pwdLockoutDuration and then erases it, so a slower scan misses lockouts
@@ -70,10 +69,6 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL string
-}
-
-type RedisConfig struct {
 	URL string
 }
 
@@ -135,9 +130,6 @@ func Load() *Config {
 		},
 		Database: DatabaseConfig{
 			URL: getEnv("DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable"),
-		},
-		Redis: RedisConfig{
-			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
 		},
 		LDAP: LDAPConfig{
 			URL:             getEnv("LDAP_URL", "ldap://localhost:389"),

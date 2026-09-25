@@ -40,6 +40,8 @@ type Scheduler struct {
 	auditLog      *audit.Logger
 	passwordReset *passwordreset.Service
 
+	sessions SessionPurger
+
 	mu      sync.Mutex
 	running map[string]bool // Track running tasks to prevent overlap
 
@@ -48,8 +50,13 @@ type Scheduler struct {
 	startedAt time.Time
 }
 
+// SessionPurger removes expired sessions, for the hourly cleanup.
+type SessionPurger interface {
+	DeleteExpired(ctx context.Context) (int64, error)
+}
+
 // New creates a new scheduler instance
-func New(cfg *config.Config, ldapClient *ldap.Client, mailer *mail.Mailer, pool *pgxpool.Pool, auditLog *audit.Logger, passwordReset *passwordreset.Service) *Scheduler {
+func New(cfg *config.Config, ldapClient *ldap.Client, mailer *mail.Mailer, pool *pgxpool.Pool, auditLog *audit.Logger, passwordReset *passwordreset.Service, sessions SessionPurger) *Scheduler {
 	return &Scheduler{
 		cron:          cron.New(),
 		config:        cfg,
@@ -59,6 +66,7 @@ func New(cfg *config.Config, ldapClient *ldap.Client, mailer *mail.Mailer, pool 
 		store:         NewStore(pool),
 		auditLog:      auditLog,
 		passwordReset: passwordReset,
+		sessions:      sessions,
 		running:       make(map[string]bool),
 	}
 }
@@ -97,21 +105,31 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		log.Println("Passwords expiration task disabled (empty schedule)")
 	}
 
-	// Register the password-reset token cleanup. Tokens already become
-	// unusable past expires_at, but the row stays until purged, growing
-	// the table indefinitely and obscuring forensic queries with cold
-	// records. The job is purely DML so we keep it lightweight (no
-	// task-run accounting) and run it more often than the daily tasks.
-	if s.passwordReset != nil && s.config.ScheduledTasks.TokensCleanup != "" {
+	// Register the cleanup of expired tokens: password-reset tokens and
+	// sessions. Both are already unusable past expires_at, but the row stays
+	// until purged, growing the table indefinitely and obscuring forensic
+	// queries with cold records. Sessions used to expire on their own in
+	// Redis, by TTL; in the database this is what removes them. The job is
+	// purely DML so we keep it lightweight (no task-run accounting) and run
+	// it more often than the daily tasks.
+	if (s.passwordReset != nil || s.sessions != nil) && s.config.ScheduledTasks.TokensCleanup != "" {
 		_, err := s.cron.AddFunc(s.config.ScheduledTasks.TokensCleanup, func() {
-			if err := s.passwordReset.DeleteExpiredTokens(context.Background()); err != nil {
-				log.Printf("Password reset cleanup error: %v", err)
+			ctx := context.Background()
+			if s.passwordReset != nil {
+				if err := s.passwordReset.DeleteExpiredTokens(ctx); err != nil {
+					log.Printf("Password reset cleanup error: %v", err)
+				}
+			}
+			if s.sessions != nil {
+				if _, err := s.sessions.DeleteExpired(ctx); err != nil {
+					log.Printf("Session cleanup error: %v", err)
+				}
 			}
 		})
 		if err != nil {
 			return fmt.Errorf("add tokens cleanup task: %w", err)
 		}
-		log.Printf("Scheduled password-reset tokens cleanup: %s", s.config.ScheduledTasks.TokensCleanup)
+		log.Printf("Scheduled expired tokens and sessions cleanup: %s", s.config.ScheduledTasks.TokensCleanup)
 	}
 
 	// Register the lockout scan. Unlike the expiration tasks this one is looking

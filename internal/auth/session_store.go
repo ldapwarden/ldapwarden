@@ -5,70 +5,62 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type RedisSessionStore struct {
-	client *redis.Client
-	prefix string
+// ErrSessionNotFound is returned by Get for a token with no live session.
+var ErrSessionNotFound = errors.New("session not found")
+
+// PostgresSessionStore keeps sessions in the application database.
+//
+// They used to live in Redis, which the app ran for nothing else. A session is
+// read once per request, which for an admin tool used by a handful of people
+// is no load worth a second datastore, and keeping them next to the audit log
+// means one service to run, back up and secure instead of two.
+type PostgresSessionStore struct {
+	pool *pgxpool.Pool
 }
 
-func NewRedisSessionStore(client *redis.Client) *RedisSessionStore {
-	return &RedisSessionStore{
-		client: client,
-		prefix: "ldapwarden:session:",
-	}
+func NewPostgresSessionStore(pool *pgxpool.Pool) *PostgresSessionStore {
+	return &PostgresSessionStore{pool: pool}
 }
 
-// Ping reports whether the store is reachable, for the readiness probe. Sessions
-// live only here, so a session store the app cannot talk to means it cannot
-// authenticate anyone — worth reporting as not ready rather than discovering it on
-// the next login.
-func (s *RedisSessionStore) Ping(ctx context.Context) error {
-	return s.client.Ping(ctx).Err()
+// Ping reports whether the store is reachable, for the readiness probe. It is
+// the same database as the audit log now, so the two checks can only fail
+// together; the probe keeps them apart because they gate different things
+// (signing in, and every mutation).
+func (s *PostgresSessionStore) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
 }
 
-func (s *RedisSessionStore) Create(ctx context.Context, session *Session, tokenHash string) error {
-	key := s.prefix + tokenHash
-
+func (s *PostgresSessionStore) Create(ctx context.Context, session *Session, tokenHash string) error {
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
 	}
-
-	ttl := time.Until(session.ExpiresAt)
-	if ttl <= 0 {
-		return fmt.Errorf("session already expired")
-	}
-
-	if err := s.client.Set(ctx, key, data, ttl).Err(); err != nil {
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO sessions (token_hash, user_dn, data, expires_at)
+		VALUES ($1, $2, $3, $4)
+	`, tokenHash, session.UserDN, data, session.ExpiresAt)
+	if err != nil {
 		return fmt.Errorf("store session: %w", err)
 	}
-
-	// The per-user index is what DeleteByUserDN walks to revoke every live
-	// session for a user (account lock/delete, admin demotion). If SAdd fails,
-	// the session would be stored but invisible to revocation — roll it back
-	// rather than leave behind a token nothing can kill.
-	userKey := s.prefix + "user:" + session.UserDN
-	if err := s.client.SAdd(ctx, userKey, tokenHash).Err(); err != nil {
-		_ = s.client.Del(ctx, key).Err()
-		return fmt.Errorf("index session for user: %w", err)
-	}
-	// A missing TTL on the index set is benign housekeeping (its members are
-	// removed on logout/expiry), so a failure here must not fail the login.
-	_ = s.client.Expire(ctx, userKey, ttl).Err()
-
 	return nil
 }
 
-func (s *RedisSessionStore) Get(ctx context.Context, tokenHash string) (*Session, error) {
-	key := s.prefix + tokenHash
-
-	data, err := s.client.Get(ctx, key).Bytes()
-	if err == redis.Nil {
-		return nil, fmt.Errorf("session not found")
+// Get returns the live session for a token. An expired row is treated as
+// absent here, whether or not the purge has removed it yet: expiry is decided
+// by expires_at, not by the purge schedule.
+func (s *PostgresSessionStore) Get(ctx context.Context, tokenHash string) (*Session, error) {
+	var data []byte
+	err := s.pool.QueryRow(ctx, `
+		SELECT data FROM sessions
+		WHERE token_hash = $1 AND expires_at > NOW()
+	`, tokenHash).Scan(&data)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrSessionNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get session: %w", err)
@@ -78,46 +70,34 @@ func (s *RedisSessionStore) Get(ctx context.Context, tokenHash string) (*Session
 	if err := json.Unmarshal(data, &session); err != nil {
 		return nil, fmt.Errorf("unmarshal session: %w", err)
 	}
-
 	return &session, nil
 }
 
-func (s *RedisSessionStore) Delete(ctx context.Context, tokenHash string) error {
-	key := s.prefix + tokenHash
-
-	session, err := s.Get(ctx, tokenHash)
-	if err == nil {
-		userKey := s.prefix + "user:" + session.UserDN
-		s.client.SRem(ctx, userKey, tokenHash)
-	}
-
-	if err := s.client.Del(ctx, key).Err(); err != nil {
+func (s *PostgresSessionStore) Delete(ctx context.Context, tokenHash string) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE token_hash = $1`, tokenHash); err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}
-
 	return nil
 }
 
-func (s *RedisSessionStore) DeleteByUserDN(ctx context.Context, userDN string) error {
-	userKey := s.prefix + "user:" + userDN
+// DeleteByUserDN revokes every session of an account. One statement, so a
+// revocation is all or nothing: the Redis store deleted them one key at a time
+// and had to aggregate partial failures, where a locked, deleted or demoted
+// user could keep whichever session was missed.
+func (s *PostgresSessionStore) DeleteByUserDN(ctx context.Context, userDN string) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE user_dn = $1`, userDN); err != nil {
+		return fmt.Errorf("delete user sessions: %w", err)
+	}
+	return nil
+}
 
-	tokens, err := s.client.SMembers(ctx, userKey).Result()
+// DeleteExpired purges the rows past their expiry and reports how many went.
+// Redis dropped them on its own with a TTL; here they would otherwise pile up,
+// harmless — Get ignores them — but growing forever.
+func (s *PostgresSessionStore) DeleteExpired(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at <= NOW()`)
 	if err != nil {
-		return fmt.Errorf("get user sessions: %w", err)
+		return 0, fmt.Errorf("purge expired sessions: %w", err)
 	}
-
-	// Aggregate failures rather than stopping at the first, and surface them:
-	// a partial revocation must not look like success to the caller, or a
-	// locked/deleted/demoted user could keep a live session.
-	var errs []error
-	for _, token := range tokens {
-		if err := s.client.Del(ctx, s.prefix+token).Err(); err != nil {
-			errs = append(errs, fmt.Errorf("delete session %s: %w", token, err))
-		}
-	}
-	if err := s.client.Del(ctx, userKey).Err(); err != nil {
-		errs = append(errs, fmt.Errorf("delete user session index: %w", err))
-	}
-
-	return errors.Join(errs...)
+	return tag.RowsAffected(), nil
 }

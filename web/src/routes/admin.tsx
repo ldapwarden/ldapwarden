@@ -171,30 +171,13 @@ function AdminPage() {
               <Database className="h-5 w-5" />
               Database
             </CardTitle>
-            <CardDescription>PostgreSQL connection settings</CardDescription>
+            <CardDescription>PostgreSQL: audit log, sessions and task history</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <ConfigField
               label="Connection URL"
               config={config!.database.url}
               description="PostgreSQL connection string (password masked)"
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Redis
-            </CardTitle>
-            <CardDescription>Redis connection settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ConfigField
-              label="Connection URL"
-              config={config!.redis.url}
-              description="Redis connection string"
             />
           </CardContent>
         </Card>

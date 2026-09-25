@@ -126,7 +126,7 @@ LDAP Warden is a lightweight, self-hosted web application for managing OpenLDAP 
 git clone https://github.com/yourusername/ldapwarden.git
 cd ldapwarden
 
-# Start all services (PostgreSQL, Redis, OpenLDAP, and LDAP Warden)
+# Start all services (PostgreSQL, OpenLDAP, and LDAP Warden)
 docker compose up -d
 
 # Access the application
@@ -150,8 +150,7 @@ The Docker Compose setup includes:
   pointing at `cn=default,ou=policies,dc=example,dc=org`. The directory is baked
   into the image and copied into the volumes on first start, so what you change
   through the app survives a restart; `docker compose down -v` restores the seed.
-- **PostgreSQL** — Database for sessions and audit logs (port 5432)
-- **Redis** — Session store (port 6379)
+- **PostgreSQL** — Database for sessions, audit logs and task history (port 5432)
 - **phpLDAPadmin** — Optional LDAP browser for debugging (port 8080, not started by default). Bring it up with `docker compose --profile debug up -d` or `docker compose up -d phpldapadmin`.
 
 ## Configuration
@@ -170,7 +169,6 @@ LDAP Warden is configured via environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable` |
-| `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
 
 ### LDAP
 
@@ -462,13 +460,13 @@ Tasks can also be triggered manually from the Administration UI, or via
 - Go 1.23+
 - Node.js 20+
 - pnpm
-- Docker (for infrastructure) or local PostgreSQL, Redis, and OpenLDAP
+- Docker (for infrastructure) or local PostgreSQL and OpenLDAP
 
 ### Setup with Docker (Recommended)
 
 ```bash
-# Start infrastructure (PostgreSQL, Redis, OpenLDAP)
-docker compose up -d postgres redis openldap
+# Start infrastructure (PostgreSQL, OpenLDAP)
+docker compose up -d postgres openldap
 
 # Start the backend (terminal 1) — applies migrations on startup
 cd cmd/server && go run .
@@ -488,16 +486,7 @@ If you prefer to run services locally without Docker:
    createdb ldapwarden
    ```
 
-2. **Redis** — Install and start Redis:
-   ```bash
-   # macOS
-   brew install redis && brew services start redis
-
-   # Linux
-   sudo apt install redis-server && sudo systemctl start redis
-   ```
-
-3. **OpenLDAP** — Install and configure:
+2. **OpenLDAP** — Install and configure:
    ```bash
    # macOS
    brew install openldap
@@ -516,16 +505,15 @@ If you prefer to run services locally without Docker:
    ldapadd -x -D "cn=admin,dc=example,dc=org" -W -f ldap/seed.ldif
    ```
 
-4. **Environment variables** — Set connection URLs:
+3. **Environment variables** — Set connection URLs:
    ```bash
    export DATABASE_URL="postgres://localhost:5432/ldapwarden?sslmode=disable"
-   export REDIS_URL="redis://localhost:6379"
    export LDAP_URL="ldap://localhost:389"
    export LDAP_BIND_DN="cn=admin,dc=example,dc=org"
    export LDAP_BIND_PASS="your-admin-password"
    ```
 
-5. **Start the app** (the backend applies database migrations on startup):
+4. **Start the app** (the backend applies database migrations on startup):
    ```bash
    cd cmd/server && go run .      # Terminal 1
    cd web && pnpm install && pnpm dev  # Terminal 2
@@ -566,8 +554,7 @@ ldapwarden/
 - [Chi](https://github.com/go-chi/chi) — Lightweight HTTP router
 - [go-ldap](https://github.com/go-ldap/ldap) — LDAP client library
 - [pgx](https://github.com/jackc/pgx) — PostgreSQL driver
-- [PostgreSQL](https://www.postgresql.org/) — Audit logs & metadata
-- [Redis](https://redis.io/) — Session storage
+- [PostgreSQL](https://www.postgresql.org/) — Sessions, audit logs & metadata
 
 **Frontend:**
 - [React 19](https://react.dev/) — UI framework
