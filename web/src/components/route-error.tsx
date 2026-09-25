@@ -1,4 +1,4 @@
-import { useRouter } from '@tanstack/react-router'
+import { useRouter, type ErrorComponentProps } from '@tanstack/react-router'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -7,9 +7,13 @@ import { Button } from '@/components/ui/button'
  * render or loading. Without it, an uncaught render error blanks the whole app
  * with no way out. It shows a friendly message and lets the user retry the
  * failed route or go home, while surfacing the message for a bug report.
+ *
+ * `error` is `unknown` because JavaScript can throw anything, not only an
+ * `Error`; a thrown string or object still gets its text shown.
  */
-export function RouteError({ error }: { error: Error }) {
+export function RouteError({ error }: ErrorComponentProps) {
   const router = useRouter()
+  const message = error instanceof Error ? error.message : error == null ? '' : String(error)
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center py-20 text-center">
@@ -21,9 +25,9 @@ export function RouteError({ error }: { error: Error }) {
         An unexpected error occurred while rendering this page. You can try again
         or return home.
       </p>
-      {error?.message && (
+      {message && (
         <pre className="mt-4 max-w-md overflow-x-auto rounded-md bg-muted p-3 text-left text-xs text-muted-foreground">
-          {error.message}
+          {message}
         </pre>
       )}
       <div className="mt-6 flex gap-2">
