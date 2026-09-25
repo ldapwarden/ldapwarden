@@ -1,6 +1,7 @@
 import { createRootRouteWithContext, Outlet, Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { encodeDN } from '@/lib/utils'
 import { useSections, useIsAdmin } from '@/lib/sections'
+import { pageTitle } from '@/lib/page-title'
 import { BuildFooter } from '@/components/build-footer'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
@@ -57,25 +58,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
   errorComponent: RouteError,
 })
-
-const APP_NAME = 'LDAP Warden'
-
-// pageTitle maps the current path to a browser-tab title. Keyed off the first
-// path segment so both list and detail routes of a section share a title.
-function pageTitle(pathname: string): string {
-  const section: Record<string, string> = {
-    users: 'Users',
-    groups: 'Groups',
-    'sudo-roles': 'Sudo Roles',
-    'password-policies': 'Password Policies',
-    'audit-logs': 'Audit Logs',
-    login: 'Sign in',
-    'reset-password': 'Reset password',
-  }
-  const seg = pathname.split('/').filter(Boolean)[0]
-  const label = seg ? section[seg] : undefined
-  return label ? `${label} · ${APP_NAME}` : APP_NAME
-}
 
 function RootComponent() {
   const { isAuthenticated, session, logout, isLoading, sessionExpired } = useAuth()
