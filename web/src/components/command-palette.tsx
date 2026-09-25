@@ -4,8 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import {
   KeyRound,
+  LayoutDashboard,
   Plus,
-  ScrollText,
   Search,
   Settings,
   ShieldCheck,
@@ -16,7 +16,7 @@ import {
   Network,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
+import { useIsAdmin, useSections, type Section } from '@/lib/sections'
 import { useDebounced } from '@/lib/use-debounced'
 import { AccountStatus } from '@/components/account-status'
 import type { AccountStatusFields } from '@/lib/account'
@@ -44,15 +44,21 @@ interface Command {
  */
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate()
-  const { hasPermission } = useAuth()
+  const sections = useSections()
+  const isAdmin = useIsAdmin()
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebounced(query)
   const [activeIndex, setActiveIndex] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const canWrite = hasPermission('users:write')
-  const canReadAudit = hasPermission('audit:read')
-  const canReadSettings = hasPermission('settings:read')
+  // A section this session cannot open is not searched either: a hidden
+  // netgroups module still answered 501 to a search on every keystroke.
+  const has = (key: Section['key']) => sections.some((section) => section.key === key)
+  const searchUsers = has('users')
+  const searchGroups = has('groups')
+  const searchNetgroups = has('netgroups')
+  const searchSudo = has('sudo')
+  const searchPolicies = has('policies')
 
   // Reset on open (a stale query from last time is never what you want) and on a
   // new term (the highlight must land on a row that exists). Both are done
@@ -75,31 +81,31 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const { data: users } = useQuery({
     queryKey: ['users', { search: term, limit: perGroupLimit, palette: true }],
     queryFn: ({ signal }) => api.users.list({ search: term, limit: perGroupLimit }, signal),
-    enabled: open && searching,
+    enabled: open && searching && searchUsers,
   })
 
   const { data: groups } = useQuery({
     queryKey: ['groups', { search: term, limit: perGroupLimit, palette: true }],
     queryFn: ({ signal }) => api.groups.list({ search: term, limit: perGroupLimit }, signal),
-    enabled: open && searching,
+    enabled: open && searching && searchGroups,
   })
 
   const { data: netgroups } = useQuery({
     queryKey: ['netgroups', { search: term, palette: true }],
     queryFn: ({ signal }) => api.netgroups.list({ search: term, limit: perGroupLimit }, signal),
-    enabled: open && searching,
+    enabled: open && searching && searchNetgroups,
   })
 
   const { data: sudoRoles } = useQuery({
     queryKey: ['sudo-roles', { search: term, palette: true }],
     queryFn: ({ signal }) => api.sudoRoles.list({ search: term, limit: perGroupLimit }, signal),
-    enabled: open && searching,
+    enabled: open && searching && searchSudo,
   })
 
   const { data: policies } = useQuery({
     queryKey: ['password-policies', { search: term, palette: true }],
     queryFn: ({ signal }) => api.passwordPolicies.list({ search: term, limit: perGroupLimit }, signal),
-    enabled: open && searching && canReadSettings,
+    enabled: open && searching && searchPolicies,
   })
 
   const commands = useMemo<Command[]>(() => {
@@ -166,30 +172,32 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       }
     }
 
-    // Navigation and create actions. Shown on their own when the palette opens,
-    // and filtered by the term once the user starts typing, so "new" reaches the
-    // create forms without leaving the keyboard.
+    // Navigation and create actions, from the same list as the nav bar so the
+    // two cannot disagree about what exists. Shown on their own when the palette
+    // opens, and filtered by the term once the user starts typing, so "new"
+    // reaches the create forms without leaving the keyboard.
     const actions: Command[] = [
-      { id: 'go:users', label: 'Users', group: 'Go to', icon: Users, run: go('/users') },
-      { id: 'go:groups', label: 'Groups', group: 'Go to', icon: UsersRound, run: go('/groups') },
-      { id: 'go:sudo', label: 'Sudo roles', group: 'Go to', icon: ShieldCheck, run: go('/sudo-roles') },
-      { id: 'go:netgroups', label: 'Netgroups', group: 'Go to', icon: Network, run: go('/netgroups') },
+      { id: 'go:dashboard', label: 'Dashboard', group: 'Go to', icon: LayoutDashboard, run: go('/') },
+      ...sections.map((section) => ({
+        id: `go:${section.key}`,
+        label: section.label,
+        group: 'Go to',
+        icon: section.icon,
+        run: go(section.to),
+      })),
     ]
-    if (canReadSettings) {
-      actions.push({ id: 'go:policies', label: 'Password policies', group: 'Go to', icon: KeyRound, run: go('/password-policies') })
+    if (isAdmin) {
       actions.push({ id: 'go:admin', label: 'Administration', group: 'Go to', icon: Settings, run: go('/admin') })
     }
-    if (canReadAudit) {
-      actions.push({ id: 'go:audit', label: 'Audit log', group: 'Go to', icon: ScrollText, run: go('/audit-logs') })
+    for (const section of sections) {
+      if (section.create) {
+        actions.push({ id: `new:${section.key}`, label: section.create.label, group: 'Create', icon: Plus, run: go(section.create.to) })
+      }
     }
-    if (canWrite) {
-      actions.push(
-        { id: 'new:user', label: 'New user', group: 'Create', icon: Plus, run: go('/users/new') },
-        { id: 'new:group', label: 'New group', group: 'Create', icon: Plus, run: go('/groups/new') },
-        { id: 'new:sudo', label: 'New sudo role', group: 'Create', icon: Plus, run: go('/sudo-roles/new') },
-        { id: 'import:users', label: 'Import users from CSV', group: 'Create', icon: Upload, run: go('/users/import') },
-        { id: 'import:groups', label: 'Import groups from CSV', group: 'Create', icon: Upload, run: go('/groups/import') },
-      )
+    for (const section of sections) {
+      if (section.import) {
+        actions.push({ id: `import:${section.key}`, label: section.import.label, group: 'Create', icon: Upload, run: go(section.import.to) })
+      }
     }
 
     const needle = term.toLowerCase()
@@ -198,7 +206,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     return items
   }, [
     searching, term, users, groups, sudoRoles, policies, netgroups,
-    canWrite, canReadAudit, canReadSettings, navigate, onOpenChange,
+    sections, isAdmin, navigate, onOpenChange,
   ])
 
   const [lastTerm, setLastTerm] = useState(term)

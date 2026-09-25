@@ -220,6 +220,10 @@ MVP implemented with:
 - View state (search, sort, page, size, active tab, audit filters) lives in the
   URL via `validateSearch`, so every view is a shareable link. Helpers:
   `lib/list-search.ts`, `lib/use-url-search-input.ts`.
+- **Which sections exist is decided once**, in `useSections()` (`lib/sections.ts`):
+  module, directory capability and the permission the list endpoint requires. The
+  nav bar, the mobile menu and the command palette all read it; never gate a link
+  to a section anywhere else. The admin page is `useIsAdmin()`, the route's own test.
 - Mutation outcomes are reported by a **toast**. Inline `Callout`s are for
   page-level load failures, field validation and persistent notices — not for
   confirming a save.

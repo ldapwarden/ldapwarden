@@ -1,6 +1,6 @@
 import { createRootRouteWithContext, Outlet, Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { encodeDN } from '@/lib/utils'
-import { useEnabledModules, useServerInfo } from '@/lib/use-server-info'
+import { useSections, useIsAdmin } from '@/lib/sections'
 import { BuildFooter } from '@/components/build-footer'
 import { lazy, Suspense } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
@@ -39,14 +39,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, UsersRound, User, ScrollText, LogOut, Shield, ShieldCheck, Settings, ChevronDown, Key, KeyRound, Menu, Search, Network } from 'lucide-react'
+import { User, LogOut, Shield, Settings, ChevronDown, Key, LayoutDashboard, Menu, Search } from 'lucide-react'
 import { CommandPalette } from '@/components/command-palette'
 import { useCommandHotkey } from '@/lib/use-hotkey'
 import { RouteError } from '@/components/route-error'
 import { LoadingScreen } from '@/components/loading-screen'
 import { SessionExpiryNotice } from '@/components/session-expiry-notice'
 import { OutcomeHost } from '@/components/outcome-dialog'
-import { useCallback, useState, useMemo, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 
 interface RouterContext {
   auth: ReturnType<typeof useAuth>
@@ -96,34 +96,10 @@ function RootComponent() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // From /server-info, not /admin/config: the latter takes settings:read, which
-  // the readonly role does not have, so a read-only session fell through to the
-  // defaults here and — worse — saw netgroupsSupported default to false, hiding
-  // a tab the API would have served them.
-  const enabledModules = useEnabledModules()
-  const serverInfo = useServerInfo()
-
-  // The section links, filtered by enabled module and permission. Built once so
-  // the wide bar and the mobile dropdown cannot drift apart.
-  const navItems = useMemo(() => {
-    const items: Array<{ to: string; label: string; icon: typeof Users }> = []
-    if (enabledModules.includes('users')) items.push({ to: '/users', label: 'Users', icon: Users })
-    if (enabledModules.includes('groups')) items.push({ to: '/groups', label: 'Groups', icon: UsersRound })
-    if (enabledModules.includes('sudo')) items.push({ to: '/sudo-roles', label: 'Sudo Roles', icon: ShieldCheck })
-    // Gated on the directory declaring nisNetgroup as well as on the module: the
-    // API answers 501 without it, and a nav item leading to a dead page is worse
-    // than no nav item.
-    if (enabledModules.includes('netgroups') && serverInfo?.capabilities?.netgroupsSupported) {
-      items.push({ to: '/netgroups', label: 'Netgroups', icon: Network })
-    }
-    if (enabledModules.includes('policies') && session?.permissions.includes('settings:read')) {
-      items.push({ to: '/password-policies', label: 'Policies', icon: KeyRound })
-    }
-    if (session?.permissions.includes('audit:read')) {
-      items.push({ to: '/audit-logs', label: 'Audit Logs', icon: ScrollText })
-    }
-    return items
-  }, [enabledModules, session?.permissions, serverInfo?.capabilities?.netgroupsSupported])
+  // One list for the bar, the mobile menu and the command palette, with one
+  // set of visibility rules: see lib/sections.ts.
+  const sections = useSections()
+  const isAdmin = useIsAdmin()
 
   const changePasswordMutation = useMutation({
     mutationFn: async () => {
@@ -224,11 +200,27 @@ function RootComponent() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
-                  {navItems.map(({ to, label, icon: Icon }) => (
+                  {/* Search first: below sm the header has no room for its
+                      button, and a phone has no ⌘K, so this is the only way in. */}
+                  <DropdownMenuItem onClick={() => setPaletteOpen(true)} className="cursor-pointer sm:hidden">
+                    <Search className="mr-2 h-4 w-4" />
+                    Search
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="sm:hidden" />
+                  {[{ to: '/', label: 'Dashboard', icon: LayoutDashboard }, ...sections].map(({ to, label, icon: Icon }) => (
                     <DropdownMenuItem key={to} asChild>
-                      <Link to={to} className="flex cursor-pointer items-center">
-                        <Icon className="mr-2 h-4 w-4" />
-                        {label}
+                      <Link
+                        to={to}
+                        activeOptions={{ exact: to === '/' }}
+                        className="flex cursor-pointer items-center data-[status=active]:bg-accent data-[status=active]:font-medium"
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <Icon className="mr-2 h-4 w-4" />
+                            {label}
+                            {isActive && <span className="sr-only"> (current page)</span>}
+                          </>
+                        )}
                       </Link>
                     </DropdownMenuItem>
                   ))}
@@ -241,12 +233,12 @@ function RootComponent() {
               </Link>
 
               <div className="hidden items-center gap-1 md:flex">
-                {navItems.map(({ to, label, icon: Icon }) => (
+                {sections.map(({ to, label, shortLabel, icon: Icon }) => (
                   <Link key={to} to={to}>
                     {({ isActive }) => (
-                      <Button variant={isActive ? 'secondary' : 'ghost'} size="sm">
+                      <Button variant={isActive ? 'secondary' : 'ghost'} size="sm" title={shortLabel ? label : undefined}>
                         <Icon className="h-4 w-4 mr-1" />
-                        {label}
+                        {shortLabel ?? label}
                       </Button>
                     )}
                   </Link>
@@ -299,7 +291,7 @@ function RootComponent() {
                     My Profile
                   </Link>
                 </DropdownMenuItem>
-                {session?.roleName === 'admin' && (
+                {isAdmin && (
                   <DropdownMenuItem asChild>
                     <Link to="/admin" className="flex items-center cursor-pointer">
                       <Settings className="mr-2 h-4 w-4" />
