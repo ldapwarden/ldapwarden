@@ -23,9 +23,17 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | null>(null)
 
+// Storage access throws where site data is blocked (some private windows,
+// strict cookie settings), and ThemeProvider reads it during its first render:
+// unguarded, that took the whole app down. index.html already guarded its copy.
 function getStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'system'
-  const stored = window.localStorage.getItem(STORAGE_KEY)
+  let stored: string | null
+  try {
+    stored = window.localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return 'system'
+  }
   if (stored === 'light' || stored === 'dark' || stored === 'system') {
     return stored
   }
@@ -59,7 +67,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [resolvedTheme])
 
   const setTheme = useCallback((next: Theme) => {
-    window.localStorage.setItem(STORAGE_KEY, next)
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next)
+    } catch {
+      // Not remembered across reloads, but applied for this one.
+    }
     setThemeState(next)
   }, [])
 
