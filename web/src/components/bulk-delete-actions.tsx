@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Trash2 } from 'lucide-react'
-import { runBulk, bulkSummary } from '@/lib/bulk'
+import { runBulk, bulkSummary, warningsOf } from '@/lib/bulk'
 import { BulkActionBar } from '@/components/bulk-action-bar'
-import { BulkResultDialog, type BulkOutcome } from '@/components/bulk-result-dialog'
+import { BulkResultDialog, type BulkOutcome, type BulkWarning } from '@/components/bulk-result-dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 
@@ -14,6 +14,11 @@ import { Button } from '@/components/ui/button'
  *
  * Groups had all of this inline; sudo roles and password policies had none of
  * it. Sharing it is what stops the four list views from drifting apart again.
+ *
+ * A `remove` that answers with `warnings` (groups and netgroups do: sudo names
+ * them by string) has them collected and listed per item once the run is over.
+ * Dropping them made a bulk delete the one path that left rules granting to
+ * nobody without saying so.
  */
 export function BulkDeleteActions<T extends { dn: string }>({
   selected,
@@ -45,17 +50,24 @@ export function BulkDeleteActions<T extends { dn: string }>({
     setRunning(true)
     setProgress({ done: 0, total: count })
     try {
-      const result = await runBulk(selected, remove, {
+      const warned: BulkWarning<T>[] = []
+      const result = await runBulk(selected, async (item) => {
+        const warnings = warningsOf(await remove(item))
+        if (warnings.length > 0) warned.push({ item, warnings })
+      }, {
         onProgress: (done, total) => setProgress({ done, total }),
       })
       queryClient.invalidateQueries({ queryKey: invalidateKey })
       const summary = bulkSummary('Deleted', noun, result)
+      // The toast reports the shape; the dialog says which ones failed and why,
+      // and what the ones that went through left behind.
       if (result.failed.length === 0) {
         toast.success(summary)
       } else {
-        // The toast reports the shape; the dialog says which ones failed and why.
         toast.error(summary)
-        setOutcome({ verb: 'Deleted', noun, succeeded: result.succeeded, failed: result.failed })
+      }
+      if (result.failed.length > 0 || warned.length > 0) {
+        setOutcome({ verb: 'Deleted', noun, succeeded: result.succeeded, failed: result.failed, warned })
       }
       onClear()
       setOpen(false)

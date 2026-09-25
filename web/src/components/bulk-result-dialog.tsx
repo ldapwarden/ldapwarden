@@ -15,6 +15,17 @@ export interface BulkOutcome<T> {
   noun: string
   succeeded: number
   failed: BulkFailure<T>[]
+  /**
+   * Items that succeeded but left something behind the operator must act on
+   * (a sudo rule still naming a deleted netgroup, say). Listed here rather than
+   * in a toast: in a batch, a toast is gone before anyone has read it.
+   */
+  warned?: BulkWarning<T>[]
+}
+
+export interface BulkWarning<T> {
+  item: T
+  warnings: string[]
 }
 
 /**
@@ -38,6 +49,7 @@ export function BulkResultDialog<T>({
   if (!outcome) return null
 
   const total = outcome.succeeded + outcome.failed.length
+  const warned = outcome.warned ?? []
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -48,18 +60,35 @@ export function BulkResultDialog<T>({
             {total === 1 ? '' : 's'}
           </DialogTitle>
           <DialogDescription>
-            {outcome.failed.length === 1 ? '1 item failed' : `${outcome.failed.length} items failed`}
-            {outcome.succeeded > 0
-              ? `${outcome.failed.length === 1 ? ' and was' : ' and were'} left unchanged. Each item is applied independently, so the ones that worked are already done.`
-              : ' — nothing was changed.'}
+            {outcome.failed.length > 0 && (
+              <>
+                {outcome.failed.length === 1 ? '1 item failed' : `${outcome.failed.length} items failed`}
+                {outcome.succeeded > 0
+                  ? `${outcome.failed.length === 1 ? ' and was' : ' and were'} left unchanged. Each item is applied independently, so the ones that worked are already done.`
+                  : ' — nothing was changed.'}
+              </>
+            )}
+            {outcome.failed.length > 0 && warned.length > 0 && ' '}
+            {warned.length > 0 &&
+              `${warned.length === 1 ? '1 item' : `${warned.length} items`} went through but left references behind that the directory will not clean up on its own.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="max-h-72 space-y-2 overflow-y-auto">
           {outcome.failed.map((failure, index) => (
-            <Callout key={index} variant="error" icon={false}>
+            <Callout key={`failed-${index}`} variant="error" icon={false}>
               <p className="font-medium">{label(failure.item)}</p>
               <p className="text-muted-foreground">{failure.error}</p>
+            </Callout>
+          ))}
+          {warned.map((entry, index) => (
+            <Callout key={`warned-${index}`} variant="warning" icon={false}>
+              <p className="font-medium">{label(entry.item)}</p>
+              <ul className="list-disc pl-4 text-muted-foreground">
+                {entry.warnings.map((warning, i) => (
+                  <li key={i}>{warning}</li>
+                ))}
+              </ul>
             </Callout>
           ))}
         </div>

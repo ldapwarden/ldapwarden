@@ -64,3 +64,12 @@ export function bulkSummary(verb: string, noun: string, result: BulkResult<unkno
   if (result.failed.length === 0) return `${verb} ${result.succeeded} ${unit}.`
   return `${verb} ${result.succeeded} ${unit}, ${result.failed.length} failed.`
 }
+
+// The warnings a delete endpoint answered with, if it answers with any. Checked
+// at runtime because a bulk action's worker is whichever endpoint the list page
+// passes, and only some of them report what they leave behind.
+export function warningsOf(res: unknown): string[] {
+  if (typeof res !== 'object' || res === null || !('warnings' in res)) return []
+  const { warnings } = res as { warnings: unknown }
+  return Array.isArray(warnings) ? warnings.filter((w): w is string => typeof w === 'string') : []
+}
