@@ -26,6 +26,14 @@ interface PasswordInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
 export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
   ({ value, onValueChange, generate = false, onGenerate, className, disabled, ...props }, ref) => {
     const [revealed, setRevealed] = React.useState(false)
+    // Caps Lock turns a correct password into a failed bind, and on the login
+    // page a few of those into a ppolicy lockout — while the field shows only
+    // dots. Read from the key events, the only place a browser reports it.
+    const [capsLock, setCapsLock] = React.useState(false)
+    const warningId = React.useId()
+    const trackCapsLock = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (typeof e.getModifierState === 'function') setCapsLock(e.getModifierState('CapsLock'))
+    }
 
     const handleGenerate = async () => {
       const password = generatePassword()
@@ -46,6 +54,7 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
     }
 
     return (
+      <div className="space-y-1">
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Input
@@ -56,6 +65,19 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
             disabled={disabled}
             className={cn('pr-9', className)}
             {...props}
+            onKeyDown={(e) => {
+              trackCapsLock(e)
+              props.onKeyDown?.(e)
+            }}
+            onKeyUp={(e) => {
+              trackCapsLock(e)
+              props.onKeyUp?.(e)
+            }}
+            onBlur={(e) => {
+              setCapsLock(false)
+              props.onBlur?.(e)
+            }}
+            aria-describedby={cn(props['aria-describedby'], capsLock && !revealed && warningId) || undefined}
           />
           <button
             type="button"
@@ -79,6 +101,13 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
             Generate
           </Button>
         )}
+      </div>
+      {/* Not needed once the value is revealed: the case is on screen. */}
+      {capsLock && !revealed && (
+        <p id={warningId} className="text-xs text-warning" role="status">
+          Caps Lock is on
+        </p>
+      )}
       </div>
     )
   },

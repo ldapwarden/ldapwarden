@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
@@ -19,7 +19,7 @@ function ResetPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  const { data: info, isLoading, error } = useQuery({
+  const { data: info, isLoading, error, refetch } = useQuery({
     queryKey: ['password-reset', token],
     queryFn: ({ signal }) => api.passwordReset.getInfo(token, signal),
   })
@@ -42,6 +42,32 @@ function ResetPasswordPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  // Only a 404 or 410 says the link is dead; anything else — the server down, a
+  // 500 — would send the user to request a new link that would fail the same way.
+  const linkDead = error instanceof ApiError && (error.status === 404 || error.status === 410 || error.status === 400)
+
+  if (error && !linkDead) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+            </div>
+            <CardTitle>Could not check this link</CardTitle>
+            <CardDescription>
+              The server could not be reached or answered with an error ({error.message}). The
+              link itself may still be valid: try again in a moment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button variant="outline" onClick={() => refetch()}>Try again</Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
