@@ -26,7 +26,7 @@ import { encodeDN } from '@/lib/utils'
 import { useUrlSearchInput } from '@/lib/use-url-search-input'
 import { useSearchHotkey } from '@/lib/use-hotkey'
 import { useRowSelection } from '@/lib/use-row-selection'
-import { netgroupKind, netgroupKindLabel } from '@/lib/netgroup'
+import { netgroupKind, netgroupKindLabel, NETGROUP_NO_MATCH } from '@/lib/netgroup'
 import {
   listSearchValidator,
   listSearchValues,
@@ -316,21 +316,30 @@ function NetgroupsPage() {
  */
 function ContentsCell({ netgroup }: { netgroup: Netgroup }) {
   const kind = netgroupKind(netgroup)
-  const users = netgroup.triples.filter((t) => t.user && t.user !== '-').length
-  const hosts = netgroup.triples.filter((t) => t.host && t.host !== '-').length
+  const users = netgroup.triples.filter((t) => t.user && t.user !== NETGROUP_NO_MATCH).length
+  const hosts = netgroup.triples.filter((t) => t.host && t.host !== NETGROUP_NO_MATCH).length
+  // An empty slot means *any*, never *none* (see CLAUDE.md): (web01,,) is every
+  // user on web01. Counting only the filled slots showed it as "1 host" and hid
+  // that, named from sudoUser, it grants to everyone.
+  const anyUser = netgroup.triples.some((t) => !t.user)
+  const anyHost = netgroup.triples.some((t) => !t.host)
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-      {users > 0 && (
+      {(users > 0 || anyUser) && (
         <span className="flex items-center gap-1">
           <User className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          {users}
+          {users > 0 && `${users} user${users === 1 ? '' : 's'}`}
+          {users > 0 && anyUser && ' + '}
+          {anyUser && <span className="font-medium">any user</span>}
         </span>
       )}
-      {hosts > 0 && (
+      {(hosts > 0 || anyHost) && (
         <span className="flex items-center gap-1">
           <Server className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          {hosts}
+          {hosts > 0 && `${hosts} host${hosts === 1 ? '' : 's'}`}
+          {hosts > 0 && anyHost && ' + '}
+          {anyHost && <span className="font-medium">any host</span>}
         </span>
       )}
       {netgroup.triples.length === 0 && (

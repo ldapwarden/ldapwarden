@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, Lock, LockOpen } from 'lucide-react'
+import { CalendarClock, CalendarX, CheckCircle2, Lock, LockOpen } from 'lucide-react'
 import {
   accountExpiration,
   hasLapsedLock,
@@ -11,6 +11,8 @@ interface Status {
   icon: typeof Lock
   className: string
   label: string
+  /** A word or two for the badge form; `label` stays the full sentence. */
+  short: string
   /**
    * Whether this state is worth interrupting a scan for. Drives `quiet`: a
    * column of green ticks down a member picker is noise, while a locked account
@@ -57,10 +59,18 @@ function statusOf(user: AccountStatusFields, now: Date): Status {
     // a group's membership, those call for opposite actions, and "Account
     // locked" said neither. Both stay red: both refuse the bind right now, and
     // softening the policy case would understate an account that cannot log in.
-    return { icon: Lock, className: 'text-destructive', label: lockLabel(user), notable: true }
+    return {
+      icon: Lock,
+      className: 'text-destructive',
+      label: lockLabel(user),
+      short: user.lockout?.state === 'active' ? 'Policy lockout' : 'Locked',
+      notable: true,
+    }
   }
+  // Its own glyph: a padlock for both said "unlock it" for an account whose fix
+  // is to extend it.
   if (expiresAt && expiresAt < now) {
-    return { icon: Lock, className: 'text-destructive', label: 'Account expired', notable: true }
+    return { icon: CalendarX, className: 'text-destructive', label: 'Account expired', short: 'Expired', notable: true }
   }
   // The account works, but the entry still carries the lapsed lock — say so
   // rather than showing a plain "Active" next to a pwdAccountLockedTime value
@@ -70,6 +80,7 @@ function statusOf(user: AccountStatusFields, now: Date): Status {
       icon: LockOpen,
       className: 'text-success',
       label: 'Active — lockout expired, flag not yet cleared',
+      short: 'Active',
       // The account works: a picker does not need to stop the eye on it.
       notable: false,
     }
@@ -81,11 +92,12 @@ function statusOf(user: AccountStatusFields, now: Date): Status {
       icon: CalendarClock,
       className: days <= 7 ? 'text-destructive' : days <= 30 ? 'text-warning' : 'text-success',
       label: `Expires in ${days} day${days === 1 ? '' : 's'}`,
+      short: `Expires in ${days}d`,
       notable: days <= 30,
     }
   }
 
-  return { icon: CheckCircle2, className: 'text-success', label: 'Active', notable: false }
+  return { icon: CheckCircle2, className: 'text-success', label: 'Active', short: 'Active', notable: false }
 }
 
 /**
@@ -99,15 +111,32 @@ function statusOf(user: AccountStatusFields, now: Date): Status {
 export function AccountStatus({
   user,
   quiet = false,
+  withText = false,
 }: {
   user: AccountStatusFields
   /** Render nothing unless the account needs attention. For dense lists. */
   quiet?: boolean
+  /**
+   * Show the short state next to the glyph, for the users list: an icon alone
+   * had to be hovered row by row to tell a lock from an expiry.
+   */
+  withText?: boolean
 }) {
   const now = new Date()
-  const { icon: Icon, className, label, notable } = statusOf(user, now)
+  const { icon: Icon, className, label, short, notable } = statusOf(user, now)
 
   if (quiet && !notable) return null
+
+  if (withText) {
+    return (
+      <span className={`inline-flex items-center gap-1.5 text-sm ${className}`} title={label}>
+        <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>{short}</span>
+        {/* The full sentence for a screen reader too, not just the hover. */}
+        {label !== short && <span className="sr-only">: {label}</span>}
+      </span>
+    )
+  }
 
   return (
     <span className="inline-flex items-center" title={label}>

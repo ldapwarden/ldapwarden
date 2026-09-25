@@ -311,7 +311,7 @@ function UsersPage() {
               >
                 Groups
               </SortableHeader>
-              <TableHead className="w-16 text-center">Status</TableHead>
+              <TableHead className="w-36">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -364,8 +364,8 @@ function UsersPage() {
                     <span>{user.groupsCount ?? 0}</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-center">
-                  <AccountStatus user={user} />
+                <TableCell>
+                  <AccountStatus user={user} withText />
                 </TableCell>
               </TableRow>
             ))}
