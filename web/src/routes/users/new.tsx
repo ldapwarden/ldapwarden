@@ -438,9 +438,12 @@ function NewUserPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedGroups(selectedGroups.filter(g => g !== groupCn))}
-                        className="hover:bg-primary-foreground/20 rounded"
+                        aria-label={`Remove ${groupCn}`}
+                        // 24px of target around a 12px glyph, pulled into the
+                        // chip's padding so the chip keeps its height.
+                        className="-my-1 -mr-1.5 rounded p-1.5 hover:bg-primary-foreground/20"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-3 w-3" aria-hidden="true" />
                       </button>
                     </span>
                   ))}

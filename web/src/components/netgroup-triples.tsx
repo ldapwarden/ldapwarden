@@ -78,7 +78,7 @@ export function TripleEditor({
                   type="button"
                   onClick={() => remove(index)}
                   aria-label={`Remove ${formatTriple(triple)}`}
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  className="-m-1 shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>

@@ -278,6 +278,8 @@ function GroupPickerDialog({
                   <button
                     key={group.dn}
                     type="button"
+                    // The highlight is colour alone; this says it to a screen reader.
+                    aria-pressed={isSelected}
                     onClick={() => setSelected({ dn: group.dn, cn: group.cn })}
                     className={`w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors ${
                       isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'

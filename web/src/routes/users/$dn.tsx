@@ -749,6 +749,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                             <button
                               key={mgr.dn}
                               type="button"
+                              aria-pressed={formData.manager === mgr.dn}
                               onClick={() => {
                                 setFormData({ ...formData, manager: mgr.dn })
                                 setManagerDropdownOpen(false)
@@ -871,6 +872,7 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
                           <button
                             key={group.dn}
                             type="button"
+                            aria-pressed={isSelected}
                             onClick={() => {
                               if (isSelected) {
                                 setSelectedGroups(selectedGroups.filter(g => g !== group.dn))
@@ -1845,6 +1847,7 @@ function SudoTab({ user, dn, canWrite }: { user: NonNullable<ReturnType<typeof a
                       <button
                         key={role.dn}
                         type="button"
+                        aria-pressed={selectedRole === role.dn}
                         onClick={() => setSelectedRole(role.dn)}
                         className={`w-full flex items-start gap-3 p-2 rounded-md text-left transition-colors ${
                           selectedRole === role.dn

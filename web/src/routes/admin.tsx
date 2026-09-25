@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Callout } from '@/components/ui/callout'
 import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock, ShieldCheck, ShieldAlert, ShieldQuestion, Lock } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import type { PolicySelfTest, TriggerTaskResponse } from '@/lib/api'
 import { toast } from 'sonner'
 import { showOutcome } from '@/lib/outcome'
@@ -31,10 +31,11 @@ export const Route = createFileRoute('/admin')({
 
 function ConfigField({ label, config, description }: { label: string; config: ConfigValue; description?: string }) {
   const displayValue = Array.isArray(config.value) ? config.value.join(', ') : String(config.value)
+  const id = useId()
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label className="text-sm font-medium">{label}</Label>
+        <Label htmlFor={id} className="text-sm font-medium">{label}</Label>
         <span className={`text-xs px-2 py-0.5 rounded-full ${
           config.source === 'env'
             ? 'bg-success/15 text-success'
@@ -43,9 +44,12 @@ function ConfigField({ label, config, description }: { label: string; config: Co
           {config.source === 'env' ? 'Environment' : 'Default'}
         </span>
       </div>
+      {/* Read-only rather than disabled: a disabled field cannot be focused,
+          selected or copied, and a config value is mostly there to be copied. */}
       <Input
+        id={id}
         value={displayValue}
-        disabled
+        readOnly
         className="font-mono text-sm bg-muted"
       />
       <div className="flex flex-wrap items-center justify-between gap-x-2 text-xs text-muted-foreground">

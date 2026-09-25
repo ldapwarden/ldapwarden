@@ -1,9 +1,10 @@
-import { Sun, Moon, Monitor, Check } from 'lucide-react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useTheme, type Theme } from '@/lib/theme'
@@ -29,13 +30,14 @@ export function ThemeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36">
-        {OPTIONS.map(({ value, label, icon: Icon }) => (
-          <DropdownMenuItem key={value} onClick={() => setTheme(value)}>
-            <Icon className="mr-2 h-4 w-4" />
-            <span className="flex-1">{label}</span>
-            {theme === value && <Check className="h-4 w-4" />}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+          {OPTIONS.map(({ value, label, icon: Icon }) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              <span className="flex-1">{label}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

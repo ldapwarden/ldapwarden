@@ -248,7 +248,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60" />
         <DialogPrimitive.Content
           onKeyDown={onKeyDown}
-          className="fixed left-[50%] top-[15%] z-50 w-full max-w-xl translate-x-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
+          className="fixed left-[50%] top-[15%] z-50 w-[calc(100%-2rem)] max-w-xl translate-x-[-50%] overflow-hidden rounded-lg border bg-background shadow-lg"
         >
           <DialogPrimitive.Title className="sr-only">Search and commands</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
@@ -265,7 +265,12 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search users, groups, roles… or type a command"
               aria-label="Search and commands"
-              aria-activedescendant={commands[boundedIndex]?.id}
+              role="combobox"
+              aria-expanded={commands.length > 0}
+              aria-autocomplete="list"
+              // By index: command ids hold DNs, and a DN may contain spaces,
+              // which no id — and so no aria-activedescendant — can.
+              aria-activedescendant={commands.length > 0 ? optionId(boundedIndex) : undefined}
               aria-controls="command-palette-list"
               className="h-12 w-full bg-transparent text-sm outline-hidden placeholder:text-muted-foreground"
             />
@@ -278,8 +283,10 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
               </p>
             ) : (
               groupsInOrder.map((group) => (
-                <div key={group} className="pb-1">
-                  <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground">{group}</p>
+                <div key={group} role="group" aria-labelledby={groupId(group)} className="pb-1">
+                  <p id={groupId(group)} className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                    {group}
+                  </p>
                   {commands
                     .map((command, index) => ({ command, index }))
                     .filter(({ command }) => command.group === group)
@@ -289,7 +296,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                       return (
                         <button
                           key={command.id}
-                          id={command.id}
+                          id={optionId(index)}
                           type="button"
                           role="option"
                           aria-selected={isActive}
@@ -326,4 +333,12 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   )
+}
+
+function optionId(index: number): string {
+  return `palette-option-${index}`
+}
+
+function groupId(group: string): string {
+  return `palette-group-${group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
 }

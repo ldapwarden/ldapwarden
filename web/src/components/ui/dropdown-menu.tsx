@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Check } from "lucide-react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { cn } from "@/lib/utils"
 
@@ -44,6 +45,33 @@ const DropdownMenuItem = React.forwardRef<
 ))
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 
+const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
+
+// A choice among several, announced as such (menuitemradio, aria-checked):
+// a Check icon drawn by hand on a plain item said which one was current to
+// sighted users only. The indicator slot is on the right, where it was.
+const DropdownMenuRadioItem = React.forwardRef<
+  React.ComponentRef<typeof DropdownMenuPrimitive.RadioItem>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
+>(({ className, children, ...props }, ref) => (
+  <DropdownMenuPrimitive.RadioItem
+    ref={ref}
+    className={cn(
+      "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
+      className
+    )}
+    {...props}
+  >
+    {children}
+    <span className="absolute right-2 flex h-4 w-4 items-center justify-center">
+      <DropdownMenuPrimitive.ItemIndicator>
+        <Check className="h-4 w-4" aria-hidden="true" />
+      </DropdownMenuPrimitive.ItemIndicator>
+    </span>
+  </DropdownMenuPrimitive.RadioItem>
+))
+DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName
+
 const DropdownMenuLabel = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & {
@@ -83,4 +111,6 @@ export {
   DropdownMenuSeparator,
   DropdownMenuGroup,
   DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 }

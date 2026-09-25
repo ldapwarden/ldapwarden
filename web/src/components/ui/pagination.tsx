@@ -27,8 +27,10 @@ export function Pagination({
   const endItem = Math.min(currentPage * pageSize, totalItems)
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 px-2 py-3">
+      {/* A real label: the text beside it was a bare span, so the select was
+          announced as an unnamed "combo box". */}
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>Rows per page:</span>
         <select
           value={pageSize}
@@ -41,7 +43,7 @@ export function Pagination({
             </option>
           ))}
         </select>
-      </div>
+      </label>
 
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">
@@ -55,8 +57,9 @@ export function Pagination({
             className="h-8 w-8"
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
+            aria-label="First page"
           >
-            <ChevronsLeft className="h-4 w-4" />
+            <ChevronsLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             variant="outline"
@@ -64,10 +67,11 @@ export function Pagination({
             className="h-8 w-8"
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
+            aria-label="Previous page"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <span className="text-sm px-2">
+          <span className="text-sm px-2" aria-live="polite">
             Page {currentPage} of {totalPages || 1}
           </span>
           <Button
@@ -76,8 +80,9 @@ export function Pagination({
             className="h-8 w-8"
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage >= totalPages}
+            aria-label="Next page"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             variant="outline"
@@ -85,11 +90,12 @@ export function Pagination({
             className="h-8 w-8"
             onClick={() => onPageChange(totalPages)}
             disabled={currentPage >= totalPages}
+            aria-label="Last page"
           >
-            <ChevronsRight className="h-4 w-4" />
+            <ChevronsRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       </div>
-    </div>
+    </nav>
   )
 }

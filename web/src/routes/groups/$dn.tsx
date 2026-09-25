@@ -447,6 +447,8 @@ function MembersTab({
                       <button
                         key={user.uid}
                         type="button"
+                        // The highlight is colour alone; this says it to a screen reader.
+                        aria-pressed={newMember === user.uid}
                         onClick={() => setNewMember(user.uid)}
                         className={`w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors ${
                           newMember === user.uid
@@ -853,6 +855,7 @@ function SudoTab({ group, dn, canWrite }: { group: NonNullable<ReturnType<typeof
                       <button
                         key={role.dn}
                         type="button"
+                        aria-pressed={selectedRole === role.dn}
                         onClick={() => setSelectedRole(role.dn)}
                         className={`w-full flex items-start gap-3 p-2 rounded-md text-left transition-colors ${
                           selectedRole === role.dn
