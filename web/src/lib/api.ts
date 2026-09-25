@@ -808,6 +808,23 @@ export const TaskRunsResponseSchema = z.object({
   total: z.number(),
 })
 
+// One configured task's standing. `overdue` is the server comparing the schedule
+// against the history: a run that never happened leaves no row to list.
+export const TaskHealthSchema = z.object({
+  taskName: z.string(),
+  schedule: z.string(),
+  lastRun: TaskRunSchema.nullable(),
+  overdue: z.boolean(),
+  expectedAt: z.string().optional(),
+  nextRun: z.string(),
+})
+
+export type TaskHealth = z.infer<typeof TaskHealthSchema>
+
+export const TaskHealthResponseSchema = z.object({
+  data: z.array(TaskHealthSchema),
+})
+
 export const TriggerTaskResponseSchema = z.object({
   runId: z.string(),
   taskName: z.string(),
@@ -1353,6 +1370,9 @@ export const api = {
 
       getRuns: (taskName?: string, signal?: AbortSignal) =>
         fetchApi(`/admin/scheduled-tasks/runs${taskName ? `?taskName=${taskName}` : ''}`, {}, TaskRunsResponseSchema, signal),
+
+      getHealth: (signal?: AbortSignal) =>
+        fetchApi('/admin/scheduled-tasks/health', {}, TaskHealthResponseSchema, signal),
 
       triggerUsersExpiration: () =>
         fetchApi('/admin/scheduled-tasks/users-expiration/trigger', { method: 'POST' }, TriggerTaskResponseSchema),

@@ -75,6 +75,7 @@ parameters the list endpoints accept.
 - `GET /api/groups/:dn/members` - Membership resolved to names
 - `POST /api/admin/policy-selftest` - Prove whether ppolicy is enforced (writes a throwaway entry)
 - `POST /api/admin/scheduled-tasks/lockout-scan/trigger` - Run the lockout scan now
+- `GET /api/admin/scheduled-tasks/health` - Per configured task: last run, next run, and `overdue` when a scheduled run was missed
 - `POST/DELETE /api/groups/:dn/members` - Group membership
 - `GET/POST/PUT/DELETE /api/netgroups` - Netgroup CRUD; list takes `search`, `sort`, `order`, `limit`, `offset`
 - `POST /api/netgroups/import` - Bulk create; triples arrive as `"(host,user,domain)"` text and are parsed server-side

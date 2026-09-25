@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ldapwarden/ldapwarden/internal/auth"
+	"github.com/ldapwarden/ldapwarden/internal/scheduler"
 )
 
 // TriggerTaskResponse is the response for manual task triggers
@@ -126,24 +127,69 @@ func (s *Server) handleGetTaskRuns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, run := range runs {
-		tr := TaskRunResponse{
-			ID:                run.ID.String(),
-			TaskName:          run.TaskName,
-			StartedAt:         run.StartedAt.Format(time.RFC3339),
-			Status:            run.Status,
-			UsersChecked:      run.UsersChecked,
-			NotificationsSent: run.NotificationsSent,
-			Errors:            run.Errors,
-			TriggeredBy:       run.TriggeredBy,
-		}
-		if run.CompletedAt != nil {
-			completed := run.CompletedAt.Format(time.RFC3339)
-			tr.CompletedAt = &completed
-		}
-		response.Data = append(response.Data, tr)
+		response.Data = append(response.Data, taskRunResponse(run))
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func taskRunResponse(run scheduler.TaskRun) TaskRunResponse {
+	tr := TaskRunResponse{
+		ID:                run.ID.String(),
+		TaskName:          run.TaskName,
+		StartedAt:         run.StartedAt.Format(time.RFC3339),
+		Status:            run.Status,
+		UsersChecked:      run.UsersChecked,
+		NotificationsSent: run.NotificationsSent,
+		Errors:            run.Errors,
+		TriggeredBy:       run.TriggeredBy,
+	}
+	if run.CompletedAt != nil {
+		completed := run.CompletedAt.Format(time.RFC3339)
+		tr.CompletedAt = &completed
+	}
+	return tr
+}
+
+// TaskHealthResponse is one configured task's standing, for the dashboard.
+type TaskHealthResponse struct {
+	TaskName   string           `json:"taskName"`
+	Schedule   string           `json:"schedule"`
+	LastRun    *TaskRunResponse `json:"lastRun"`
+	Overdue    bool             `json:"overdue"`
+	ExpectedAt *string          `json:"expectedAt,omitempty"`
+	NextRun    string           `json:"nextRun"`
+}
+
+// handleGetTaskHealth answers, per configured task, whether it is running as
+// scheduled. The run history alone cannot: a run that never happened leaves
+// no row to show.
+func (s *Server) handleGetTaskHealth(w http.ResponseWriter, r *http.Request) {
+	health, err := s.scheduler.TaskHealth(r.Context(), time.Now())
+	if err != nil {
+		writeServerError(w, r, "read task health", err)
+		return
+	}
+
+	data := make([]TaskHealthResponse, 0, len(health))
+	for _, h := range health {
+		item := TaskHealthResponse{
+			TaskName: h.TaskName,
+			Schedule: h.Schedule,
+			Overdue:  h.Overdue,
+			NextRun:  h.NextRun.Format(time.RFC3339),
+		}
+		if h.LastRun != nil {
+			run := taskRunResponse(*h.LastRun)
+			item.LastRun = &run
+		}
+		if h.ExpectedAt != nil {
+			expected := h.ExpectedAt.Format(time.RFC3339)
+			item.ExpectedAt = &expected
+		}
+		data = append(data, item)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": data})
 }
 
 func (s *Server) handleGetScheduledTasksConfig(w http.ResponseWriter, r *http.Request) {

@@ -1810,13 +1810,24 @@ resolves to `unknown`.
 ```http
 GET  /api/admin/scheduled-tasks/config
 GET  /api/admin/scheduled-tasks/runs?taskName=lockouts_scan
+GET  /api/admin/scheduled-tasks/health
 POST /api/admin/scheduled-tasks/users-expiration/trigger
 POST /api/admin/scheduled-tasks/passwords-expiration/trigger
 POST /api/admin/scheduled-tasks/lockout-scan/trigger
 ```
 
-**Required permission:** `settings:read` for the first two, `settings:write` to
+**Required permission:** `settings:read` for the first three, `settings:write` to
 trigger. A trigger answers `409` when that task is already running.
+
+`health` has one entry per task with a schedule configured (a disabled task is
+left out): its `schedule`, its most recent run (`lastRun`, manual or scheduled,
+`null` if it never ran), `nextRun`, and `overdue`. The run history cannot show a
+run that never happened, so `overdue` compares the schedule against it: it is set
+when the fire time following the last *scheduled* run — or following the
+server's start, if there is none — is more than 10 minutes past, and
+`expectedAt` names that missed fire time. A manual run does not clear it: it
+proves the task works, not that the schedule fires. A fire time that fell while
+the server was down counts as missed.
 
 `lockout-scan` reports the accounts the directory locked by itself, which nothing
 else in the app can see happening: ppolicy writes `pwdAccountLockedTime` during a

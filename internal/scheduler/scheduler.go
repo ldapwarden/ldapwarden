@@ -42,6 +42,10 @@ type Scheduler struct {
 
 	mu      sync.Mutex
 	running map[string]bool // Track running tasks to prevent overlap
+
+	// When Start ran: the earliest a scheduled run can have happened in this
+	// process, which TaskHealth needs for a task that has never run.
+	startedAt time.Time
 }
 
 // New creates a new scheduler instance
@@ -128,6 +132,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	}
 
 	s.cron.Start()
+	s.startedAt = time.Now()
 	// Log next scheduled run times
 	for _, entry := range s.cron.Entries() {
 		log.Printf("Next cron run: %v", entry.Next)

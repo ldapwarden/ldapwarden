@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { api, type AuditLog } from '@/lib/api'
+import { api, type AuditLog, type TaskHealth } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,10 @@ import { useServerInfo } from '@/lib/use-server-info'
 import { actionTone, toneStyle, type Tone } from '@/lib/tones'
 import { taskCheckedLabel, taskLabel, taskNotifiedLabel } from '@/lib/scheduled-tasks'
 import {
+  AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  CircleDashed,
   KeyRound,
   Lock,
   Play,
@@ -22,6 +24,7 @@ import {
   Upload,
   Users,
   UsersRound,
+  XCircle,
 } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
@@ -60,9 +63,9 @@ function DashboardPage() {
     enabled: canReadAudit,
   })
 
-  const { data: taskRuns } = useQuery({
-    queryKey: ['admin', 'scheduled-tasks', 'runs'],
-    queryFn: ({ signal }) => api.admin.scheduledTasks.getRuns(undefined, signal),
+  const { data: taskHealth } = useQuery({
+    queryKey: ['admin', 'scheduled-tasks', 'health'],
+    queryFn: ({ signal }) => api.admin.scheduledTasks.getHealth(signal),
     enabled: canReadSettings,
   })
 
@@ -317,45 +320,72 @@ function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {!taskRuns ? (
+            {!taskHealth ? (
               <ListSkeleton rows={2} />
-            ) : taskRuns.data.length === 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  No run recorded yet. The tasks run on their cron schedule, or on demand.
-                </p>
-                <Link to="/admin">
+            ) : taskHealth.data.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Every scheduled task is disabled: no expiration notice is sent and no lockout is
+                recorded.
+              </p>
+            ) : (
+              <>
+                {/* One row per configured task, not the latest runs: a task that
+                    stopped running would simply drop out of a list of runs. */}
+                <ul className="divide-y">
+                  {taskHealth.data.map((task) => (
+                    <TaskHealthRow key={task.taskName} task={task} />
+                  ))}
+                </ul>
+                <Link to="/admin" className="mt-3 inline-block">
                   <Button variant="outline" size="sm">
                     <Play className="h-4 w-4 mr-1" />
-                    Administration
+                    Run history and manual runs
                   </Button>
                 </Link>
-              </div>
-            ) : (
-              <ul className="divide-y">
-                {taskRuns.data.slice(0, 3).map((run) => (
-                  <li key={run.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0">
-                    <span className="flex items-center gap-2">
-                      {run.status === 'failed' ? (
-                        <Lock className="h-4 w-4 text-destructive" aria-hidden="true" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
-                      )}
-                      {taskLabel(run.taskName)}
-                    </span>
-                    <span className="flex flex-wrap items-center gap-x-4 text-muted-foreground">
-                      <span>{taskCheckedLabel(run.taskName, run.usersChecked)}</span>
-                      <span>{taskNotifiedLabel(run.notificationsSent)}</span>
-                      <span>{relativeTime(run.startedAt)}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              </>
             )}
           </CardContent>
         </Card>
       )}
     </div>
+  )
+}
+
+// The health of one task, in words: an icon alone said "failed" with a padlock
+// and nothing at all for a task that had stopped running.
+function TaskHealthRow({ task }: { task: TaskHealth }) {
+  const run = task.lastRun
+  const state = task.overdue
+    ? {
+        icon: AlertTriangle,
+        tone: 'text-warning',
+        label: task.expectedAt ? `Missed its run ${relativeTime(task.expectedAt)}` : 'Overdue',
+      }
+    : run?.status === 'failed'
+      ? { icon: XCircle, tone: 'text-destructive', label: 'Last run failed' }
+      : !run
+        ? { icon: CircleDashed, tone: 'text-muted-foreground', label: 'Not run yet' }
+        : { icon: CheckCircle2, tone: 'text-success', label: 'OK' }
+  const Icon = state.icon
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0">
+      <span className="flex min-w-0 items-center gap-2">
+        <Icon className={`h-4 w-4 shrink-0 ${state.tone}`} aria-hidden="true" />
+        <span className="font-medium">{taskLabel(task.taskName)}</span>
+        <span className={state.tone}>{state.label}</span>
+      </span>
+      <span className="flex flex-wrap items-center gap-x-4 text-muted-foreground">
+        {run && (
+          <>
+            <span>{taskCheckedLabel(task.taskName, run.usersChecked)}</span>
+            <span>{taskNotifiedLabel(run.notificationsSent)}</span>
+            <span title={new Date(run.startedAt).toLocaleString()}>last {relativeTime(run.startedAt)}</span>
+          </>
+        )}
+        <span title={task.schedule}>next {relativeTime(task.nextRun)}</span>
+      </span>
+    </li>
   )
 }
 

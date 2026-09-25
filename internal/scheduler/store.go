@@ -74,6 +74,24 @@ func (s *Store) FailTaskRun(ctx context.Context, id uuid.UUID, errorMsg string) 
 	return err
 }
 
+// LastTaskRun returns the most recent run of a task, or nil if it never ran.
+// With scheduledOnly it skips manual runs, which say nothing about whether the
+// schedule fires.
+func (s *Store) LastTaskRun(ctx context.Context, taskName string, scheduledOnly bool) (*TaskRun, error) {
+	runs, err := s.queryTaskRuns(ctx, `
+		SELECT id, task_name, started_at, completed_at, status, users_checked,
+			notifications_sent, errors, triggered_by
+		FROM scheduled_task_runs
+		WHERE task_name = $1 AND ($2 = false OR triggered_by = 'scheduler')
+		ORDER BY started_at DESC
+		LIMIT 1
+	`, taskName, scheduledOnly)
+	if err != nil || len(runs) == 0 {
+		return nil, err
+	}
+	return &runs[0], nil
+}
+
 // WasNotificationSent checks if a notification was already sent
 func (s *Store) WasNotificationSent(ctx context.Context, notifType, userDN, intervalKey string, expDate time.Time) (bool, error) {
 	var count int
@@ -174,13 +192,19 @@ func (s *Store) PruneLockoutEvents(ctx context.Context, dns []string, lockedAt [
 
 // GetTaskRuns returns recent task execution history
 func (s *Store) GetTaskRuns(ctx context.Context, taskName string, limit int) ([]TaskRun, error) {
-	rows, err := s.pool.Query(ctx, `
+	return s.queryTaskRuns(ctx, `
 		SELECT id, task_name, started_at, completed_at, status, users_checked, notifications_sent, errors, triggered_by
 		FROM scheduled_task_runs
 		WHERE ($1 = '' OR task_name = $1)
 		ORDER BY started_at DESC
 		LIMIT $2
 	`, taskName, limit)
+}
+
+// queryTaskRuns runs a query selecting the scheduled_task_runs columns in
+// TaskRun order.
+func (s *Store) queryTaskRuns(ctx context.Context, query string, args ...any) ([]TaskRun, error) {
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -195,5 +219,5 @@ func (s *Store) GetTaskRuns(ctx context.Context, taskName string, limit int) ([]
 		}
 		runs = append(runs, r)
 	}
-	return runs, nil
+	return runs, rows.Err()
 }
