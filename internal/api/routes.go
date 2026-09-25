@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -246,50 +246,48 @@ func (s *Server) setupRoutes() chi.Router {
 	})
 
 	// Serve static files from web/dist if it exists
-	staticPath := "web/dist"
-	if _, err := os.Stat(staticPath); err == nil {
-		r.Get("/*", spaHandler(staticPath))
+	if spa, err := spaHandler("web/dist"); err == nil {
+		r.Get("/*", spa)
 	}
 
 	return r
 }
 
-// spaHandler serves static files and falls back to index.html for SPA routing
-func spaHandler(staticPath string) http.HandlerFunc {
-	fileServer := http.FileServer(http.Dir(staticPath))
-	// Pre-compute the absolute static root so each request can check that
-	// the resolved on-disk path stays inside it. http.FileServer already
-	// rejects "../" via URL cleaning, but the manual os.Stat branch below
-	// reads paths we built ourselves; this is the defence-in-depth bound.
-	absStaticPath, _ := filepath.Abs(staticPath)
+// spaHandler serves static files and falls back to index.html for SPA routing.
+//
+// Every lookup goes through an os.Root, which refuses any name that resolves
+// outside staticPath — `..` segments and symlinks alike — so no request can
+// read beyond the bundle. The root stays open for the life of the server.
+func spaHandler(staticPath string) (http.HandlerFunc, error) {
+	root, err := os.OpenRoot(staticPath)
+	if err != nil {
+		return nil, err
+	}
+	fsys := root.FS()
+	fileServer := http.FileServerFS(fsys)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-
-		// Resolve the on-disk candidate, then refuse anything that
-		// escapes the static root (e.g. via decoded `..` segments).
-		fullPath := filepath.Clean(filepath.Join(staticPath, path))
-		if abs, err := filepath.Abs(fullPath); err != nil || absStaticPath == "" || (abs != absStaticPath && !strings.HasPrefix(abs, absStaticPath+string(filepath.Separator))) {
-			http.NotFound(w, r)
-			return
-		}
+		urlPath := r.URL.Path
+		name := strings.TrimPrefix(path.Clean("/"+urlPath), "/")
 
 		// Check if the file exists
-		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
-			// File exists, serve it
-			fileServer.ServeHTTP(w, r)
-			return
+		if name != "" {
+			if info, err := root.Stat(name); err == nil && !info.IsDir() {
+				// File exists, serve it
+				fileServer.ServeHTTP(w, r)
+				return
+			}
 		}
 
 		// Check if path has a file extension (likely a missing asset)
-		if strings.Contains(filepath.Base(path), ".") {
+		if strings.Contains(path.Base(urlPath), ".") {
 			http.NotFound(w, r)
 			return
 		}
 
 		// Serve index.html for SPA routing
-		http.ServeFile(w, r, filepath.Join(staticPath, "index.html"))
-	}
+		http.ServeFileFS(w, r, fsys, "index.html")
+	}, nil
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
