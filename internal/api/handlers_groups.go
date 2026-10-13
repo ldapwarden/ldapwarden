@@ -18,8 +18,7 @@ import (
 // skip silently — LDAP does not enforce that memberUid corresponds to an
 // existing user (see TestIntegration_Groups_AddMember_UnknownUserStillSucceeds).
 func (s *Server) invalidateIfAdminGroupChange(r *http.Request, groupDN, memberUID string) {
-	cn := dnFirstRDNValue(groupDN)
-	if !strings.EqualFold(cn, s.config.App.AdminGroup) {
+	if !s.isAdminGroup(groupDN) {
 		return
 	}
 	user, err := s.ldapClient.GetUserByUID(memberUID)
@@ -27,6 +26,12 @@ func (s *Server) invalidateIfAdminGroupChange(r *http.Request, groupDN, memberUI
 		return
 	}
 	s.invalidateSessions(r, user.DN, "admin-group membership change")
+}
+
+// isAdminGroup reports whether groupDN names the group that grants the admin
+// role. CN matching is caseIgnoreMatch, as at login.
+func (s *Server) isAdminGroup(groupDN string) bool {
+	return strings.EqualFold(dnFirstRDNValue(groupDN), s.config.App.AdminGroup)
 }
 
 // handleListGroups returns one page of a light group projection: row fields
@@ -140,11 +145,24 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Capture the pre-update state for a field-level audit diff (best-effort).
 	var details map[string]interface{}
-	if before, err := s.ldapClient.GetGroup(dn); err == nil && before != nil {
+	before, err := s.ldapClient.GetGroup(dn)
+	if err == nil && before != nil {
 		details = map[string]interface{}{audit.DetailsKeyResourceName: groupDisplayName(before)}
 		if changes := groupUpdateChanges(before, req); len(changes) > 0 {
 			details[audit.DetailsKeyChanges] = changes
 		}
+	} else {
+		before = nil
+	}
+
+	// Replacing the admin group's members grants and revokes the admin role, and
+	// the sessions concerned have to be ended for it to take effect — which
+	// needs the previous list to know who left. Not best-effort there: without
+	// it a demoted admin would keep the role for the rest of the session TTL.
+	adminMembership := req.MemberUIDs != nil && s.isAdminGroup(dn)
+	if adminMembership && before == nil {
+		writeServerError(w, r, "read admin group before membership change", err)
+		return
 	}
 
 	if !s.auditMutating(w, r, audit.ActionGroupUpdate, audit.ResourceGroup, dn, details) {
@@ -157,7 +175,37 @@ func (s *Server) handleUpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if adminMembership {
+		for _, uid := range membershipChanges(before.MemberUIDs, req.MemberUIDs) {
+			s.invalidateIfAdminGroupChange(r, dn, uid)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, group)
+}
+
+// membershipChanges returns the uids present in exactly one of the two lists:
+// the members added and the members removed. memberUid is caseExactMatch, so
+// the comparison is exact.
+func membershipChanges(before, after []string) []string {
+	inBefore := make(map[string]bool, len(before))
+	for _, uid := range before {
+		inBefore[uid] = true
+	}
+	inAfter := make(map[string]bool, len(after))
+	var changed []string
+	for _, uid := range after {
+		inAfter[uid] = true
+		if !inBefore[uid] {
+			changed = append(changed, uid)
+		}
+	}
+	for _, uid := range before {
+		if !inAfter[uid] {
+			changed = append(changed, uid)
+		}
+	}
+	return changed
 }
 
 func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {

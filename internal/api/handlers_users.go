@@ -178,11 +178,14 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	// can record a field-level diff. Best-effort: a failed read just yields no
 	// diff and must not block the mutation.
 	var details map[string]interface{}
-	if before, err := s.ldapClient.GetUser(dn); err == nil && before != nil {
+	before, err := s.ldapClient.GetUser(dn)
+	if err == nil && before != nil {
 		details = map[string]interface{}{audit.DetailsKeyResourceName: userDisplayName(before)}
 		if changes := userUpdateChanges(before, req); len(changes) > 0 {
 			details[audit.DetailsKeyChanges] = changes
 		}
+	} else {
+		before = nil
 	}
 
 	if !s.auditMutating(w, r, audit.ActionUserUpdate, audit.ResourceUser, dn, details) {
@@ -193,6 +196,18 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeServerError(w, r, "update user", err)
 		return
+	}
+
+	// A password set here is the same act as POST /{dn}/password, and ends the
+	// same things. A new mail only retires reset links: they were sent to the
+	// old address, which the admin has just said is not the user's — and the form
+	// posts mail on every save, so only an actual change counts (or any, when
+	// the previous value could not be read).
+	switch {
+	case req.Password != nil && *req.Password != "":
+		s.revokeAccess(r, dn, "password changed")
+	case req.Mail != nil && (before == nil || !strings.EqualFold(*req.Mail, before.Mail)):
+		s.revokeResetTokens(r, dn, "mail changed")
 	}
 
 	writeJSON(w, http.StatusOK, user)
@@ -255,9 +270,9 @@ func (s *Server) handleChangeUserUID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The renamed user's active sessions are keyed by the old DN — force
-	// re-login.
-	s.invalidateSessions(r, dn, "uid changed")
+	// The renamed user's active sessions and reset links are keyed by the old
+	// DN — force re-login, and a fresh link if one is still needed.
+	s.revokeAccess(r, dn, "uid changed")
 
 	user, err := s.ldapClient.GetUser(newDN)
 	if err != nil {
@@ -301,7 +316,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.invalidateSessions(r, dn, "user deleted")
+	s.revokeAccess(r, dn, "user deleted")
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":  "user deleted",
@@ -354,7 +369,7 @@ func (s *Server) handleLockUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.invalidateSessions(r, dn, "user locked")
+	s.revokeAccess(r, dn, "user locked")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user locked"})
 }
@@ -420,6 +435,13 @@ func (s *Server) handleSetUserExpiration(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// The directory refuses binds past pwdEndTime, but a session is not a bind:
+	// one opened before the date would carry on for its whole TTL. Re-login puts
+	// the account back in front of the check — at once if the date has passed.
+	if req.ExpirationDate != "" {
+		s.invalidateSessions(r, dn, "expiration set")
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"message": message})
 }
 
@@ -453,7 +475,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.invalidateSessions(r, dn, "password changed")
+	s.revokeAccess(r, dn, "password changed")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})
 }
@@ -479,7 +501,7 @@ func (s *Server) handleRemovePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.invalidateSessions(r, dn, "password removed")
+	s.revokeAccess(r, dn, "password removed")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password removed"})
 }

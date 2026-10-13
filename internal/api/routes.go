@@ -95,7 +95,8 @@ func (s *Server) setupRoutes() chi.Router {
 				r.Post("/logout", s.handleLogout)
 				r.Get("/me", s.handleGetMe)
 				r.Get("/me/avatar", s.handleGetMyAvatar)
-				r.Post("/change-password", s.handleChangeMyPassword)
+				// Rate-limited like login: it checks a password with a bind.
+				r.With(loginRateLimit()).Post("/change-password", s.handleChangeMyPassword)
 			})
 		})
 

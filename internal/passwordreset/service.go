@@ -41,13 +41,7 @@ func (s *Service) CreateToken(ctx context.Context, userDN, userUID, userEmail, c
 	// new one. A user always has at most one usable token at a time, which
 	// caps the blast radius of token leakage and makes the audit log
 	// unambiguous about which token actually completed the reset.
-	// A row with used = TRUE and used_ip IS NULL marks a token retired by
-	// supersession (vs. a normal confirm flow, which records the client IP).
-	if _, err := s.pool.Exec(ctx, `
-		UPDATE password_reset_tokens
-		SET used = TRUE, used_at = NOW()
-		WHERE user_dn = $1 AND used = FALSE AND expires_at > NOW()
-	`, userDN); err != nil {
+	if err := s.RevokeForUser(ctx, userDN); err != nil {
 		return "", fmt.Errorf("supersede prior tokens: %w", err)
 	}
 
@@ -74,6 +68,26 @@ func (s *Service) CreateToken(ctx context.Context, userDN, userUID, userEmail, c
 	}
 
 	return token, nil
+}
+
+// RevokeForUser retires every still-redeemable token of userDN. Beyond
+// supersession by a newer token, it is called whenever the account a token was
+// issued for stops being the account it was sent to: deleted (its uid can be
+// recreated for someone else), renamed, locked, given a new password or mail by
+// an admin, or stripped of its password to disable it. A link already sitting
+// in a mailbox would otherwise undo that change for up to TokenExpiry.
+//
+// A row with used = TRUE and used_ip IS NULL marks a token retired this way (vs.
+// a normal confirm flow, which records the client IP).
+func (s *Service) RevokeForUser(ctx context.Context, userDN string) error {
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE password_reset_tokens
+		SET used = TRUE, used_at = NOW()
+		WHERE user_dn = $1 AND used = FALSE AND expires_at > NOW()
+	`, userDN); err != nil {
+		return fmt.Errorf("revoke reset tokens: %w", err)
+	}
+	return nil
 }
 
 // CountRecentByActor returns how many reset tokens createdByDN has issued

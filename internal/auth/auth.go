@@ -41,6 +41,7 @@ type SessionStore interface {
 	Get(ctx context.Context, tokenHash string) (*Session, error)
 	Delete(ctx context.Context, tokenHash string) error
 	DeleteByUserDN(ctx context.Context, userDN string) error
+	DeleteByUserDNExcept(ctx context.Context, userDN, keepTokenHash string) error
 	// Ping reports reachability, for the readiness probe.
 	Ping(ctx context.Context) error
 }
@@ -138,6 +139,14 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 // already-cached session does not retain rights up to SESSION_TTL.
 func (s *AuthService) InvalidateUserSessions(ctx context.Context, userDN string) error {
 	return s.sessionStore.DeleteByUserDN(ctx, userDN)
+}
+
+// InvalidateOtherSessions drops every session of userDN except the one token
+// belongs to. Called when users change their own password: whoever else holds a
+// session — a stolen cookie, a forgotten workstation — loses it, and the user
+// is not signed out of the tab they did it from.
+func (s *AuthService) InvalidateOtherSessions(ctx context.Context, userDN, token string) error {
+	return s.sessionStore.DeleteByUserDNExcept(ctx, userDN, hashToken(token))
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {

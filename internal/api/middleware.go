@@ -262,6 +262,28 @@ func (s *Server) invalidateSessions(r *http.Request, dn, reason string) {
 	}
 }
 
+// revokeResetTokens retires the pending password-reset links of dn after a
+// change that makes them unsafe to honour (see passwordreset.RevokeForUser).
+// Like invalidateSessions it runs after the mutation committed, so a failure is
+// logged loudly rather than failing the request.
+func (s *Server) revokeResetTokens(r *http.Request, dn, reason string) {
+	if err := s.passwordReset.RevokeForUser(r.Context(), dn); err != nil {
+		reqID := middleware.GetReqID(r.Context())
+		//nolint:gosec // G706: printed with %q, as in invalidateSessions.
+		log.Printf("reset-token revocation FAILED (a pending reset link may survive): reason=%q dn=%q requestId=%s err=%v",
+			reason, dn, reqID, err)
+	}
+}
+
+// revokeAccess ends everything that still lets someone act as dn without its
+// current credentials: live sessions and pending reset links. For the changes
+// that take an account away from whoever held it — delete, rename, lock, a
+// password set or removed by an admin.
+func (s *Server) revokeAccess(r *http.Request, dn, reason string) {
+	s.invalidateSessions(r, dn, reason)
+	s.revokeResetTokens(r, dn, reason)
+}
+
 // Request-body size caps. defaultMaxBodyBytes covers every JSON payload the
 // API exchanges except user create/update, which carries a base64
 // jpegPhoto. Applied per route group rather than globally because chi

@@ -75,16 +75,23 @@ POST /api/auth/change-password
 Content-Type: application/json
 
 {
+  "currentPassword": "oldpassword",
   "password": "newpassword123"
 }
 ```
+
+`currentPassword` is checked with a bind as the user, so a failed attempt counts
+toward the account's ppolicy lockout; the endpoint shares the login rate limit.
+A wrong value answers `403`. On success every other session of the account is
+revoked (the one making the request stays valid), and so is any pending
+password-reset link.
 
 **curl example:**
 ```bash
 curl -X POST http://localhost:8000/api/auth/change-password \
   -H "Content-Type: application/json" \
   -b cookies.txt \
-  -d '{"password": "newpassword123"}'
+  -d '{"currentPassword": "oldpassword", "password": "newpassword123"}'
 ```
 
 ---
@@ -618,6 +625,11 @@ POST /api/users/{dn}/send-password-reset
 **Required permission:** `users:write`
 
 Sends a password reset email to the user (requires mail configuration).
+
+The link is retired, before its 24-hour expiry, by anything that makes the
+account no longer the one it was sent to: the user is deleted or renamed,
+locked, given a new password or `mail` by an admin, has their password removed,
+or changes their own password.
 
 ---
 
@@ -1674,7 +1686,14 @@ Content-Type: application/json
 }
 ```
 
-Resets the user's password using the token.
+Resets the user's password using the token, and revokes every session the
+account had open.
+
+Both endpoints answer `404` when the token is unknown, used or expired — and also
+when the entry it was issued for is gone, now carries a different `uid` or
+`mail` than the link was sent with, or has been locked by an admin. These checks
+read the directory itself, so they also cover changes made outside the app. A
+confirm refused this way still spends the token.
 
 ---
 

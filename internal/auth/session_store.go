@@ -91,6 +91,16 @@ func (s *PostgresSessionStore) DeleteByUserDN(ctx context.Context, userDN string
 	return nil
 }
 
+// DeleteByUserDNExcept revokes every session of an account but the one whose
+// token hashes to keepTokenHash: the one the user is acting from when they
+// change their own password.
+func (s *PostgresSessionStore) DeleteByUserDNExcept(ctx context.Context, userDN, keepTokenHash string) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE user_dn = $1 AND token_hash <> $2`, userDN, keepTokenHash); err != nil {
+		return fmt.Errorf("delete other user sessions: %w", err)
+	}
+	return nil
+}
+
 // DeleteExpired purges the rows past their expiry and reports how many went.
 // Redis dropped them on its own with a TTL; here they would otherwise pile up,
 // harmless — Get ignores them — but growing forever.

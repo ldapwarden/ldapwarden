@@ -65,6 +65,7 @@ function RootComponent() {
   const router = useRouter()
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
@@ -85,12 +86,10 @@ function RootComponent() {
 
   const changePasswordMutation = useMutation({
     mutationFn: async () => {
-      return api.auth.changePassword(newPassword)
+      return api.auth.changePassword(currentPassword, newPassword)
     },
     onSuccess: () => {
-      setPasswordDialogOpen(false)
-      setNewPassword('')
-      setConfirmPassword('')
+      closePasswordDialog()
       toast.success('Password changed')
     },
     onError: (error: Error) => {
@@ -126,6 +125,16 @@ function RootComponent() {
     document.title = pageTitle(pathname)
   }, [pathname])
 
+  // Every way out of the dialog clears it: the current password must not sit
+  // in state for the next time it opens.
+  const closePasswordDialog = () => {
+    setPasswordDialogOpen(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    changePasswordMutation.reset()
+  }
+
   const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword
   const passwordsDontMatch = newPassword && confirmPassword && newPassword !== confirmPassword
 
@@ -133,7 +142,7 @@ function RootComponent() {
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault()
-    if (newPassword && newPassword === confirmPassword) {
+    if (currentPassword && newPassword && newPassword === confirmPassword) {
       changePasswordMutation.mutate()
     }
   }
@@ -290,15 +299,26 @@ function RootComponent() {
             </DropdownMenu>
             </div>
 
-            <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+            <Dialog open={passwordDialogOpen} onOpenChange={(open) => (open ? setPasswordDialogOpen(true) : closePasswordDialog())}>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Change Password</DialogTitle>
                   <DialogDescription>
-                    Enter a new password for your account.
+                    Enter your current password, then a new one. Your other sessions
+                    will be signed out.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <PasswordInput
+                      id="currentPassword"
+                      value={currentPassword}
+                      onValueChange={setCurrentPassword}
+                      autoComplete="current-password"
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">New Password</Label>
                     <PasswordInput
@@ -330,18 +350,13 @@ function RootComponent() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => {
-                        setPasswordDialogOpen(false)
-                        setNewPassword('')
-                        setConfirmPassword('')
-                        changePasswordMutation.reset()
-                      }}
+                      onClick={closePasswordDialog}
                     >
                       Cancel
                     </Button>
                     <Button
                       type="submit"
-                      disabled={!passwordsMatch || changePasswordMutation.isPending}
+                      disabled={!currentPassword || !passwordsMatch || changePasswordMutation.isPending}
                     >
                       <Key className="h-4 w-4 mr-1" />
                       {changePasswordMutation.isPending ? 'Changing...' : 'Change Password'}

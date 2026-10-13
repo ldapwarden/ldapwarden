@@ -121,7 +121,7 @@ func TestIntegration_SelfProtection_ChangeOwnPasswordStillWorks(t *testing.T) {
 	login := loginAs(t, env, "viewer", "viewer123")
 
 	resp, body := doJSON(t, env, http.MethodPost, "/api/auth/change-password",
-		map[string]string{"password": "viewer123"}, login.Token)
+		map[string]string{"currentPassword": "viewer123", "password": "viewer123"}, login.Token)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("change own password: status=%d body=%s", resp.StatusCode, body)
 	}

@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
+	"github.com/ldapwarden/ldapwarden/internal/ldap"
 	"github.com/ldapwarden/ldapwarden/internal/mail"
+	"github.com/ldapwarden/ldapwarden/internal/passwordreset"
 )
 
 // Issuance caps for handleSendPasswordReset. Tunable here rather than via
@@ -121,10 +124,9 @@ func (s *Server) handleGetPasswordResetInfo(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Get user display name from LDAP
-	user, err := s.ldapClient.GetUser(tokenInfo.UserDN)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "user not found")
+	user := s.resetTarget(tokenInfo)
+	if user == nil {
+		writeError(w, http.StatusNotFound, "invalid or expired token")
 		return
 	}
 
@@ -170,6 +172,12 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusNotFound, "invalid or expired token")
 		return
 	}
+	// Checked after the claim, so a link refused here is spent too.
+	user := s.resetTarget(tokenInfo)
+	if user == nil {
+		writeError(w, http.StatusNotFound, "invalid or expired token")
+		return
+	}
 
 	// Get WHOIS info for the IP before audit so the row carries it.
 	whoisInfo := mail.GetWhoisInfo(clientIP)
@@ -194,15 +202,15 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Get user display name
-	user, _ := s.ldapClient.GetUser(tokenInfo.UserDN)
+	// A reset is often how a compromised account is taken back; whoever had it
+	// must not keep the session they opened with the old password.
+	s.invalidateSessions(r, tokenInfo.UserDN, "password reset")
+
 	displayName := tokenInfo.UserUID
-	if user != nil {
-		if user.DisplayName != "" {
-			displayName = user.DisplayName
-		} else if user.CN != "" {
-			displayName = user.CN
-		}
+	if user.DisplayName != "" {
+		displayName = user.DisplayName
+	} else if user.CN != "" {
+		displayName = user.CN
 	}
 
 	// Get admin emails for notifications
@@ -223,6 +231,28 @@ func (s *Server) handleConfirmPasswordReset(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed successfully"})
+}
+
+// resetTarget returns the account a reset token may still act on, or nil when
+// the entry at the token's DN is no longer the account the link was sent to.
+// The in-app changes that make a link unsafe retire it (revokeResetTokens), but
+// the directory is also edited from elsewhere, so the token's record is checked
+// against the entry itself: gone, or carrying another uid or mail — a deleted
+// account recreated for someone else, a corrected address — or locked by an
+// admin. Only the manual lock counts: a lockout that failed binds caused is
+// precisely when someone asks for a reset, and must not void the link.
+func (s *Server) resetTarget(t *passwordreset.Token) *ldap.User {
+	user, err := s.ldapClient.GetUser(t.UserDN)
+	if err != nil || user == nil {
+		return nil
+	}
+	if user.UID != t.UserUID || !strings.EqualFold(user.Mail, t.UserEmail) {
+		return nil
+	}
+	if user.Lockout != nil && user.Lockout.State == ldap.LockStateManual {
+		return nil
+	}
+	return user
 }
 
 // getAdminEmails returns the mail address of every member of the configured

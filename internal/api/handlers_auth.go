@@ -2,8 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
+	"github.com/go-chi/chi/v5/middleware"
+	ldaplib "github.com/go-ldap/ldap/v3"
 	"github.com/ldapwarden/ldapwarden/internal/audit"
 	"github.com/ldapwarden/ldapwarden/internal/auth"
 )
@@ -99,15 +102,32 @@ func (s *Server) handleChangeMyPassword(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		Password string `json:"password"`
+		CurrentPassword string `json:"currentPassword"`
+		Password        string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if req.Password == "" {
-		writeError(w, http.StatusBadRequest, "password is required")
+	if req.CurrentPassword == "" || req.Password == "" {
+		writeError(w, http.StatusBadRequest, "current and new password are required")
+		return
+	}
+
+	// The change itself runs as the service account, which needs no old
+	// password — so without this check a session alone, stolen or left open,
+	// was enough to take over the account everywhere the directory is used. A
+	// bind is the only proof of the current password, and a failed one counts
+	// toward the account's ppolicy lockout like any other.
+	if err := s.ldapClient.Bind(session.UserDN, req.CurrentPassword); err != nil {
+		if ldaplib.IsErrorWithCode(err, ldaplib.LDAPResultInvalidCredentials) {
+			// 403, not 401: the session is fine, and the client treats a 401
+			// as one that ended.
+			writeError(w, http.StatusForbidden, "current password is incorrect")
+			return
+		}
+		writeServerError(w, r, "verify current password", err)
 		return
 	}
 
@@ -123,6 +143,16 @@ func (s *Server) handleChangeMyPassword(w http.ResponseWriter, r *http.Request) 
 		s.writePasswordError(w, r, "change password", session.UserDN, err)
 		return
 	}
+
+	// Every other session ends, as do pending reset links: both let someone in
+	// without the password just set.
+	if err := s.authService.InvalidateOtherSessions(r.Context(), session.UserDN, tokenFromRequest(r)); err != nil {
+		reqID := middleware.GetReqID(r.Context())
+		//nolint:gosec // G706: printed with %q, as in invalidateSessions.
+		log.Printf("session revocation FAILED (sessions may survive): reason=%q dn=%q requestId=%s err=%v",
+			"own password changed", session.UserDN, reqID, err)
+	}
+	s.revokeResetTokens(r, session.UserDN, "own password changed")
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password changed"})
 }

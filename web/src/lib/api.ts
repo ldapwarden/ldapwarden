@@ -924,10 +924,10 @@ export const api = {
     avatar: (signal?: AbortSignal) =>
       fetchApi('/auth/me/avatar', {}, MeAvatarSchema, signal),
 
-    changePassword: (password: string) =>
+    changePassword: (currentPassword: string, password: string) =>
       fetchApi('/auth/change-password', {
         method: 'POST',
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ currentPassword, password }),
       }),
   },
 
