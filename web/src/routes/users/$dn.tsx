@@ -29,9 +29,10 @@ import { FieldRow } from '@/components/ui/field-row'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
+import { ImageDropTarget } from '@/components/ui/image-drop-target'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select } from '@/components/ui/select'
-import { Camera, Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy, Network } from 'lucide-react'
+import { Trash2, Lock, Unlock, Plus, X, Key, Users, Shield, User, Terminal, UserPlus, UserMinus, ShieldCheck, Mail, AlertTriangle, CalendarClock, Copy, Network } from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -49,7 +50,7 @@ import { PasswordStrength } from '@/components/ui/password-strength'
 import { PasswordRequirements } from '@/components/ui/password-requirements'
 import { AccountStatus } from '@/components/account-status'
 import { PasswordInput } from '@/components/ui/password-input'
-import { useState, useRef, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 
 // Tabs this page can show. Which ones are actually rendered depends on the
 // configured object classes and modules; an unknown or disabled tab in the URL
@@ -355,7 +356,6 @@ function changedFields<T extends Record<string, string>>(form: T, server: T): Pa
 // Identity Tab (inetOrgPerson)
 function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnType<typeof api.users.get> extends Promise<infer T> ? T : never>, dn: string, canWrite: boolean, groups: Array<{ dn: string; cn: string; gidNumber: number }> }) {
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [addGroupOpen, setAddGroupOpen] = useState(false)
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   // Group pending removal confirmation (drives one controlled dialog).
@@ -437,13 +437,8 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
   // write the old copy back over the new one on save.
   const textFieldsDirty = useSyncedForm(identityForm(user), formData, setFormData)
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    // Reset the input so re-selecting the same file after an error still fires
-    // onChange.
-    e.target.value = ''
-    if (!file) return
-
+  const handlePhotoFile = (file: File) => {
+    // A dropped file skips the picker's `accept`, so the type is checked here.
     if (!file.type.startsWith('image/')) {
       toast.error('Please choose an image file.')
       return
@@ -520,29 +515,22 @@ function IdentityTab({ user, dn, canWrite, groups }: { user: NonNullable<ReturnT
             {canWrite && (
               <div className="space-y-2">
                 <Label>Photo</Label>
-                <div className="flex items-center gap-4">
-                  <Avatar
-                    src={photo}
-                    fallback={user?.displayName || user?.cn}
-                    size="lg"
-                  />
+                <div className="flex items-end gap-4">
+                  <ImageDropTarget
+                    label="Photo"
+                    accept="image/jpeg,image/png,image/gif"
+                    onFile={handlePhotoFile}
+                    className="h-28 w-28 rounded-full"
+                  >
+                    {photo && (
+                      <Avatar
+                        src={photo}
+                        fallback={user?.displayName || user?.cn}
+                        className="h-full w-full"
+                      />
+                    )}
+                  </ImageDropTarget>
                   <div className="flex gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/gif"
-                      onChange={handlePhotoUpload}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Camera className="h-4 w-4 mr-1" />
-                      Upload
-                    </Button>
                     {photo && (
                       <Button
                         type="button"
