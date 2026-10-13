@@ -3,15 +3,15 @@ module github.com/ldapwarden/ldapwarden
 go 1.26.0
 
 require (
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-chi/cors v1.2.2
-	github.com/go-chi/httprate v0.16.0
-	github.com/go-ldap/ldap/v3 v3.4.14
+	github.com/go-chi/httprate v0.16.1
+	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/vanng822/go-premailer v1.36.0
+	github.com/vanng822/go-premailer v1.37.0
 )
 
 require (
