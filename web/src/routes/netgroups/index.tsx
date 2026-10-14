@@ -33,15 +33,17 @@ import {
   nextSort,
   type ListSearch,
 } from '@/lib/list-search'
+import { requireModule } from '@/lib/use-server-info'
 
 const SORT_FIELDS = ['cn'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
 export const Route = createFileRoute('/netgroups/')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'netgroups')
   },
   validateSearch: listSearchValidator(SORT_FIELDS),
   component: NetgroupsPage,

@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { showOutcome } from '@/lib/outcome'
 import { api, userPhotoUrl, type User as UserDetail } from '@/lib/api'
-import { useEnabledModules, useEnabledObjects, useServerInfo } from '@/lib/use-server-info'
+import { useEnabledModules, useEnabledObjects, useServerInfo, requireModule } from '@/lib/use-server-info'
 import { useNetgroupsEnabled } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
 import { decodeDN, encodeDN, expiryInstantTitle, formatExpiryDate, formatLdapTimestamp, isLdapTimestampInFuture, ldapTimestampToDateString, rdnValue, sameDn } from '@/lib/utils'
@@ -59,10 +59,11 @@ const TABS = ['identity', 'posix', 'shadow', 'samba', 'ssh-keys', 'sudo', 'secur
 type Tab = (typeof TABS)[number]
 
 export const Route = createFileRoute('/users/$dn')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'users')
   },
   validateSearch: (raw: Record<string, unknown>): { tab?: Tab } => ({
     tab: typeof raw.tab === 'string' && (TABS as readonly string[]).includes(raw.tab)

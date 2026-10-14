@@ -23,11 +23,18 @@ import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { decodeDN } from '@/lib/utils'
 import { toast } from 'sonner'
+import { requireModule } from '@/lib/use-server-info'
 
 export const Route = createFileRoute('/password-policies/$dn')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
+    }
+    await requireModule(context.queryClient, 'policies')
+    // The permission the API asks for; without it the page rendered and every
+    // request it made came back 403.
+    if (!context.auth.hasPermission('settings:read')) {
+      throw redirect({ to: '/' })
     }
   },
   component: PasswordPolicyDetailPage,

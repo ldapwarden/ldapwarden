@@ -23,12 +23,14 @@ import { NetgroupPicker, NetgroupResolutionNotice } from '@/components/netgroup-
 import { NetgroupUsageWarnings, NetgroupContents } from '@/components/netgroup-usage'
 import { ShieldCheck, Plus, Users, Terminal, Clock, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { requireModule } from '@/lib/use-server-info'
 
 export const Route = createFileRoute('/sudo-roles/$dn')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'sudo')
   },
   component: SudoRoleDetailPage,
 })

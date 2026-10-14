@@ -13,12 +13,14 @@ import { Save, Wand2 } from 'lucide-react'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
+import { requireModule } from '@/lib/use-server-info'
 
 export const Route = createFileRoute('/groups/new')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'groups')
     if (!context.auth.hasPermission('groups:write')) {
       throw redirect({ to: '/groups' })
     }

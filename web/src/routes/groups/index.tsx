@@ -32,15 +32,17 @@ import {
   nextSort,
   type ListSearch,
 } from '@/lib/list-search'
+import { requireModule } from '@/lib/use-server-info'
 
 const SORT_FIELDS = ['cn', 'description', 'gidNumber', 'members'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
 export const Route = createFileRoute('/groups/')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'groups')
   },
   validateSearch: listSearchValidator(SORT_FIELDS),
   component: GroupsPage,

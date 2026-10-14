@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { CsvImport, type ImportField } from '@/components/csv-import'
 import { api } from '@/lib/api'
 import { NETGROUP_TRIPLE_TEXT } from '@/lib/netgroup'
+import { requireModule } from '@/lib/use-server-info'
 
 const RDN = /^[a-zA-Z0-9._-]+$/
 const RDN_HINT = "must contain only letters, digits, '.', '_' or '-'"
@@ -46,8 +47,9 @@ const NETGROUP_FIELDS: ImportField[] = [
 ]
 
 export const Route = createFileRoute('/netgroups/import')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) throw redirect({ to: '/login' })
+    await requireModule(context.queryClient, 'netgroups')
     if (!context.auth.hasPermission('groups:write')) throw redirect({ to: '/netgroups' })
   },
   component: () => (

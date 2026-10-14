@@ -16,12 +16,14 @@ import { TripleEditor } from '@/components/netgroup-triples'
 import { netgroupKind, netgroupKindLabel } from '@/lib/netgroup'
 import { Save } from 'lucide-react'
 import { useState } from 'react'
+import { requireModule } from '@/lib/use-server-info'
 
 export const Route = createFileRoute('/netgroups/new')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'netgroups')
     if (!context.auth.hasPermission('groups:write')) {
       throw redirect({ to: '/netgroups' })
     }

@@ -17,12 +17,14 @@ import { Save, ShieldCheck, Plus, Users, Terminal, Clock } from 'lucide-react'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useCreationFormDirty } from '@/lib/form-sync'
 import { useState } from 'react'
+import { requireModule } from '@/lib/use-server-info'
 
 export const Route = createFileRoute('/sudo-roles/new')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'sudo')
     if (!context.auth.hasPermission('users:write')) {
       throw redirect({ to: '/sudo-roles' })
     }

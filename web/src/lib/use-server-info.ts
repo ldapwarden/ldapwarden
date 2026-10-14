@@ -1,6 +1,54 @@
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query'
+import { redirect } from '@tanstack/react-router'
 import { api, type ServerInfo } from './api'
 import { DEFAULT_MODULES, netgroupsEnabled } from './netgroup'
+
+// The one query behind every read of server-info, from a component or a route.
+export const serverInfoQuery = queryOptions({
+  queryKey: ['server-info'],
+  queryFn: ({ signal }) => api.serverInfo(signal),
+  // A running server does not change its build or its modules under us.
+  staleTime: Infinity,
+})
+
+export type Module = 'users' | 'groups' | 'sudo' | 'policies' | 'netgroups'
+
+/**
+ * Whether a module's pages exist in this deployment: the operator enabled it,
+ * and — for netgroups — the directory can hold them. The single rule behind
+ * both the sections listed (useSections) and the routes that refuse to render
+ * (requireModule), so a module cannot be hidden from one and reachable in the
+ * other.
+ */
+export function moduleAvailable(module: Module, info: ServerInfo | undefined): boolean {
+  const modules = info?.modules?.length ? info.modules : DEFAULT_MODULES
+  if (module === 'netgroups') {
+    return netgroupsEnabled(modules, info?.capabilities?.netgroupsSupported ?? false)
+  }
+  return modules.includes(module)
+}
+
+/**
+ * Route guard for a module's pages. A disabled module's pages used to stay
+ * usable by URL, with only the nav hiding them; they now redirect, as a page
+ * the session lacks the permission for does. The API still serves them — a
+ * module is the operator's choice of what to manage here, not a security
+ * boundary.
+ *
+ * When server-info cannot be read the page is let through: it will report its
+ * own failure, which says more than a redirect would.
+ */
+export async function requireModule(queryClient: QueryClient, module: Module): Promise<void> {
+  let info: ServerInfo
+  try {
+    info = await queryClient.ensureQueryData(serverInfoQuery)
+  } catch {
+    return
+  }
+  if (!moduleAvailable(module, info)) {
+    throw redirect({ to: '/' })
+  }
+}
 
 /**
  * Which build is running and what this session may render.
@@ -12,12 +60,7 @@ import { DEFAULT_MODULES, netgroupsEnabled } from './netgroup'
  * a 403 there just left the answer undefined and everything defaulted to off.
  */
 export function useServerInfo(): ServerInfo | undefined {
-  const { data } = useQuery({
-    queryKey: ['server-info'],
-    queryFn: ({ signal }) => api.serverInfo(signal),
-    // A running server does not change its build or its modules under us.
-    staleTime: Infinity,
-  })
+  const { data } = useQuery(serverInfoQuery)
   return data
 }
 
@@ -36,11 +79,7 @@ export function useEnabledModules(): string[] {
  * netgroups here.
  */
 export function useNetgroupsEnabled(): boolean {
-  const info = useServerInfo()
-  return netgroupsEnabled(
-    info?.modules?.length ? info.modules : DEFAULT_MODULES,
-    info?.capabilities?.netgroupsSupported ?? false,
-  )
+  return moduleAvailable('netgroups', useServerInfo())
 }
 
 /**

@@ -25,12 +25,14 @@ import { NetgroupExpansionPanel } from '@/components/netgroup-expansion'
 import { NetgroupSudoUsage } from '@/components/netgroup-sudo-usage'
 import { Trash2, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { requireModule } from '@/lib/use-server-info'
 
 export const Route = createFileRoute('/netgroups/$dn')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'netgroups')
   },
   component: NetgroupDetailPage,
 })

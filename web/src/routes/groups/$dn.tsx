@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { showOutcome } from '@/lib/outcome'
 import { api } from '@/lib/api'
-import { useEnabledModules, useEnabledObjects } from '@/lib/use-server-info'
+import { useEnabledModules, useEnabledObjects, requireModule } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard'
 import { useSyncedForm } from '@/lib/form-sync'
@@ -46,10 +46,11 @@ const TABS = ['information', 'members', 'samba', 'sudo', 'security'] as const
 type Tab = (typeof TABS)[number]
 
 export const Route = createFileRoute('/groups/$dn')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'groups')
   },
   validateSearch: (raw: Record<string, unknown>): { tab?: Tab } => ({
     tab: typeof raw.tab === 'string' && (TABS as readonly string[]).includes(raw.tab)

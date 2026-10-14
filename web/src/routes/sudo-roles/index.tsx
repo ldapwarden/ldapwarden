@@ -34,15 +34,17 @@ import {
   type ListSearch,
 } from '@/lib/list-search'
 import { toast } from 'sonner'
+import { requireModule } from '@/lib/use-server-info'
 
 const SORT_FIELDS = ['cn', 'sudoOrder'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
 export const Route = createFileRoute('/sudo-roles/')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'sudo')
   },
   validateSearch: listSearchValidator(SORT_FIELDS),
   component: SudoRolesPage,

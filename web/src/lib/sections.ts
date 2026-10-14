@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { KeyRound, Network, ScrollText, ShieldCheck, Users, UsersRound } from 'lucide-react'
 import { useAuth } from './auth'
-import { useEnabledModules, useServerInfo } from './use-server-info'
+import { moduleAvailable, useServerInfo } from './use-server-info'
 
 export interface SectionAction {
   to: string
@@ -43,14 +43,15 @@ export function useIsAdmin(): boolean {
 /** The sections this session can reach, in nav order. */
 export function useSections(): Section[] {
   const { hasPermission } = useAuth()
-  const modules = useEnabledModules()
-  const netgroupsSupported = useServerInfo()?.capabilities?.netgroupsSupported ?? false
+  // The same rule the routes apply (requireModule), so a section is listed
+  // exactly when its pages render.
+  const info = useServerInfo()
 
   return useMemo(() => {
     const sections: Section[] = []
     // Each read permission is the one the list endpoint requires, and each
     // create permission the one its POST requires (internal/api/routes.go).
-    if (modules.includes('users') && hasPermission('users:read')) {
+    if (moduleAvailable('users', info) && hasPermission('users:read')) {
       sections.push({
         key: 'users',
         to: '/users',
@@ -60,7 +61,7 @@ export function useSections(): Section[] {
         import: hasPermission('users:write') ? { to: '/users/import', label: 'Import Users' } : undefined,
       })
     }
-    if (modules.includes('groups') && hasPermission('groups:read')) {
+    if (moduleAvailable('groups', info) && hasPermission('groups:read')) {
       sections.push({
         key: 'groups',
         to: '/groups',
@@ -70,7 +71,7 @@ export function useSections(): Section[] {
         import: hasPermission('groups:write') ? { to: '/groups/import', label: 'Import Groups' } : undefined,
       })
     }
-    if (modules.includes('sudo') && hasPermission('users:read')) {
+    if (moduleAvailable('sudo', info) && hasPermission('users:read')) {
       sections.push({
         key: 'sudo',
         to: '/sudo-roles',
@@ -81,7 +82,7 @@ export function useSections(): Section[] {
     }
     // Gated on the directory declaring nisNetgroup as well as on the module: the
     // API answers 501 without it, and a link to a dead page is worse than none.
-    if (modules.includes('netgroups') && netgroupsSupported && hasPermission('groups:read')) {
+    if (moduleAvailable('netgroups', info) && hasPermission('groups:read')) {
       sections.push({
         key: 'netgroups',
         to: '/netgroups',
@@ -91,7 +92,7 @@ export function useSections(): Section[] {
         import: hasPermission('groups:write') ? { to: '/netgroups/import', label: 'Import Netgroups' } : undefined,
       })
     }
-    if (modules.includes('policies') && hasPermission('settings:read')) {
+    if (moduleAvailable('policies', info) && hasPermission('settings:read')) {
       sections.push({
         key: 'policies',
         to: '/password-policies',
@@ -107,5 +108,5 @@ export function useSections(): Section[] {
       sections.push({ key: 'audit', to: '/audit-logs', label: 'Audit Logs', icon: ScrollText })
     }
     return sections
-  }, [modules, netgroupsSupported, hasPermission])
+  }, [info, hasPermission])
 }

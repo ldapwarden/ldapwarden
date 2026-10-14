@@ -271,6 +271,12 @@ authenticate. The admin page now says what it knows, and
 
 ### Changed
 
+- **A disabled module's pages redirect.** `LDAPWARDEN_MODULES` used to hide a
+  section from the nav and the command palette only; its pages stayed usable by
+  URL. They now redirect to the dashboard, like a page the session lacks the
+  permission for. The API is unchanged: a module is what the operator chose to
+  manage here, not a security boundary.
+
 - **Bundled directory: OpenLDAP 2.6**, built from `ldap/` with the ppolicy overlay
   and `olcPPolicyDefault` wired up. `osixia/openldap` has been unmaintained since
   2021 and stuck on 2.4.57, and the `bitnami` namespace was withdrawn from Docker
@@ -338,6 +344,9 @@ authenticate. The admin page now says what it knows, and
   liveness check, and a bind makes the server abandon the operations still in
   progress on that connection without answering them. The connection is now
   reused as long as it is open, and replaced when it closes.
+
+- **A read-only session could open the password-policy pages by URL**, which then
+  failed every request they made. They now redirect, as the other sections do.
 
 - **StartTLS with certificate verification never connected**: go-ldap leaves the
   TLS `ServerName` empty and Go refuses to verify without one, so `starttls` only

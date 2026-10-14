@@ -4,7 +4,7 @@ import { BackToList } from '@/components/back-to-list'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { useServerInfo } from '@/lib/use-server-info'
+import { useServerInfo, requireModule } from '@/lib/use-server-info'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,10 +28,11 @@ import { useState, useMemo } from 'react'
 const PRIMARY_GROUP_OPTIONS_LIMIT = 200
 
 export const Route = createFileRoute('/users/new')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'users')
     if (!context.auth.hasPermission('users:write')) {
       throw redirect({ to: '/users' })
     }

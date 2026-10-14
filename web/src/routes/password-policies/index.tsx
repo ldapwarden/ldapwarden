@@ -35,14 +35,21 @@ import {
   type ListSearch,
 } from '@/lib/list-search'
 import { toast } from 'sonner'
+import { requireModule } from '@/lib/use-server-info'
 
 const SORT_FIELDS = ['cn', 'pwdMaxAge', 'pwdMinLength'] as const
 type SortField = (typeof SORT_FIELDS)[number]
 
 export const Route = createFileRoute('/password-policies/')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
+    }
+    await requireModule(context.queryClient, 'policies')
+    // The permission the API asks for; without it the page rendered and every
+    // request it made came back 403.
+    if (!context.auth.hasPermission('settings:read')) {
+      throw redirect({ to: '/' })
     }
   },
   validateSearch: listSearchValidator(SORT_FIELDS),

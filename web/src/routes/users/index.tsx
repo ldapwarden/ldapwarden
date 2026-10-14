@@ -37,6 +37,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { AccountStatus } from '@/components/account-status'
 import { TableEmptyState } from '@/components/ui/empty-state'
 import { Callout } from '@/components/ui/callout'
+import { requireModule } from '@/lib/use-server-info'
 
 const SORT_FIELDS = ['uid', 'displayName', 'mail', 'employeeType', 'groupsCount'] as const
 type SortField = (typeof SORT_FIELDS)[number]
@@ -62,10 +63,11 @@ function parseStatus(raw: Record<string, unknown>): StatusFilter | undefined {
 }
 
 export const Route = createFileRoute('/users/')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
       throw redirect({ to: '/login' })
     }
+    await requireModule(context.queryClient, 'users')
   },
   validateSearch: (raw: Record<string, unknown>): UsersSearch => ({
     ...listSearchValidator(SORT_FIELDS)(raw),
