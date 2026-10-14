@@ -447,6 +447,66 @@ export const AuditLogsResponseSchema = z.object({
   offset: z.number(),
 })
 
+// Where a write the directory logged came from: this app (matched to an audit
+// row), ppolicy's own bookkeeping during binds, or anything else — the writes
+// nothing in the app records.
+export const DirectoryChangeOriginSchema = z.enum(['external', 'ldapwarden', 'policy'])
+export type DirectoryChangeOrigin = z.infer<typeof DirectoryChangeOriginSchema>
+
+const valueList = z.array(z.string()).nullish().transform((v) => v ?? [])
+
+export const DirectoryChangeSchema = z.object({
+  id: z.string(),
+  time: z.string(),
+  type: z.string(),
+  dn: z.string(),
+  actor: z.string(),
+  // add, delete, replace or increment; no values on a delete or replace means
+  // the whole attribute. Redacted: a secret whose values are never shown.
+  changes: z
+    .array(z.object({ attribute: z.string(), op: z.string(), values: valueList, redacted: z.boolean().optional() }))
+    .nullish()
+    .transform((v) => v ?? []),
+  old: z
+    .array(z.object({ attribute: z.string(), values: valueList, redacted: z.boolean().optional() }))
+    .nullish()
+    .transform((v) => v ?? []),
+  newRdn: z.string().optional(),
+  deleteOldRdn: z.boolean().optional(),
+  newSuperior: z.string().optional(),
+  origin: DirectoryChangeOriginSchema.catch('external'),
+  auditLogId: z.string().optional(),
+})
+export type DirectoryChange = z.infer<typeof DirectoryChangeSchema>
+
+export const DirectoryChangesResponseSchema = z.object({
+  // not-configured: LDAP_ACCESSLOG_BASE unset. unreadable: nothing at the base,
+  // which is also what the directory says when an ACL hides it.
+  status: z.enum(['ok', 'not-configured', 'unreadable']),
+  base: z.string().optional(),
+  bindDn: z.string(),
+  from: z.string(),
+  to: z.string(),
+  data: z.array(DirectoryChangeSchema),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+  truncated: z.boolean(),
+  counts: z.record(z.string(), z.number()),
+})
+export type DirectoryChangesResponse = z.infer<typeof DirectoryChangesResponseSchema>
+
+export interface DirectoryChangesParams {
+  // 'all' or one origin; the server defaults to 'external'.
+  origin?: DirectoryChangeOrigin | 'all'
+  type?: string
+  search?: string
+  from?: string
+  to?: string
+  limit?: number
+  offset?: number
+}
+
 export const AuditActorsResponseSchema = z.object({
   data: z.array(z.string()),
 })
@@ -1349,6 +1409,13 @@ export const api = {
     // URL of the CSV export for the current filters. Handed to the browser as a
     // download rather than fetched, so a large export never sits in JS memory.
     exportUrl: (params?: AuditLogParams) => `${API_BASE}/audit-logs/export${auditQuery(params)}`,
+  },
+
+  // Writes the directory itself logged (accesslog overlay), including the ones
+  // that did not come through this app.
+  directoryChanges: {
+    list: (params: DirectoryChangesParams, signal?: AbortSignal) =>
+      fetchApi(`/directory-changes${auditQuery(params)}`, {}, DirectoryChangesResponseSchema, signal),
   },
 
   nextIds: {

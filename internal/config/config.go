@@ -96,10 +96,16 @@ type LDAPConfig struct {
 	// lockout lasts for most entries, and reports such a lock as "unknown"
 	// instead of claiming it either holds or has lapsed.
 	DefaultPolicyDN string
-	MinUID          int
-	MinGID          int
-	TLSMode         string // "none", "ssl", "starttls"
-	TLSSkipVerify   bool   // Skip certificate verification (for self-signed certs)
+	// AccessLogBase is the suffix of the accesslog overlay's database, usually
+	// cn=accesslog. It is where the directory records every write, including the
+	// ones not made through the app; empty disables the "directory changes" view.
+	// Configured rather than discovered because the overlay's settings live in
+	// cn=config, like olcPPolicyDefault.
+	AccessLogBase string
+	MinUID        int
+	MinGID        int
+	TLSMode       string // "none", "ssl", "starttls"
+	TLSSkipVerify bool   // Skip certificate verification (for self-signed certs)
 	// TLSCAFile is a PEM bundle of the certificate authorities trusted to sign
 	// the directory's certificate. When set it *replaces* the system pool, as
 	// TLS_CACERT does in ldap.conf: a private CA is the reason to set it, and
@@ -160,6 +166,7 @@ func Load() (*Config, error) {
 			PpolicyOU:       getEnv("LDAP_PPOLICY_OU", "ou=policies"),
 			NetgroupOU:      getEnv("LDAP_NETGROUP_OU", "ou=netgroups"),
 			DefaultPolicyDN: getEnv("LDAP_DEFAULT_POLICY_DN", ""),
+			AccessLogBase:   getEnv("LDAP_ACCESSLOG_BASE", ""),
 			MinUID:          getEnvInt("LDAP_MIN_UID", 1000),
 			MinGID:          getEnvInt("LDAP_MIN_GID", 1000),
 			TLSMode:         getEnv("LDAP_TLS_MODE", "none"),

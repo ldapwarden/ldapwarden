@@ -26,6 +26,9 @@ func bundledConfig(t *testing.T) *config.Config {
 		UserOU: "ou=People", GroupOU: "ou=Groups", SudoersOU: "ou=sudoers",
 		PpolicyOU: "ou=policies", NetgroupOU: "ou=netgroups",
 		DefaultPolicyDN: "cn=default,ou=policies,dc=example,dc=org",
+		// Not cn=accesslog: the check must hold against a directory built before
+		// the bundled stack logged writes.
+		AccessLogBase: "",
 	}
 	cfg.App.AdminGroup = "admins"
 	return cfg
@@ -65,5 +68,15 @@ func TestConnectedWrongBindPassword(t *testing.T) {
 	Connected(context.Background(), r, cfg)
 	if !strings.Contains(strings.Join(findings(r, Error), "\n"), "cannot read the base entry") {
 		t.Errorf("a failed bind is not reported: %v", r.Findings)
+	}
+}
+
+func TestConnectedUnreadableAccessLog(t *testing.T) {
+	cfg := bundledConfig(t)
+	cfg.LDAP.AccessLogBase = "cn=no-such-log"
+	r := &Report{}
+	Connected(context.Background(), r, cfg)
+	if !strings.Contains(strings.Join(findings(r, Warn), "\n"), "LDAP_ACCESSLOG_BASE") {
+		t.Errorf("an unreadable access log is not reported: %v", r.Findings)
 	}
 }

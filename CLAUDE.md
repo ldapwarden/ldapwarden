@@ -86,6 +86,7 @@ parameters the list endpoints accept.
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
 - `GET /api/audit-logs/export` - Audit logs as CSV, same filters
+- `GET /api/directory-changes` - Writes the directory logged (accesslog), each tagged `ldapwarden` / `policy` / `external`
 - `GET /api/admin/export` - Subtree as LDIF, replayable with `ldapadd`; admin-only, audited
 - `GET /healthz` - Liveness (process only); replaced the old `/health`
 - `GET /readyz` - Readiness: pings Postgres (database and sessions) and LDAP; 503 when any is down
@@ -205,6 +206,15 @@ MVP implemented with:
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,
   returning `warnings` for what they could not reach. Leaving one behind hands the
   groups and sudo grants to whoever gets that username next.
+- **Who made a logged write is not in the log.** `reqAuthzID` is an identity, and
+  the app usually binds as the rootdn — the identity an operator's `ldapmodify` uses
+  and the one ppolicy's own bind-time writes are logged under. So
+  `handlers_directory_changes.go` calls a write the app's only when an audit row
+  by that identity (or by the user a self-service change was for) lies within
+  seconds of it, and recognises ppolicy by *content*: `pwdFailureTime`, with the
+  lock it sets or lifts. Never filter on `reqAuthzID == LDAP_BIND_DN`: it hides
+  the writes the feature exists to show. `noSuchObject` at `LDAP_ACCESSLOG_BASE` is
+  either "no overlay" or "an ACL hides it" — slapd says the same for both.
 - **An LDIF export of `*` is not a backup.** `pwdAccountLockedTime`, `pwdEndTime`
   and `pwdPolicySubentry` are operational, so a restore from it unlocks every
   account. `ExportLDIF` asks for them by name; the NO-USER-MODIFICATION ones
@@ -216,8 +226,10 @@ MVP implemented with:
   Every connection — the shared one and a sign-in's — goes through `Client.dial`.
 - The bundled stack is OpenLDAP 2.6 built from `ldap/`, with the overlay and
   `olcPPolicyDefault` wired up — so integration tests exercise the real
-  enforcement path, not the 422 fallback. From 2.5 the pwdPolicy schema lives
-  inside the overlay module; never load a separate `ppolicy.ldif`.
+  enforcement path, not the 422 fallback. It also carries the `accesslog`
+  overlay (`cn=accesslog`), enabled after the seed so the seed is not logged.
+  From 2.5 the pwdPolicy schema lives inside the overlay module; never load a
+  separate `ppolicy.ldif`.
 
 ## UI Conventions
 - List views page, sort and filter **server-side**; the browser renders one page

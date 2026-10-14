@@ -1615,6 +1615,81 @@ curl "http://localhost:8000/api/audit-logs/export?from=2026-01-01&to=2026-03-31"
 
 ---
 
+## Directory Changes
+
+### List Directory Changes
+
+```http
+GET /api/directory-changes?origin=external&limit=50&offset=0
+```
+
+**Required permission:** `audit:read`
+
+The writes the directory itself logged with the `accesslog` overlay, newest first —
+including the ones that did not come through LDAP Warden. Needs
+`LDAP_ACCESSLOG_BASE`.
+
+**Query parameters:**
+- `origin` - `external` (default), `ldapwarden`, `policy` or `all`
+- `type` - `add`, `modify`, `delete` or `modrdn`
+- `search` - Substring of the target DN or the actor DN
+- `from`, `to` - Inclusive day bounds, `YYYY-MM-DD`. Without them, the last 24 hours
+- `limit` - Number of results (default: 50, max: 100)
+- `offset` - Pagination offset
+
+**Origins.** `ldapwarden`: matched to an audit row recorded by the same identity
+(the bind DN, or the user a self-service change was made for) within seconds of
+the write; `auditLogId` names it. `policy`: ppolicy's own writes during a bind —
+`pwdFailureTime`, and the `pwdAccountLockedTime` it sets or lifts with them.
+`external`: everything else. The identity alone cannot decide: the app often binds
+as the rootdn, the identity ppolicy's writes and an administrator's `ldapmodify`
+are logged under too.
+
+**Response (200):**
+```json
+{
+  "status": "ok",
+  "base": "cn=accesslog",
+  "bindDn": "cn=admin,dc=example,dc=org",
+  "from": "2026-10-13T15:51:35Z",
+  "to": "2026-10-14T15:51:35Z",
+  "data": [
+    {
+      "id": "20261014155135.000002Z",
+      "time": "2026-10-14T15:51:35.000002Z",
+      "type": "modify",
+      "dn": "cn=developers,ou=Groups,dc=example,dc=org",
+      "actor": "cn=admin,dc=example,dc=org",
+      "changes": [{"attribute": "memberUid", "op": "add", "values": ["slee"]}],
+      "old": [{"attribute": "memberUid", "values": ["jdoe", "asmith", "mjohnson"]}],
+      "origin": "external"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0,
+  "truncated": false,
+  "counts": {"external": 1, "ldapwarden": 12, "policy": 3}
+}
+```
+
+- `status` - `ok`; `not-configured` when `LDAP_ACCESSLOG_BASE` is unset; `unreadable`
+  when the directory answers "no such object" at the base, which it does both when
+  the overlay is absent and when an ACL hides the log from the bind identity. The
+  last two return no data.
+- `changes[].op` - `add`, `delete`, `replace` or `increment`. A `delete` or `replace`
+  without values removes the whole attribute. Bookkeeping attributes
+  (`entryCSN`, `modifyTimestamp`…) are left out.
+- `changes[].redacted`, `old[].redacted` - A secret (`userPassword`, `pwdHistory`,
+  Samba hashes): reported as changed, values never returned.
+- `old` - What a modify replaced and a delete removed, when the overlay keeps it
+  (`olcAccessLogOld`).
+- `truncated` - The window held more than 5000 writes; only the newest were
+  examined. Narrow the dates.
+- `counts` - Writes per origin across the whole window, before the `origin` filter.
+
+---
+
 ## Next IDs
 
 ### Get Next Available IDs

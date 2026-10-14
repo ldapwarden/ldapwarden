@@ -87,11 +87,27 @@ ldapmodify -Y EXTERNAL -H ldapi:/// -f /bootstrap/ppolicy-overlay.ldif
 # skips the quality checks that would otherwise reject a seed password.
 ldapadd -x -H ldapi:/// -D "${ADMIN_DN}" -w "${LDAP_ADMIN_PASSWORD}" -f /bootstrap/seed.ldif
 
+# --- accesslog ----------------------------------------------------------------
+#
+# A second database recording every write, for the app's view of changes made
+# outside it. After the seed, so the seed is not logged as a burst of "external
+# changes" dated from the image build. The database directory has to exist,
+# owned by slapd's user, before the database is added; it lives under
+# /var/lib/ldap, so the skeleton below — and therefore the volume — carries it.
+mkdir -p /var/lib/ldap/accesslog
+chown openldap:openldap /var/lib/ldap/accesslog
+ldapmodify -Y EXTERNAL -H ldapi:/// -f /bootstrap/accesslog.ldif
+
 # Fail the build rather than ship a directory that cannot do the one thing this
 # image exists for.
 ldapsearch -Y EXTERNAL -H ldapi:/// -b "cn=Subschema" -s base attributeTypes \
     | grep -q "'pwdEndTime'" \
     || { echo "pwdEndTime missing from the subschema: ppolicy overlay not active" >&2; exit 1; }
+# The overlay's own configuration, not cn=accesslog: that entry only appears
+# with the first write logged after the overlay is enabled.
+ldapsearch -Y EXTERNAL -H ldapi:/// -b "cn=config" "(olcOverlay=accesslog)" dn \
+    | grep -q "^dn: olcOverlay" \
+    || { echo "accesslog overlay not configured" >&2; exit 1; }
 
 stop_slapd
 trap - EXIT

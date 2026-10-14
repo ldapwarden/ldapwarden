@@ -28,6 +28,7 @@ ARG LDAP_ADMIN_PASSWORD="admin"
 
 COPY schema/sudo.ldif /bootstrap/sudo.ldif
 COPY config/ppolicy-overlay.ldif /bootstrap/ppolicy-overlay.ldif
+COPY config/accesslog.ldif /bootstrap/accesslog.ldif
 COPY seed.ldif /bootstrap/seed.ldif
 COPY build-directory.sh /usr/local/sbin/build-directory
 COPY docker-entrypoint.sh /usr/local/sbin/docker-entrypoint

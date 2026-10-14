@@ -195,6 +195,11 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermAuditRead)).Get("/export", s.handleExportAuditLogs)
 			})
 
+			// The directory's own log of writes (accesslog overlay), including the
+			// ones that did not come through this app. Same audience as the audit
+			// log.
+			r.With(s.requirePermission(rbac.PermAuditRead)).Get("/directory-changes", s.handleListDirectoryChanges)
+
 			// Netgroups take the groups:* permissions: a netgroup is a collection,
 			// and managing one is the same kind of act as managing a group. Naming
 			// one from a sudo role stays under users:*, like the rest of sudo —

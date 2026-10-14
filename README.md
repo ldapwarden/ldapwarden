@@ -191,6 +191,7 @@ LDAP Warden is configured via environment variables:
 | `LDAP_TLS_SKIP_VERIFY` | Skip TLS certificate verification. Prefer `LDAP_TLS_CA_FILE`: with verification off, anyone on the path can collect the bind password | `false` |
 | `LDAP_TLS_CA_FILE` | PEM bundle of the CAs trusted to sign the directory's certificate. Replaces the system CAs, as `TLS_CACERT` does in `ldap.conf` | *(system CAs)* |
 | `LDAP_TLS_CERT_FILE` / `LDAP_TLS_KEY_FILE` | Client certificate and key, for a directory with `olcTLSVerifyClient: demand`. Both or neither | *(none)* |
+| `LDAP_ACCESSLOG_BASE` | Suffix of the `accesslog` overlay's database, usually `cn=accesslog`. Enables the audit page's "In the directory" tab — see [Changes made outside the app](#changes-made-outside-the-app) | *(none)* |
 
 The TLS files are read again at every reconnection, so a rotated certificate is
 picked up without a restart. A combination that would not do what it says — a CA
@@ -278,6 +279,33 @@ Past lock timestamps and `shadowExpire` values are reported but left alone unles
 you pass `-include-past-locks` / `-include-shadow-expire`: those accounts work
 today, and migrating them would start refusing them.
 
+#### Changes made outside the app
+
+The audit log records what went through LDAP Warden. Everything else — an
+`ldapmodify`, a provisioning script, another admin tool — only the directory
+knows about, and only if it is told to keep a log: OpenLDAP's `accesslog` overlay
+records every write in a database of its own. Point `LDAP_ACCESSLOG_BASE` at it
+and the audit page's **In the directory** tab lists those writes, each labelled:
+
+- **ldapwarden** — matched to a request in the app's audit log: same identity,
+  within a few seconds.
+- **Password policy** — ppolicy's own writes during a bind: failed attempts, the
+  lockout they cause, its lifting.
+- **Outside ldapwarden** — everything else, and what the tab shows by default.
+
+The identity alone cannot tell these apart: the app often binds as the rootdn,
+which is also what an administrator's `ldapmodify` uses and what ppolicy's writes
+are logged under. A write made with the app's own credentials while the app
+recorded nothing is therefore reported as outside it — which is what it is. Two
+writes made within seconds of each other, one by the app and one by somebody else
+with the same identity, cannot be separated.
+
+Password hashes (`userPassword`, `pwdHistory`, the Samba hashes) are shown as
+changed, never with their values. The bundled stack enables the overlay
+([`ldap/config/accesslog.ldif`](ldap/config/accesslog.ldif), which also explains
+how to set it up elsewhere); keep in mind that it purges entries older than seven
+days, and that the bind identity needs read access to the log database.
+
 #### Directory export
 
 The admin page's **Directory export** card downloads a subtree as LDIF that
@@ -294,7 +322,7 @@ what the server would only discover later: a secret file it cannot read, TLS
 settings that contradict each other, a cron spec that does not parse (the
 scheduler stops at the first one, silently disabling the rest), an unknown module.
 With `-connect` it also binds to the directory and checks the admin group, the
-default password policy and the base entries. It exits 1 on any
+default password policy, the base entries and the access log. It exits 1 on any
 error, and `-json` makes it usable in a pipeline:
 
 ```bash

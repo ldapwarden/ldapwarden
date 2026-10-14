@@ -245,6 +245,19 @@ func checkDirectory(r *Report, cfg *config.Config) {
 		}
 	}
 
+	if base := cfg.LDAP.AccessLogBase; base != "" {
+		_, _, err := client.AccessLogChanges(time.Now().Add(-time.Minute), time.Time{}, 1)
+		switch {
+		case errors.Is(err, ldap.ErrAccessLogUnreadable):
+			r.add(Warn, "ldap", "LDAP_ACCESSLOG_BASE %q: no such object. Either the accesslog overlay is not set up there, or %s may not read it; the directory changes view will say so too",
+				base, cfg.LDAP.BindDN)
+		case err != nil:
+			r.add(Warn, "ldap", "LDAP_ACCESSLOG_BASE %q cannot be searched: %v", base, err)
+		default:
+			r.add(OK, "ldap", "the access log at %s is readable", base)
+		}
+	}
+
 	if msg, warn := scheduler.LockoutCadenceWarning(cfg.ScheduledTasks.LockoutScan, client); warn {
 		r.add(Warn, "schedule", "lockout scan: %s", msg)
 	}

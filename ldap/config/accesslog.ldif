@@ -1,0 +1,45 @@
+# Record every successful write in a second database, cn=accesslog, readable
+# over LDAP. This is what lets ldapwarden show the changes it did not make:
+# ldapmodify, scripts, other tools, replication — its own audit log only knows
+# about the requests that went through it.
+#
+# The same three steps enable it on another OpenLDAP (2.5 or later):
+#   1. load the accesslog module;
+#   2. add an mdb database for cn=accesslog, with a directory that exists and
+#      belongs to the slapd user, readable by the identity ldapwarden binds as;
+#   3. attach the overlay to the data database, then set LDAP_ACCESSLOG_BASE.
+#
+# olcAccessLogOld: (objectClass=*) adds reqOld, the values a modify replaced and
+# the content of a deleted entry — the difference between "uid=x was deleted"
+# and knowing what x was. It includes password hashes, which ldapwarden redacts
+# before showing anything, as it does for the new values.
+#
+# olcAccessLogPurge: entries older than 7 days are removed once a day. Copy them
+# elsewhere first if they have to be kept longer.
+
+dn: cn=module{0},cn=config
+changetype: modify
+add: olcModuleLoad
+olcModuleLoad: accesslog
+
+dn: olcDatabase={2}mdb,cn=config
+changetype: add
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: {2}mdb
+olcSuffix: cn=accesslog
+olcDbDirectory: /var/lib/ldap/accesslog
+olcDbIndex: default eq
+olcDbIndex: entryCSN,objectClass,reqEnd,reqResult,reqStart,reqDN eq
+olcAccess: {0}to * by dn.exact="cn=admin,dc=example,dc=org" read by * none
+
+dn: olcOverlay=accesslog,olcDatabase={1}mdb,cn=config
+changetype: add
+objectClass: olcOverlayConfig
+objectClass: olcAccessLogConfig
+olcOverlay: accesslog
+olcAccessLogDB: cn=accesslog
+olcAccessLogOps: writes
+olcAccessLogSuccess: TRUE
+olcAccessLogOld: (objectClass=*)
+olcAccessLogPurge: 07+00:00 01+00:00

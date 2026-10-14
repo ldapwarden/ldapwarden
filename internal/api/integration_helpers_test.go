@@ -70,6 +70,8 @@ func setupTestServerWith(t *testing.T, adjust func(*config.Config)) *testEnv {
 	// what it names. Leaving it unset made the tests exercise a configuration
 	// the compose file never runs.
 	setEnvIfUnset(t, "LDAP_DEFAULT_POLICY_DN", "cn=default,ou=policies,dc=example,dc=org")
+	// The bundled stack logs every write under cn=accesslog (ldap/config/accesslog.ldif).
+	setEnvIfUnset(t, "LDAP_ACCESSLOG_BASE", "cn=accesslog")
 
 	cfg, err := config.Load()
 	if err != nil {

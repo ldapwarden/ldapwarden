@@ -19,6 +19,11 @@ services:
       # force from one pwdLockoutDuration has lifted, since cn=config is not
       # readable from here.
       LDAP_DEFAULT_POLICY_DN: "cn=default,ou=policies,dc=example,dc=org"
+      # Where the accesslog overlay in ldap/config records every write, so the
+      # audit page can show the changes made outside the app. A directory volume
+      # created before the overlay was added has no cn=accesslog: the page then
+      # says so. `docker compose down -v` rebuilds the directory with it.
+      LDAP_ACCESSLOG_BASE: "cn=accesslog"
       LDAP_MIN_UID: "1000"
       LDAP_MIN_GID: "1000"
       LDAP_TLS_MODE: "none"

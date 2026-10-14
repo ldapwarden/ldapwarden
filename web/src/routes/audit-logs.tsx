@@ -24,6 +24,14 @@ import { useSearchHotkey } from '@/lib/use-hotkey'
 import { resourceLink } from '@/lib/audit-links'
 import { ChevronDown, ChevronRight, Download, ExternalLink, ScrollText, Search } from 'lucide-react'
 import { Fragment, useCallback, useState, useRef } from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DirectoryChangesView } from '@/components/directory-changes'
+import {
+  CHANGE_TYPE_OPTIONS,
+  ORIGIN_OPTIONS,
+  type DirectoryChangesSearch,
+  type OriginFilter,
+} from '@/lib/directory-changes'
 
 // Filter options. Values match the backend's resource-type and action strings
 // exactly (see internal/audit/audit.go); labels mirror them so the dropdown
@@ -80,7 +88,9 @@ const ACTION_OPTIONS = [
 
 // AuditSearch is the view state kept in the URL, so a filtered slice of the log
 // — the thing you actually want to hand to someone — is a link.
-interface AuditSearch {
+interface AuditSearch extends DirectoryChangesSearch {
+  // Which log: this app's own (default), or the directory's (accesslog).
+  view?: 'directory'
   actor?: string
   resourceType?: string
   action?: string
@@ -103,6 +113,12 @@ export const Route = createFileRoute('/audit-logs')({
     }
   },
   validateSearch: (raw: Record<string, unknown>): AuditSearch => ({
+    view: raw.view === 'directory' ? 'directory' : undefined,
+    // 'external' is the directory view's default, so it is left out of the URL.
+    origin: ORIGIN_OPTIONS.some((o) => o.value !== 'external' && o.value === raw.origin)
+      ? (raw.origin as OriginFilter)
+      : undefined,
+    type: CHANGE_TYPE_OPTIONS.some((o) => o.value !== '' && o.value === raw.type) ? (raw.type as string) : undefined,
     actor: typeof raw.actor === 'string' && raw.actor !== '' ? raw.actor : undefined,
     resourceType: RESOURCE_TYPE_OPTIONS.some((o) => o.value !== '' && o.value === raw.resourceType)
       ? (raw.resourceType as string)
@@ -158,6 +174,44 @@ function summarise(changes: FieldChange[], extras: Array<[string, unknown]>): st
 }
 
 function AuditLogsPage() {
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const view = search.view ?? 'app'
+
+  // Filters do not carry over between the two logs: they do not mean the same
+  // thing in both.
+  const setView = (next: string) => {
+    navigate({ search: next === 'directory' ? { view: 'directory' } : {}, replace: true })
+  }
+  const patchSearch = useCallback(
+    (patch: Partial<AuditSearch>, replace = true) => {
+      navigate({ search: (prev) => ({ ...prev, ...patch }), replace })
+    },
+    [navigate],
+  )
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Audit Logs</h1>
+      <Tabs value={view} onValueChange={setView}>
+        <TabsList>
+          <TabsTrigger value="app">Through ldapwarden</TabsTrigger>
+          <TabsTrigger value="directory">In the directory</TabsTrigger>
+        </TabsList>
+        <TabsContent value="app">
+          <AppAuditLog />
+        </TabsContent>
+        <TabsContent value="directory">
+          <DirectoryChangesView search={search} onSearchChange={patchSearch} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+// AppAuditLog is what this app recorded: every request it served that changed
+// something, with who asked, from where, and the field-level diff.
+function AppAuditLog() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const actor = search.actor ?? ''
@@ -256,8 +310,7 @@ function AuditLogsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Audit Logs</h1>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
             {total}{hasFilters ? ' matching' : ' total'} entries

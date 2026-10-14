@@ -104,6 +104,13 @@ clear, because go-ldap only encrypts the `ldaps` scheme. `starttls` needs an
 or `LDAP_TLS_SKIP_VERIFY` together with `LDAP_TLS_CA_FILE`, is refused too. Run
 `ldapwarden check-config` before upgrading to see whether any of this applies.
 
+**10. The bundled directory logs every write, on fresh volumes only.** The image
+built from `ldap/` now carries the `accesslog` overlay and the compose file sets
+`LDAP_ACCESSLOG_BASE=cn=accesslog`. An existing `directory_config` volume keeps its
+old `cn=config`, so the new "In the directory" tab on the audit page says the log
+cannot be read until the directory is rebuilt (`docker compose down -v`, which
+resets it to the seed). Nothing else depends on it.
+
 **Prerequisite, unchanged but easy to miss:** ppolicy enforces neither locking nor
 expiry unless a policy applies to the entry (`olcPPolicyDefault` on the overlay,
 or `pwdPolicySubentry` on the entry) — and the attributes stay writable either
@@ -238,6 +245,12 @@ authenticate. The admin page now says what it knows, and
   every view is a shareable link (`67d5819`, `2d63f78`, `902c640`).
 - Bulk actions report every failure, not just the first (`182fa6d`).
 
+- **Changes made outside the app** (`GET /api/directory-changes`, the audit page's
+  "In the directory" tab): every write the directory logged with the `accesslog`
+  overlay, labelled as made through ldapwarden (matched to its audit row), by the
+  password policy during a bind, or outside ldapwarden — `ldapmodify`, scripts,
+  other tools. Password hashes are never shown. Set `LDAP_ACCESSLOG_BASE`; when it
+  is unset or unreadable, the tab shows the LDIF and the ACL to set it up.
 - **LDIF export** (`GET /api/admin/export`, the admin page's "Directory export"
   card): a subtree streamed as LDIF that `ldapadd` can replay — parents before
   children, binary values base64-encoded, and each account's lock, expiry and
@@ -245,8 +258,8 @@ authenticate. The admin page now says what it knows, and
   `*` leaves out. Admin-only and audited as `directory.export`.
 - **`ldapwarden check-config`**: checks the configuration the server would start
   with — secret files, TLS files, cron specs, modules — and with `-connect` binds
-  to the directory and checks the admin group, the default policy and the
-  base entries. Exits 1 on any error; `-json` for pipelines.
+  to the directory and checks the admin group, the default policy, the base
+  entries and the access log. Exits 1 on any error; `-json` for pipelines.
 - **TLS to the directory**: `LDAP_TLS_CA_FILE` for a private CA (replacing the
   system pool), `LDAP_TLS_CERT_FILE`/`LDAP_TLS_KEY_FILE` for a client certificate.
   Files are re-read at each reconnection, so a rotated certificate is picked up
