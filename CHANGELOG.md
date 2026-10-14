@@ -332,6 +332,13 @@ authenticate. The admin page now says what it knows, and
 
 ### Fixed
 
+- **Requests failed at random after hanging for the whole LDAP timeout** (20s by
+  default), whenever two arrived together — which any page loading more than one
+  thing does. The shared directory connection was re-bound on every request as a
+  liveness check, and a bind makes the server abandon the operations still in
+  progress on that connection without answering them. The connection is now
+  reused as long as it is open, and replaced when it closes.
+
 - **StartTLS with certificate verification never connected**: go-ldap leaves the
   TLS `ServerName` empty and Go refuses to verify without one, so `starttls` only
   ever worked with `LDAP_TLS_SKIP_VERIFY`. The name now comes from `LDAP_URL`.

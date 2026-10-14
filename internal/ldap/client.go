@@ -105,11 +105,22 @@ func (c *Client) connect() (*ldap.Conn, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// The shared connection is reused as long as it is open. It used to be
+	// re-bound on every call, as a liveness check — but a bind resets the
+	// connection, and the server abandons the operations still in progress on it
+	// without answering them (RFC 4511 §4.2.1). Two requests arriving together
+	// was enough: one request's search was dropped by the next one's bind, and
+	// its caller waited out the whole timeout for a reply that never came.
+	//
+	// go-ldap marks the connection closing as soon as the socket fails, which is
+	// what a restarted server looks like; one silently dropped by a firewall is
+	// caught by the dialer's TCP keepalive, which fails the socket in turn.
 	if c.conn != nil {
-		if err := c.conn.Bind(c.config.BindDN, c.config.BindPass); err == nil {
+		if !c.conn.IsClosing() {
 			return c.conn, nil
 		}
 		_ = c.conn.Close()
+		c.conn = nil
 	}
 
 	conn, err := c.dial()
