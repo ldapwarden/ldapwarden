@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -123,7 +125,10 @@ func TestValidateSecrets(t *testing.T) {
 func TestValidateSecrets_ConstMatchesDefault(t *testing.T) {
 	t.Setenv("SESSION_SECRET", "")
 	t.Setenv("LDAP_BIND_PASS", "")
-	cfg := Load()
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 	if cfg.Session.Secret != defaultSessionSecret {
 		t.Errorf("Load() produced session secret %q, want default %q", cfg.Session.Secret, defaultSessionSecret)
 	}
@@ -144,7 +149,10 @@ func TestValidateSecrets_ConstMatchesDefault(t *testing.T) {
 func TestDefaultModules(t *testing.T) {
 	t.Setenv("LDAPWARDEN_MODULES", "")
 
-	cfg := Load()
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 	want := []string{"users", "groups", "sudo", "policies", "netgroups"}
 	if len(cfg.App.Modules) != len(want) {
 		t.Fatalf("default modules = %v, want %v", cfg.App.Modules, want)
@@ -154,5 +162,150 @@ func TestDefaultModules(t *testing.T) {
 			t.Errorf("default modules = %v, want %v", cfg.App.Modules, want)
 			break
 		}
+	}
+}
+
+func writeSecret(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestLoad_SecretFromFile(t *testing.T) {
+	t.Setenv("LDAP_BIND_PASS", "")
+	t.Setenv("LDAP_BIND_PASS_FILE", writeSecret(t, "s3cret with spaces \n"))
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// The trailing newline every editor adds goes; the rest is the secret.
+	if cfg.LDAP.BindPass != "s3cret with spaces " {
+		t.Errorf("bind pass = %q, want %q", cfg.LDAP.BindPass, "s3cret with spaces ")
+	}
+}
+
+func TestLoad_SecretFileErrors(t *testing.T) {
+	cases := []struct {
+		name      string
+		setup     func(t *testing.T)
+		mustMatch []string
+	}{
+		{
+			name: "both the variable and its file",
+			setup: func(t *testing.T) {
+				t.Setenv("SESSION_SECRET", "inline")
+				t.Setenv("SESSION_SECRET_FILE", writeSecret(t, "from-file"))
+			},
+			mustMatch: []string{"SESSION_SECRET and SESSION_SECRET_FILE"},
+		},
+		{
+			name: "missing file",
+			setup: func(t *testing.T) {
+				t.Setenv("DATABASE_URL_FILE", filepath.Join(t.TempDir(), "absent"))
+			},
+			mustMatch: []string{"DATABASE_URL_FILE"},
+		},
+		{
+			// An empty mount is a broken mount: falling back to the in-repo
+			// default would hide it.
+			name: "empty file",
+			setup: func(t *testing.T) {
+				t.Setenv("MAIL_PASSWORD_FILE", writeSecret(t, "\n"))
+			},
+			mustMatch: []string{"MAIL_PASSWORD_FILE", "is empty"},
+		},
+		{
+			name: "every failure reported at once",
+			setup: func(t *testing.T) {
+				t.Setenv("LDAP_BIND_PASS_FILE", filepath.Join(t.TempDir(), "absent"))
+				t.Setenv("MAIL_PASSWORD_FILE", writeSecret(t, ""))
+			},
+			mustMatch: []string{"LDAP_BIND_PASS_FILE", "MAIL_PASSWORD_FILE"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, key := range []string{"SESSION_SECRET", "LDAP_BIND_PASS", "DATABASE_URL", "MAIL_PASSWORD"} {
+				t.Setenv(key, "")
+				t.Setenv(key+SecretFileSuffix, "")
+			}
+			tc.setup(t)
+			_, err := Load()
+			if err == nil {
+				t.Fatal("want error, got nil")
+			}
+			for _, m := range tc.mustMatch {
+				if !strings.Contains(err.Error(), m) {
+					t.Errorf("error %q missing %q", err, m)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateTLS(t *testing.T) {
+	cases := []struct {
+		name      string
+		cfg       LDAPConfig
+		mustMatch []string // empty: valid
+	}{
+		{name: "plain", cfg: LDAPConfig{URL: "ldap://dir:389", TLSMode: "none"}},
+		{name: "ldaps url without mode", cfg: LDAPConfig{URL: "ldaps://dir", TLSMode: "none", TLSCAFile: "/ca.pem"}},
+		{name: "ssl with ca and client cert", cfg: LDAPConfig{URL: "ldaps://dir", TLSMode: "ssl", TLSCAFile: "/ca.pem", TLSCertFile: "/c.pem", TLSKeyFile: "/k.pem"}},
+		{name: "starttls", cfg: LDAPConfig{URL: "ldap://dir", TLSMode: "starttls", TLSCAFile: "/ca.pem"}},
+		{
+			name:      "unknown mode",
+			cfg:       LDAPConfig{URL: "ldap://dir", TLSMode: "tls"},
+			mustMatch: []string{`LDAP_TLS_MODE "tls"`},
+		},
+		{
+			// go-ldap only encrypts the ldaps:// scheme: this connected in clear.
+			name:      "ssl on an ldap url",
+			cfg:       LDAPConfig{URL: "ldap://dir:636", TLSMode: "ssl"},
+			mustMatch: []string{"needs an ldaps:// LDAP_URL"},
+		},
+		{
+			name:      "starttls on an ldaps url",
+			cfg:       LDAPConfig{URL: "ldaps://dir", TLSMode: "starttls"},
+			mustMatch: []string{"needs an ldap:// LDAP_URL"},
+		},
+		{
+			name:      "ca file on a plaintext connection",
+			cfg:       LDAPConfig{URL: "ldap://dir", TLSMode: "none", TLSCAFile: "/ca.pem"},
+			mustMatch: []string{"LDAP_TLS_CA_FILE is set but the connection is not encrypted"},
+		},
+		{
+			name:      "certificate without key",
+			cfg:       LDAPConfig{URL: "ldaps://dir", TLSMode: "ssl", TLSCertFile: "/c.pem"},
+			mustMatch: []string{"go together"},
+		},
+		{
+			name:      "skip verify cancels the ca",
+			cfg:       LDAPConfig{URL: "ldaps://dir", TLSMode: "ssl", TLSCAFile: "/ca.pem", TLSSkipVerify: true},
+			mustMatch: []string{"LDAP_TLS_SKIP_VERIFY"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateTLS(tc.cfg)
+			if len(tc.mustMatch) == 0 {
+				if err != nil {
+					t.Fatalf("want nil, got %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("want error, got nil")
+			}
+			for _, m := range tc.mustMatch {
+				if !strings.Contains(err.Error(), m) {
+					t.Errorf("error %q missing %q", err, m)
+				}
+			}
+		})
 	}
 }

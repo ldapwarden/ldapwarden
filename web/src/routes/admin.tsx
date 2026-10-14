@@ -29,6 +29,12 @@ export const Route = createFileRoute('/admin')({
   component: AdminPage,
 })
 
+const CONFIG_SOURCE_LABELS: Record<ConfigValue['source'], string> = {
+  env: 'Environment',
+  file: 'Secret file',
+  default: 'Default',
+}
+
 function ConfigField({ label, config, description }: { label: string; config: ConfigValue; description?: string }) {
   const displayValue = Array.isArray(config.value) ? config.value.join(', ') : String(config.value)
   const id = useId()
@@ -37,11 +43,11 @@ function ConfigField({ label, config, description }: { label: string; config: Co
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Label htmlFor={id} className="text-sm font-medium">{label}</Label>
         <span className={`text-xs px-2 py-0.5 rounded-full ${
-          config.source === 'env'
-            ? 'bg-success/15 text-success'
-            : 'bg-muted text-muted-foreground'
+          config.source === 'default'
+            ? 'bg-muted text-muted-foreground'
+            : 'bg-success/15 text-success'
         }`}>
-          {config.source === 'env' ? 'Environment' : 'Default'}
+          {CONFIG_SOURCE_LABELS[config.source]}
         </span>
       </div>
       {/* Read-only rather than disabled: a disabled field cannot be focused,
@@ -257,6 +263,23 @@ function AdminPage() {
                 label="TLS Skip Verify"
                 config={config!.ldap.tlsSkipVerify}
                 description="Skip certificate verification"
+              />
+            </div>
+            <ConfigField
+              label="TLS CA File"
+              config={config!.ldap.tlsCaFile}
+              description="PEM bundle the directory's certificate is checked against, instead of the system CAs"
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ConfigField
+                label="TLS Client Certificate"
+                config={config!.ldap.tlsCertFile}
+                description="Presented to a directory that requires one"
+              />
+              <ConfigField
+                label="TLS Client Key"
+                config={config!.ldap.tlsKeyFile}
+                description="Private key of the client certificate"
               />
             </div>
           </CardContent>

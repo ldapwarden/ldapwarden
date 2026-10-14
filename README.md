@@ -187,8 +187,14 @@ LDAP Warden is configured via environment variables:
 | `LDAP_MIN_UID` | Minimum UID for new users | `1000` |
 | `LDAP_MIN_GID` | Minimum GID for new groups | `1000` |
 | `LDAP_SEARCH_SIZE_LIMIT` | Max entries returned by UI list/search endpoints (0 = no limit) | `500` |
-| `LDAP_TLS_MODE` | TLS mode: `none`, `ssl`, or `starttls` | `none` |
-| `LDAP_TLS_SKIP_VERIFY` | Skip TLS certificate verification (for self-signed certs) | `false` |
+| `LDAP_TLS_MODE` | TLS mode: `none`, `ssl` (needs an `ldaps://` URL), or `starttls` (needs `ldap://`) | `none` |
+| `LDAP_TLS_SKIP_VERIFY` | Skip TLS certificate verification. Prefer `LDAP_TLS_CA_FILE`: with verification off, anyone on the path can collect the bind password | `false` |
+| `LDAP_TLS_CA_FILE` | PEM bundle of the CAs trusted to sign the directory's certificate. Replaces the system CAs, as `TLS_CACERT` does in `ldap.conf` | *(system CAs)* |
+| `LDAP_TLS_CERT_FILE` / `LDAP_TLS_KEY_FILE` | Client certificate and key, for a directory with `olcTLSVerifyClient: demand`. Both or neither | *(none)* |
+
+The TLS files are read again at every reconnection, so a rotated certificate is
+picked up without a restart. A combination that would not do what it says — a CA
+file on a plaintext connection, `ssl` on an `ldap://` URL — stops the server.
 
 > **POSIX number uniqueness.** LDAP Warden refuses to create a user or group on a
 > `uidNumber`/`gidNumber` another entry already holds, and allocates one at write
@@ -389,6 +395,13 @@ set `LDAPWARDEN_DEV_MODE=1` in a real deployment.**
 
 Errors are aggregated so a misconfigured deployment surfaces every
 issue in a single startup failure.
+
+`SESSION_SECRET`, `LDAP_BIND_PASS`, `DATABASE_URL` and `MAIL_PASSWORD` can also
+be read from a file: set `LDAP_BIND_PASS_FILE=/run/secrets/ldap_bind_pass` instead
+of the variable itself, the convention Docker and Kubernetes secrets are mounted
+for. Trailing newlines are stripped. Setting both, or pointing at a file that is
+missing or empty, stops the server rather than falling back to the default — in
+dev mode too.
 
 ### Mail
 

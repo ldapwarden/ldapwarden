@@ -1,7 +1,6 @@
 package ldap
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -39,6 +38,63 @@ type Client struct {
 	verdict Enforcement
 }
 
+// dial opens a connection to the directory, encrypted as configured, with the
+// operation timeout applied. It does not bind.
+//
+// Both the shared service connection and the throwaway one a user's sign-in is
+// checked on go through here. They used to carry a copy each, and the sign-in
+// copy had neither the dial timeout nor the per-request deadline: a directory
+// that stopped answering hung the login handler for good.
+func (c *Client) dial() (*ldap.Conn, error) {
+	tlsConfig, err := TLSConfig(c.config)
+	if err != nil {
+		return nil, err
+	}
+
+	// A dial that cannot complete has to give up on its own: the handlers hold no
+	// context to cancel it with.
+	dialer := ldap.DialWithDialer(&net.Dialer{Timeout: c.timeout()})
+	ldaps := strings.HasPrefix(strings.ToLower(c.config.URL), "ldaps://")
+
+	var conn *ldap.Conn
+	switch c.config.TLSMode {
+	case "ssl":
+		// LDAPS - TLS from the start (typically port 636). go-ldap only does that
+		// for the ldaps:// scheme; on ldap:// it would connect in clear.
+		if !ldaps {
+			return nil, fmt.Errorf("%w: ssl needs an ldaps:// URL", errTLSSchemeMismatch)
+		}
+		conn, err = ldap.DialURL(c.config.URL, dialer, ldap.DialWithTLSConfig(tlsConfig))
+	case "starttls":
+		// StartTLS - connect plain, then upgrade to TLS
+		if ldaps {
+			return nil, fmt.Errorf("%w: starttls needs an ldap:// URL", errTLSSchemeMismatch)
+		}
+		conn, err = ldap.DialURL(c.config.URL, dialer)
+		if err == nil {
+			conn.SetTimeout(c.timeout())
+			if err = conn.StartTLS(tlsConfig); err != nil {
+				_ = conn.Close()
+				return nil, fmt.Errorf("StartTLS: %w%s", err, describeTLS(c.config))
+			}
+		}
+	default:
+		// "none" or unset - plain LDAP, or TLS when the URL says ldaps://
+		conn, err = ldap.DialURL(c.config.URL, dialer, ldap.DialWithTLSConfig(tlsConfig))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("dial LDAP server: %w%s", err, describeTLS(c.config))
+	}
+
+	// Bounds every request made on this connection from here on, bind included.
+	// go-ldap sets no deadline by default, so a response that never arrives — a
+	// connection a firewall dropped without a FIN, a server wedged mid-search —
+	// blocks the calling goroutine for the lifetime of the process, holding
+	// whatever lock it took on the way in.
+	conn.SetTimeout(c.timeout())
+	return conn, nil
+}
+
 func NewClient(cfg config.LDAPConfig) *Client {
 	return &Client{
 		config: cfg,
@@ -56,51 +112,10 @@ func (c *Client) connect() (*ldap.Conn, error) {
 		_ = c.conn.Close()
 	}
 
-	var conn *ldap.Conn
-	var err error
-
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.config.TLSSkipVerify, //nolint:gosec // User-configurable setting
-	}
-
-	// A dial that cannot complete has to give up on its own: the handlers hold no
-	// context to cancel it with.
-	dialer := ldap.DialWithDialer(&net.Dialer{Timeout: c.timeout()})
-
-	switch c.config.TLSMode {
-	case "ssl":
-		// LDAPS - TLS from the start (typically port 636)
-		conn, err = ldap.DialURL(c.config.URL, dialer, ldap.DialWithTLSConfig(tlsConfig))
-	case "starttls":
-		// StartTLS - connect plain, then upgrade to TLS
-		conn, err = ldap.DialURL(c.config.URL, dialer)
-		if err != nil {
-			return nil, fmt.Errorf("dial LDAP server: %w", err)
-		}
-		conn.SetTimeout(c.timeout())
-		if err = conn.StartTLS(tlsConfig); err != nil {
-			_ = conn.Close()
-			return nil, fmt.Errorf("StartTLS: %w", err)
-		}
-	default:
-		// "none" or unset - plain LDAP (or auto-detect ldaps:// URL)
-		if strings.HasPrefix(c.config.URL, "ldaps://") {
-			conn, err = ldap.DialURL(c.config.URL, dialer, ldap.DialWithTLSConfig(tlsConfig))
-		} else {
-			conn, err = ldap.DialURL(c.config.URL, dialer)
-		}
-	}
-
+	conn, err := c.dial()
 	if err != nil {
-		return nil, fmt.Errorf("dial LDAP server: %w", err)
+		return nil, err
 	}
-
-	// Bounds every request made on this connection from here on, bind included.
-	// go-ldap sets no deadline by default, so a response that never arrives — a
-	// connection a firewall dropped without a FIN, a server wedged mid-search —
-	// blocks the calling goroutine for the lifetime of the process, holding
-	// whatever lock it took on the way in.
-	conn.SetTimeout(c.timeout())
 
 	if err := conn.Bind(c.config.BindDN, c.config.BindPass); err != nil {
 		_ = conn.Close()
@@ -152,35 +167,11 @@ func (c *Client) Bind(dn, password string) error {
 	}
 	_ = conn
 
-	// Create a separate connection for user authentication
-	var testConn *ldap.Conn
-
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.config.TLSSkipVerify, //nolint:gosec // User-configurable setting
-	}
-
-	switch c.config.TLSMode {
-	case "ssl":
-		testConn, err = ldap.DialURL(c.config.URL, ldap.DialWithTLSConfig(tlsConfig))
-	case "starttls":
-		testConn, err = ldap.DialURL(c.config.URL)
-		if err != nil {
-			return fmt.Errorf("dial LDAP server for auth: %w", err)
-		}
-		if err = testConn.StartTLS(tlsConfig); err != nil {
-			_ = testConn.Close()
-			return fmt.Errorf("StartTLS for auth: %w", err)
-		}
-	default:
-		if strings.HasPrefix(c.config.URL, "ldaps://") {
-			testConn, err = ldap.DialURL(c.config.URL, ldap.DialWithTLSConfig(tlsConfig))
-		} else {
-			testConn, err = ldap.DialURL(c.config.URL)
-		}
-	}
-
+	// A separate connection for the user's bind, so the shared one stays bound
+	// as the service account.
+	testConn, err := c.dial()
 	if err != nil {
-		return fmt.Errorf("dial LDAP server for auth: %w", err)
+		return fmt.Errorf("auth: %w", err)
 	}
 	defer func() { _ = testConn.Close() }()
 

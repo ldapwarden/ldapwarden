@@ -100,7 +100,16 @@ type LDAPConfig struct {
 	MinGID          int
 	TLSMode         string // "none", "ssl", "starttls"
 	TLSSkipVerify   bool   // Skip certificate verification (for self-signed certs)
-	SearchSizeLimit int    // Max entries returned by UI list/search endpoints (0 = no limit)
+	// TLSCAFile is a PEM bundle of the certificate authorities trusted to sign
+	// the directory's certificate. When set it *replaces* the system pool, as
+	// TLS_CACERT does in ldap.conf: a private CA is the reason to set it, and
+	// adding every public CA on top would trust certificates nobody meant to.
+	TLSCAFile string
+	// TLSCertFile and TLSKeyFile are the client certificate presented to a
+	// directory that requires one (olcTLSVerifyClient demand). Both or neither.
+	TLSCertFile     string
+	TLSKeyFile      string
+	SearchSizeLimit int // Max entries returned by UI list/search endpoints (0 = no limit)
 	// Timeout bounds every single LDAP operation: the dial, the bind and each
 	// request on an established connection.
 	//
@@ -122,20 +131,29 @@ type SessionConfig struct {
 	TTL    time.Duration
 }
 
-func Load() *Config {
-	return &Config{
+// Load reads the configuration from the environment.
+//
+// The secrets — SESSION_SECRET, LDAP_BIND_PASS, DATABASE_URL and MAIL_PASSWORD —
+// can also be read from a file named by the same variable with a _FILE suffix,
+// the convention Docker and Kubernetes secrets are mounted for. The error lists
+// every such file that could not be used: a secret the operator pointed at a
+// file and that silently fell back to its in-repo default would be worse than a
+// refusal to start.
+func Load() (*Config, error) {
+	var l loader
+	cfg := &Config{
 		Server: ServerConfig{
 			Host: getEnv("SERVER_HOST", "0.0.0.0"),
 			Port: getEnvInt("SERVER_PORT", 8000),
 		},
 		Database: DatabaseConfig{
-			URL: getEnv("DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable"),
+			URL: l.secret("DATABASE_URL", "postgres://ldapwarden:ldapwarden@localhost:5432/ldapwarden?sslmode=disable"),
 		},
 		LDAP: LDAPConfig{
 			URL:             getEnv("LDAP_URL", "ldap://localhost:389"),
 			BaseDN:          getEnv("LDAP_BASE_DN", "dc=example,dc=org"),
 			BindDN:          getEnv("LDAP_BIND_DN", "cn=admin,dc=example,dc=org"),
-			BindPass:        getEnv("LDAP_BIND_PASS", defaultLDAPBindPass),
+			BindPass:        l.secret("LDAP_BIND_PASS", defaultLDAPBindPass),
 			UserOU:          getEnv("LDAP_USER_OU", "ou=People"),
 			GroupOU:         getEnv("LDAP_GROUP_OU", "ou=Groups"),
 			SudoersOU:       getEnv("LDAP_SUDOERS_OU", "ou=sudoers"),
@@ -146,11 +164,14 @@ func Load() *Config {
 			MinGID:          getEnvInt("LDAP_MIN_GID", 1000),
 			TLSMode:         getEnv("LDAP_TLS_MODE", "none"),
 			TLSSkipVerify:   getEnvBool("LDAP_TLS_SKIP_VERIFY", false),
+			TLSCAFile:       getEnv("LDAP_TLS_CA_FILE", ""),
+			TLSCertFile:     getEnv("LDAP_TLS_CERT_FILE", ""),
+			TLSKeyFile:      getEnv("LDAP_TLS_KEY_FILE", ""),
 			SearchSizeLimit: getEnvInt("LDAP_SEARCH_SIZE_LIMIT", 500),
 			Timeout:         getEnvDuration("LDAP_TIMEOUT", 20*time.Second),
 		},
 		Session: SessionConfig{
-			Secret: getEnv("SESSION_SECRET", defaultSessionSecret),
+			Secret: l.secret("SESSION_SECRET", defaultSessionSecret),
 			TTL:    getEnvDuration("SESSION_TTL", 24*time.Hour),
 		},
 		App: AppConfig{
@@ -169,7 +190,7 @@ func Load() *Config {
 			Host:     getEnv("MAIL_HOST", "localhost"),
 			Port:     getEnvInt("MAIL_PORT", 1025),
 			User:     getEnv("MAIL_USER", ""),
-			Password: getEnv("MAIL_PASSWORD", ""),
+			Password: l.secret("MAIL_PASSWORD", ""),
 			From:     getEnv("MAIL_FROM", "noreply@example.org"),
 			FromName: getEnv("MAIL_FROM_NAME", ""),
 			SSL:      getEnv("MAIL_SSL", "none"),
@@ -181,6 +202,51 @@ func Load() *Config {
 			LockoutScan:         getEnv("LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN", "*/5 * * * *"),
 		},
 	}
+	return cfg, errors.Join(l.errs...)
+}
+
+// SecretFileSuffix turns a variable name into the one naming the file that may
+// hold its value instead.
+const SecretFileSuffix = "_FILE"
+
+// loader collects what Load could not read, so a deployment with several broken
+// secret files hears about all of them in one failed start.
+type loader struct {
+	errs []error
+}
+
+// secret reads key from the environment, or from the file key_FILE names.
+//
+// Setting both is refused rather than resolved: whichever one won, the other
+// would be a value the operator believes is in use and is not. An empty file is
+// refused too — for a plain variable empty means "unset, use the default", and a
+// mounted secret that came out empty is a broken mount, not a request for the
+// in-repo default.
+//
+// Trailing line breaks are stripped, because nearly every way of writing a file
+// (echo, a heredoc, an editor) ends it with one and no secret means to end with
+// one. Anything else in the file is kept as is.
+func (l *loader) secret(key, defaultValue string) string {
+	fileVar := key + SecretFileSuffix
+	path := os.Getenv(fileVar)
+	if path == "" {
+		return getEnv(key, defaultValue)
+	}
+	if os.Getenv(key) != "" {
+		l.errs = append(l.errs, fmt.Errorf("both %s and %s are set; keep one", key, fileVar))
+		return defaultValue
+	}
+	data, err := os.ReadFile(path) //nolint:gosec // The path is the operator's own configuration.
+	if err != nil {
+		l.errs = append(l.errs, fmt.Errorf("%s: %w", fileVar, err))
+		return defaultValue
+	}
+	value := strings.TrimRight(string(data), "\r\n")
+	if value == "" {
+		l.errs = append(l.errs, fmt.Errorf("%s: %s is empty", fileVar, path))
+		return defaultValue
+	}
+	return value
 }
 
 // ValidateSecrets refuses production startup with the in-repo defaults.
@@ -234,6 +300,58 @@ func ValidateSecrets(cfg *Config) error {
 		} else if !strings.Contains(a, "@") {
 			errs = append(errs, fmt.Errorf("LDAPWARDEN_AUDIT_NOTIFY_EMAILS entry %q is not a valid email address", a))
 		}
+	}
+	return errors.Join(errs...)
+}
+
+// UsesTLS reports whether connections to the directory are encrypted: an
+// explicit TLS mode, or an ldaps:// URL, which the client honours on its own.
+func (c LDAPConfig) UsesTLS() bool {
+	return c.TLSMode == "ssl" || c.TLSMode == "starttls" || strings.HasPrefix(strings.ToLower(c.URL), "ldaps://")
+}
+
+// ValidateTLS refuses an LDAP TLS configuration that would not do what it says.
+//
+// Unlike ValidateSecrets it applies in dev mode too: these are not demo
+// credentials to tolerate but settings that are either honoured or not. A CA
+// file on a plaintext connection is the case it exists for — nothing reads it,
+// the operator believes the directory's certificate is being checked, and the
+// bind password crosses the network in clear.
+//
+// It checks the shape only; whether the files hold usable PEM is for whoever
+// loads them (ldap.TLSConfig), which is also what reports it at startup.
+func ValidateTLS(c LDAPConfig) error {
+	var errs []error
+	switch c.TLSMode {
+	case "", "none", "ssl", "starttls":
+	default:
+		errs = append(errs, fmt.Errorf("LDAP_TLS_MODE %q is not one of none, ssl, starttls", c.TLSMode))
+	}
+	// go-ldap decides on TLS from the scheme alone, so "ssl" on an ldap:// URL
+	// used to connect in clear, and "starttls" on ldaps:// would wrap TLS in TLS.
+	ldaps := strings.HasPrefix(strings.ToLower(c.URL), "ldaps://")
+	if c.TLSMode == "ssl" && !ldaps {
+		errs = append(errs, fmt.Errorf("LDAP_TLS_MODE=ssl needs an ldaps:// LDAP_URL, got %s", c.URL))
+	}
+	if c.TLSMode == "starttls" && ldaps {
+		errs = append(errs, fmt.Errorf("LDAP_TLS_MODE=starttls upgrades a plain connection and needs an ldap:// LDAP_URL, got %s", c.URL))
+	}
+	if (c.TLSCertFile == "") != (c.TLSKeyFile == "") {
+		errs = append(errs, errors.New("LDAP_TLS_CERT_FILE and LDAP_TLS_KEY_FILE go together: set both for a client certificate, or neither"))
+	}
+	if !c.UsesTLS() {
+		for _, setting := range []struct{ name, value string }{
+			{"LDAP_TLS_CA_FILE", c.TLSCAFile},
+			{"LDAP_TLS_CERT_FILE", c.TLSCertFile},
+			{"LDAP_TLS_KEY_FILE", c.TLSKeyFile},
+		} {
+			if setting.value != "" {
+				errs = append(errs, fmt.Errorf("%s is set but the connection is not encrypted (LDAP_TLS_MODE=%s, LDAP_URL=%s): it would be ignored", setting.name, c.TLSMode, c.URL))
+			}
+		}
+	}
+	if c.TLSSkipVerify && c.TLSCAFile != "" {
+		errs = append(errs, errors.New("LDAP_TLS_SKIP_VERIFY disables the check LDAP_TLS_CA_FILE configures; drop one of them"))
 	}
 	return errors.Join(errs...)
 }

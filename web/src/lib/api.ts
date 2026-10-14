@@ -678,7 +678,8 @@ export type PolicySelfTest = z.infer<typeof PolicySelfTestSchema>
 
 export const ConfigValueSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]),
-  source: z.enum(['env', 'default']),
+  // 'file': a secret read from the file its <VAR>_FILE variable names.
+  source: z.enum(['env', 'file', 'default']),
   envVar: z.string().optional(),
 })
 
@@ -703,6 +704,9 @@ export const ConfigResponseSchema = z.object({
     minGid: ConfigValueSchema,
     tlsMode: ConfigValueSchema,
     tlsSkipVerify: ConfigValueSchema,
+    tlsCaFile: ConfigValueSchema,
+    tlsCertFile: ConfigValueSchema,
+    tlsKeyFile: ConfigValueSchema,
   }),
   session: z.object({
     ttl: ConfigValueSchema,

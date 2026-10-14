@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ldapwarden/ldapwarden/internal/config"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
@@ -43,7 +42,10 @@ Flags:
 		return err
 	}
 
-	cfg := config.Load()
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
 	client := ldap.NewClient(cfg.LDAP)
 	defer client.Close()
 

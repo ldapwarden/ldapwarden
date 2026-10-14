@@ -1661,6 +1661,9 @@ curl http://localhost:8000/api/admin/config \
   -b cookies.txt
 ```
 
+A secret read from a file reports `"source": "file"` and names the `_FILE`
+variable in `envVar`.
+
 ---
 
 ## Password Reset (Public)

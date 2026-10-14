@@ -203,6 +203,10 @@ MVP implemented with:
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,
   returning `warnings` for what they could not reach. Leaving one behind hands the
   groups and sudo grants to whoever gets that username next.
+- **go-ldap decides on TLS from the URL scheme**, not from the mode: `ssl` on an
+  `ldap://` URL connected in clear, and StartTLS sends no `ServerName`, so Go cannot
+  verify. `config.ValidateTLS` refuses the first; `ldap.TLSConfig` sets the second.
+  Every connection — the shared one and a sign-in's — goes through `Client.dial`.
 - The bundled stack is OpenLDAP 2.6 built from `ldap/`, with the overlay and
   `olcPPolicyDefault` wired up — so integration tests exercise the real
   enforcement path, not the 422 fallback. From 2.5 the pwdPolicy schema lives

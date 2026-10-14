@@ -46,7 +46,10 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cfg := config.Load()
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
 
 	if err := config.ValidateSecrets(cfg); err != nil {
 		return fmt.Errorf("secret validation: %w\n\nset LDAPWARDEN_DEV_MODE=1 only for the bundled docker-compose stack or local tests", err)

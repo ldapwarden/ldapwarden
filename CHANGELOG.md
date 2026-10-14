@@ -97,6 +97,12 @@ existing hourly cleanup (`LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP`). The bundl
 compose file no longer has a `redis` service; its old volume is left in place
 (`docker volume rm ldapwarden_redis_data`).
 
+**9. Check the LDAP TLS settings; a contradiction now stops the server.**
+`LDAP_TLS_MODE=ssl` needs an `ldaps://` URL: on `ldap://` it used to connect in
+clear, because go-ldap only encrypts the `ldaps` scheme. `starttls` needs an
+`ldap://` URL. A CA file or client certificate set on an unencrypted connection,
+or `LDAP_TLS_SKIP_VERIFY` together with `LDAP_TLS_CA_FILE`, is refused too.
+
 **Prerequisite, unchanged but easy to miss:** ppolicy enforces neither locking nor
 expiry unless a policy applies to the entry (`olcPPolicyDefault` on the overlay,
 or `pwdPolicySubentry` on the entry) — and the attributes stay writable either
@@ -231,6 +237,15 @@ authenticate. The admin page now says what it knows, and
   every view is a shareable link (`67d5819`, `2d63f78`, `902c640`).
 - Bulk actions report every failure, not just the first (`182fa6d`).
 
+- **TLS to the directory**: `LDAP_TLS_CA_FILE` for a private CA (replacing the
+  system pool), `LDAP_TLS_CERT_FILE`/`LDAP_TLS_KEY_FILE` for a client certificate.
+  Files are re-read at each reconnection, so a rotated certificate is picked up
+  without a restart. A failed handshake now says which TLS settings were in play.
+- **Secrets from files**: `SESSION_SECRET`, `LDAP_BIND_PASS`, `DATABASE_URL` and
+  `MAIL_PASSWORD` can each be read from the file named by the same variable with a
+  `_FILE` suffix (Docker and Kubernetes secrets). Setting both, or a file that is
+  missing or empty, stops the server.
+
 ### Changed
 
 - **Bundled directory: OpenLDAP 2.6**, built from `ldap/` with the ppolicy overlay
@@ -293,6 +308,15 @@ authenticate. The admin page now says what it knows, and
   (`cfe2905`).
 
 ### Fixed
+
+- **StartTLS with certificate verification never connected**: go-ldap leaves the
+  TLS `ServerName` empty and Go refuses to verify without one, so `starttls` only
+  ever worked with `LDAP_TLS_SKIP_VERIFY`. The name now comes from `LDAP_URL`.
+
+- **A user's sign-in had no LDAP timeout**: the connection a password is checked
+  on carried its own copy of the dial code, without the dial timeout or the
+  per-request deadline, so a directory that stopped answering hung the login
+  request for good. Both connections now go through one dial.
 
 - **A failed lookup on a netgroup page rendered as a spinner that never
   stopped.** The expansion views had two states, data and skeleton, and read only

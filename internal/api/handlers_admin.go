@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ldapwarden/ldapwarden/internal/audit"
+	"github.com/ldapwarden/ldapwarden/internal/config"
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
@@ -74,6 +75,9 @@ type LDAPConfigResponse struct {
 	MinGID          ConfigValue `json:"minGid"`
 	TLSMode         ConfigValue `json:"tlsMode"`
 	TLSSkipVerify   ConfigValue `json:"tlsSkipVerify"`
+	TLSCAFile       ConfigValue `json:"tlsCaFile"`
+	TLSCertFile     ConfigValue `json:"tlsCertFile"`
+	TLSKeyFile      ConfigValue `json:"tlsKeyFile"`
 }
 
 type SessionConfigResponse struct {
@@ -102,7 +106,7 @@ type MailConfigResponse struct {
 
 type ConfigValue struct {
 	Value  interface{} `json:"value"`
-	Source string      `json:"source"` // "env" or "default"
+	Source string      `json:"source"` // "env", "file" (a secret read from <VAR>_FILE) or "default"
 	EnvVar string      `json:"envVar,omitempty"`
 }
 
@@ -130,6 +134,9 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			MinGID:          getConfigValue("LDAP_MIN_GID", cfg.LDAP.MinGID, 1000),
 			TLSMode:         getConfigValue("LDAP_TLS_MODE", cfg.LDAP.TLSMode, "none"),
 			TLSSkipVerify:   getConfigValue("LDAP_TLS_SKIP_VERIFY", cfg.LDAP.TLSSkipVerify, false),
+			TLSCAFile:       getConfigValue("LDAP_TLS_CA_FILE", cfg.LDAP.TLSCAFile, ""),
+			TLSCertFile:     getConfigValue("LDAP_TLS_CERT_FILE", cfg.LDAP.TLSCertFile, ""),
+			TLSKeyFile:      getConfigValue("LDAP_TLS_KEY_FILE", cfg.LDAP.TLSKeyFile, ""),
 		},
 		Session: SessionConfigResponse{
 			TTL: getConfigValue("SESSION_TTL", cfg.Session.TTL.String(), "24h0m0s"),
@@ -176,12 +183,21 @@ func getConfigValue(envVar string, currentValue interface{}, defaultValue interf
 	}
 }
 
-func getConfigValueMasked(envVar string, currentValue string, defaultValue string) ConfigValue {
-	envValue := os.Getenv(envVar)
-	source := "default"
-	if envValue != "" {
-		source = "env"
+// secretSource says where a secret came from, and names the variable that set
+// it: the _FILE one when the value was read from a file, so the admin page points
+// at the setting that actually supplied it.
+func secretSource(envVar string) (source, setBy string) {
+	if os.Getenv(envVar+config.SecretFileSuffix) != "" {
+		return "file", envVar + config.SecretFileSuffix
 	}
+	if os.Getenv(envVar) != "" {
+		return "env", envVar
+	}
+	return "default", envVar
+}
+
+func getConfigValueMasked(envVar string, currentValue string, defaultValue string) ConfigValue {
+	source, envVar := secretSource(envVar)
 
 	// Mask sensitive parts of connection strings
 	maskedValue := maskConnectionString(currentValue)
@@ -215,11 +231,7 @@ func maskConnectionString(connStr string) string {
 }
 
 func getConfigValueMaskedPassword(envVar string, currentValue string) ConfigValue {
-	envValue := os.Getenv(envVar)
-	source := "default"
-	if envValue != "" {
-		source = "env"
-	}
+	source, envVar := secretSource(envVar)
 
 	maskedValue := ""
 	if currentValue != "" {

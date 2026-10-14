@@ -71,7 +71,10 @@ func setupTestServerWith(t *testing.T, adjust func(*config.Config)) *testEnv {
 	// the compose file never runs.
 	setEnvIfUnset(t, "LDAP_DEFAULT_POLICY_DN", "cn=default,ou=policies,dc=example,dc=org")
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load configuration: %v", err)
+	}
 	if adjust != nil {
 		adjust(cfg)
 	}
