@@ -666,6 +666,9 @@ export const PolicyEnforcementSchema = z
   .catch('unknown')
 export type PolicyEnforcement = z.infer<typeof PolicyEnforcementSchema>
 
+// How much of the tree under the base an LDIF export covers.
+export type ExportScope = 'sub' | 'one' | 'base'
+
 // Outcome of POST /admin/policy-selftest.
 export const PolicySelfTestSchema = z.object({
   result: PolicyEnforcementSchema,
@@ -1372,6 +1375,14 @@ export const api = {
     // policy is enforced. Explicit action, never automatic.
     policySelfTest: () =>
       fetchApi('/admin/policy-selftest', { method: 'POST' }, PolicySelfTestSchema),
+
+    // URL of an LDIF export of the directory. A download link, like the audit
+    // CSV: the server streams it, and a whole directory never sits in JS memory.
+    exportUrl: (params: { base: string; scope: ExportScope; operational: boolean }) => {
+      const q = new URLSearchParams({ base: params.base, scope: params.scope })
+      if (params.operational) q.set('operational', 'true')
+      return `${API_BASE}/admin/export?${q.toString()}`
+    },
 
     scheduledTasks: {
       getConfig: (signal?: AbortSignal) =>

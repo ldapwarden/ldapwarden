@@ -77,6 +77,12 @@ func (c *Client) MissingBaseDNs() []BaseDN {
 	return missing
 }
 
+// EntryExists reports whether the directory holds an entry at dn. A failure to
+// ask is an error, not a "no".
+func (c *Client) EntryExists(dn string) (bool, error) {
+	return c.entryExists(dn)
+}
+
 // entryExists asks for the entry itself, base scope, so the question costs one
 // lookup and cannot be answered by something underneath it.
 func (c *Client) entryExists(dn string) (bool, error) {

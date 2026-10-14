@@ -86,6 +86,7 @@ parameters the list endpoints accept.
 - `GET /api/schema` - LDAP schema
 - `GET /api/audit-logs` - Audit logs (admin only), filterable by actor / resource / action / date range
 - `GET /api/audit-logs/export` - Audit logs as CSV, same filters
+- `GET /api/admin/export` - Subtree as LDIF, replayable with `ldapadd`; admin-only, audited
 - `GET /healthz` - Liveness (process only); replaced the old `/health`
 - `GET /readyz` - Readiness: pings Postgres (database and sessions) and LDAP; 503 when any is down
 
@@ -204,6 +205,11 @@ MVP implemented with:
   to rewrite them by hand. `RenameUser` and `DeleteUser` both do, best-effort,
   returning `warnings` for what they could not reach. Leaving one behind hands the
   groups and sudo grants to whoever gets that username next.
+- **An LDIF export of `*` is not a backup.** `pwdAccountLockedTime`, `pwdEndTime`
+  and `pwdPolicySubentry` are operational, so a restore from it unlocks every
+  account. `ExportLDIF` asks for them by name; the NO-USER-MODIFICATION ones
+  (`pwdChangedTime`, `pwdHistory`, `pwdFailureTime`) stay out, or `ldapadd` refuses
+  the file.
 - **go-ldap decides on TLS from the URL scheme**, not from the mode: `ssl` on an
   `ldap://` URL connected in clear, and StartTLS sends no `ServerName`, so Go cannot
   verify. `config.ValidateTLS` refuses the first; `ldap.TLSConfig` sets the second.

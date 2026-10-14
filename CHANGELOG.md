@@ -238,6 +238,11 @@ authenticate. The admin page now says what it knows, and
   every view is a shareable link (`67d5819`, `2d63f78`, `902c640`).
 - Bulk actions report every failure, not just the first (`182fa6d`).
 
+- **LDIF export** (`GET /api/admin/export`, the admin page's "Directory export"
+  card): a subtree streamed as LDIF that `ldapadd` can replay — parents before
+  children, binary values base64-encoded, and each account's lock, expiry and
+  policy (`pwdAccountLockedTime`, `pwdEndTime`, `pwdPolicySubentry`), which a dump of
+  `*` leaves out. Admin-only and audited as `directory.export`.
 - **`ldapwarden check-config`**: checks the configuration the server would start
   with — secret files, TLS files, cron specs, modules — and with `-connect` binds
   to the directory and checks the admin group, the default policy and the

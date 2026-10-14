@@ -226,6 +226,10 @@ func (s *Server) setupRoutes() chi.Router {
 				r.With(s.requirePermission(rbac.PermSettingsRead)).Get("/config", s.handleGetConfig)
 				// Writes a throwaway entry to the directory, hence settings:write.
 				r.With(s.requirePermission(rbac.PermSettingsWrite)).Post("/policy-selftest", s.handlePolicySelfTest)
+				// A full dump, password hashes included. settings:write rather than a
+				// permission of its own: permissions are fixed in a session at login,
+				// so a new one would 403 every admin until they signed in again.
+				r.With(s.requirePermission(rbac.PermSettingsWrite)).Get("/export", s.handleExportLDIF)
 
 				// Scheduled tasks management
 				r.Route("/scheduled-tasks", func(r chi.Router) {

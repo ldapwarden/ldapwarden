@@ -1664,6 +1664,39 @@ curl http://localhost:8000/api/admin/config \
 A secret read from a file reports `"source": "file"` and names the `_FILE`
 variable in `envVar`.
 
+### Export the Directory as LDIF
+
+```http
+GET /api/admin/export?base=ou=People,dc=example,dc=org&scope=sub
+```
+
+**Required permission:** `settings:write` — it hands over every password hash in
+the export. Recorded in the audit log as `directory.export` before anything is sent;
+with the audit log unavailable, the export is refused.
+
+**Query parameters:**
+- `base` - Entry to export from (default: `LDAP_BASE_DN`)
+- `scope` - `sub` (default), `one` or `base`
+- `operational` - `true` to add every operational attribute (`+`), for a restore
+  with `slapadd`; `ldapadd` refuses most of them
+
+Streams `text/plain` LDIF as an attachment. Entries come parents first, so
+`ldapadd` can replay the file; binary values are base64-encoded. Without
+`operational`, the account state ppolicy keeps in operational attributes is still
+included — `pwdPolicySubentry`, `pwdAccountLockedTime`, `pwdStartTime`, `pwdEndTime`,
+`pwdReset` — since a restore without it unlocks every locked account.
+
+A complete file ends with `# end of export: N entries`. If the directory fails part
+way through, the connection is aborted, so the download fails instead of leaving
+a truncated file that looks complete.
+
+**Errors:** `400` for a base that is not a DN or an unknown scope, `404` when the
+directory holds no entry at the base.
+
+```bash
+curl -b cookies.txt -OJ 'http://localhost:8000/api/admin/export?scope=sub'
+```
+
 ---
 
 ## Password Reset (Public)

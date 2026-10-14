@@ -278,6 +278,15 @@ Past lock timestamps and `shadowExpire` values are reported but left alone unles
 you pass `-include-past-locks` / `-include-shadow-expire`: those accounts work
 today, and migrating them would start refusing them.
 
+#### Directory export
+
+The admin page's **Directory export** card downloads a subtree as LDIF that
+`ldapadd` can replay: parents before children, binary values such as photos
+base64-encoded, and each account's lock, expiry and password policy included —
+those are operational attributes, which a dump of `*` silently drops, so a restore
+from one would unlock every locked account. The file holds every password hash in
+the export. It is admin-only and recorded in the audit log as `directory.export`.
+
 #### Checking the configuration
 
 `ldapwarden check-config` reads the same environment as the server and reports

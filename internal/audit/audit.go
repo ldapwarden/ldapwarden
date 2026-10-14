@@ -127,6 +127,9 @@ const (
 	ActionPolicySelfTest                 Action = "policy.selftest"
 	ActionAccountExpirationNotification  Action = "notification.account_expiration"
 	ActionPasswordExpirationNotification Action = "notification.password_expiration"
+	// ActionDirectoryExport is an LDIF download of the directory, or part of it.
+	// Not a change, but the one read that hands over every password hash.
+	ActionDirectoryExport Action = "directory.export"
 )
 
 type ResourceType string

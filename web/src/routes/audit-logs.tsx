@@ -36,6 +36,7 @@ const RESOURCE_TYPE_OPTIONS = [
   { value: 'pwdpolicy', label: 'Password policy' },
   { value: 'netgroup', label: 'Netgroup' },
   { value: 'schema', label: 'Schema' },
+  { value: 'directory', label: 'Directory' },
 ]
 
 const ACTION_OPTIONS = [
@@ -72,6 +73,9 @@ const ACTION_OPTIONS = [
   { value: 'pwdpolicy.update', label: 'pwdpolicy.update' },
   { value: 'pwdpolicy.delete', label: 'pwdpolicy.delete' },
   { value: 'schema.refresh', label: 'schema.refresh' },
+  { value: 'policy.selftest', label: 'policy.selftest' },
+  // An LDIF download: not a change, but it hands over every password hash.
+  { value: 'directory.export', label: 'directory.export' },
 ]
 
 // AuditSearch is the view state kept in the URL, so a filtered slice of the log

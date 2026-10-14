@@ -9,10 +9,12 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Callout } from '@/components/ui/callout'
-import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock, ShieldCheck, ShieldAlert, ShieldQuestion, Lock } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select } from '@/components/ui/select'
+import { Server, Database, Key, Clock, Mail, Building, Play, History, Users, KeyRound, CheckCircle, XCircle, Loader2, CalendarClock, ShieldCheck, ShieldAlert, ShieldQuestion, Lock, Download } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useState, useId } from 'react'
-import type { PolicySelfTest, TriggerTaskResponse } from '@/lib/api'
+import type { ExportScope, PolicySelfTest, TriggerTaskResponse } from '@/lib/api'
 import { toast } from 'sonner'
 import { showOutcome } from '@/lib/outcome'
 import { taskCheckedLabel, taskLabel, taskNotifiedLabel } from '@/lib/scheduled-tasks'
@@ -287,6 +289,8 @@ function AdminPage() {
 
         <DirectoryEnforcementCard capabilities={config!.capabilities} />
 
+        <DirectoryExportCard defaultBase={String(config!.ldap.baseDn.value)} />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -536,6 +540,90 @@ function AdminPage() {
 // an unenforced directory happily reports accounts as locked or expired while
 // letting them authenticate. Nothing readable with an ordinary bind identity
 // distinguishes the two states, hence "unknown" and hence the self-test.
+const EXPORT_SCOPE_OPTIONS: { value: ExportScope; label: string }[] = [
+  { value: 'sub', label: 'The entry and everything under it' },
+  { value: 'one', label: 'The entries directly under it' },
+  { value: 'base', label: 'The entry alone' },
+]
+
+// LDIF download of the directory, for a backup before an operation that touches
+// many entries. A plain link: the server streams the file and records the export
+// in the audit log before sending anything.
+function DirectoryExportCard({ defaultBase }: { defaultBase: string }) {
+  const [base, setBase] = useState(defaultBase)
+  const [scope, setScope] = useState<ExportScope>('sub')
+  const [operational, setOperational] = useState(false)
+  const baseId = useId()
+  const scopeId = useId()
+  const operationalId = useId()
+  const trimmedBase = base.trim()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Download className="h-5 w-5" />
+          Directory export
+        </CardTitle>
+        <CardDescription>
+          Downloads entries as LDIF, ready to replay with <code>ldapadd</code>: parents before children, binary
+          values such as photos base64-encoded, and each account's lock, expiry and password policy kept.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor={baseId}>Base DN</Label>
+            <Input
+              id={baseId}
+              value={base}
+              onChange={(e) => setBase(e.target.value)}
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={scopeId}>Scope</Label>
+            <Select
+              id={scopeId}
+              value={scope}
+              onChange={(e) => setScope(e.target.value as ExportScope)}
+              options={EXPORT_SCOPE_OPTIONS}
+            />
+          </div>
+        </div>
+        <div className="flex items-start gap-2">
+          <Checkbox id={operationalId} checked={operational} onCheckedChange={setOperational} className="mt-0.5" />
+          <div className="space-y-0.5">
+            <Label htmlFor={operationalId}>Include every operational attribute</Label>
+            <p className="text-xs text-muted-foreground">
+              Timestamps, entryUUID, password history… For a restore with <code>slapadd</code>; <code>ldapadd</code>{' '}
+              refuses most of them.
+            </p>
+          </div>
+        </div>
+        <Callout variant="warning">
+          The file contains every password hash in the export. Store it like any other secret.
+        </Callout>
+        <div className="flex justify-end">
+          {trimmedBase ? (
+            <Button asChild>
+              <a href={api.admin.exportUrl({ base: trimmedBase, scope, operational })} download>
+                <Download className="h-4 w-4 mr-1" />
+                Download LDIF
+              </a>
+            </Button>
+          ) : (
+            <Button disabled>
+              <Download className="h-4 w-4 mr-1" />
+              Download LDIF
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function DirectoryEnforcementCard({
   capabilities,
 }: {
