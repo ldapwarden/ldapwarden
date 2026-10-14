@@ -124,3 +124,49 @@ jobs:
 
       - name: Typecheck and build
         run: cd web && pnpm build
+
+  # What each role sees in a browser, against the binary serving the real build:
+  # the UI has to agree with what the API lets that session do. Integration tests
+  # cover the API's refusals; this covers the UI hiding something allowed, or
+  # offering something refused (web/e2e/rbac.spec.ts).
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: latest
+          run_install: false
+
+      - name: Install dependencies
+        run: cd web && pnpm install --frozen-lockfile
+
+      - name: Install the browser
+        run: cd web && pnpm exec playwright install --with-deps chromium
+
+      - name: Run the RBAC matrix
+        run: make test-e2e
+
+      - name: Upload the report on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7

@@ -81,13 +81,31 @@ make test-integration  # against the docker compose services
 
 ### Frontend
 
-There is no unit-test suite yet; the checks that gate a PR are the type-check,
-the linter and a production build — the same three CI runs.
+The checks that gate a PR are the linter, the unit tests, the type-check and a
+production build — the same CI runs.
 
 ```bash
 cd web
 pnpm lint
+pnpm test    # vitest
 pnpm build   # tsc -b && vite build
+```
+
+### End to end
+
+`make test-e2e` builds the frontend and the binary, starts two servers against
+the compose services — every module, and users and groups only — and checks in
+a browser, for the admin and the read-only seed accounts, that the UI offers
+exactly what the API lets that session do: the sections in the nav and the
+command palette, the create, import and selection controls, read-only detail
+pages, and a redirect for any page the session cannot use. The expectations are
+asked of the API rather than written in the test, so a permission change in
+`internal/rbac` needs no edit there. It only reads; the write probes send a body
+the server rejects before acting on it.
+
+```bash
+cd web && pnpm exec playwright install chromium   # once
+make test-e2e
 ```
 
 ## Cutting a Release

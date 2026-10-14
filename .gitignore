@@ -53,6 +53,11 @@ tmp/
 temp/
 *.tmp
 
+# Playwright: per-role sessions, results, reports
+web/e2e/.auth/
+web/test-results/
+web/playwright-report/
+
 # TypeScript incremental build cache
 *.tsbuildinfo
 

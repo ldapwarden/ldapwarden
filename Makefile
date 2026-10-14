@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend infra test test-web version-stamp-check test-integration clean lint lint-go lint-frontend
+.PHONY: dev dev-backend dev-frontend infra test test-web test-e2e version-stamp-check test-integration clean lint lint-go lint-frontend
 
 # Start all infrastructure
 infra:
@@ -56,6 +56,15 @@ test-integration:
 	@docker compose up -d --wait postgres openldap
 	LDAPWARDEN_TEST_INTEGRATION=1 go test -tags integration -race -count=1 -v ./...
 
+# What each role sees, in a browser, against the real binary and build: the UI
+# must agree with what the API lets that session do (web/e2e/rbac.spec.ts).
+# Starts its own servers on 8810/8811 against the compose services; reads only.
+test-e2e:
+	@docker compose up -d --wait postgres openldap
+	cd web && pnpm build
+	go build -o tmp/ldapwarden-e2e ./cmd/server
+	cd web && pnpm test:e2e
+
 # Clean build artifacts
 clean:
 	rm -rf web/dist
@@ -75,4 +84,5 @@ help:
 	@echo "  lint-frontend  - Run ESLint on frontend"
 	@echo "  test           - Run tests"
 	@echo "  test-integration - Run integration tests against docker-compose services"
+	@echo "  test-e2e       - Run the browser RBAC matrix against docker-compose services"
 	@echo "  clean          - Clean build artifacts and volumes"

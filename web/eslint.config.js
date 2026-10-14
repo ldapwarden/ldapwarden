@@ -30,5 +30,13 @@ export default tseslint.config(
     rules: {
       "react-refresh/only-export-components": "off",
     },
+  },
+  {
+    // Playwright fixtures hand their value over through a function named `use`,
+    // which the hooks rule takes for React's.
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
   }
 );

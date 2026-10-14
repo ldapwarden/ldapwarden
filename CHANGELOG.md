@@ -269,6 +269,13 @@ authenticate. The admin page now says what it knows, and
   `_FILE` suffix (Docker and Kubernetes secrets). Setting both, or a file that is
   missing or empty, stops the server.
 
+- **Browser RBAC matrix** (`make test-e2e`, and a CI job): for the admin and the
+  read-only seed accounts, on a deployment with every module and one with users
+  and groups only, checks that the UI offers exactly what the API lets that
+  session do — nav, command palette, create/import/selection controls, read-only
+  detail pages, redirects — and that no page makes an API call that fails. The
+  expectations are asked of the API, not written in the test.
+
 ### Changed
 
 - **A disabled module's pages redirect.** `LDAPWARDEN_MODULES` used to hide a

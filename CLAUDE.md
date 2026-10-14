@@ -32,6 +32,7 @@ cd web && pnpm dev            # Frontend (port 5173)
 go run ./cmd/server check-config -connect   # Validate the environment the server would start with
 make test-web                 # Frontend unit tests (vitest)
 make test-integration         # Run integration tests against compose services
+make test-e2e                 # Browser RBAC matrix: the UI offers exactly what the API allows
 ```
 
 ## Project Structure
@@ -249,6 +250,9 @@ MVP implemented with:
   module, directory capability and the permission the list endpoint requires. The
   nav bar, the mobile menu and the command palette all read it; never gate a link
   to a section anywhere else. The admin page is `useIsAdmin()`, the route's own test.
+  The routes enforce the same: each section route's `beforeLoad` calls
+  `requireModule()` and checks that permission, and `make test-e2e` fails when the
+  UI offers something the API refuses, or hides something it allows.
 - A detail form ends in `<FormActions>`: Save is disabled until the form is dirty
   (the value `useSyncedForm` already returns for the unsaved-changes guard), and
   Discard puts the stored values back. An action that cannot be walked back —
