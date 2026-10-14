@@ -472,9 +472,11 @@ dev mode too.
 |----------|-------------|---------|
 | `LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION` | Cron schedule for account expiration checks | `42 3 * * *` |
 | `LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION` | Cron schedule for password expiration checks | `42 3 * * *` |
+| `LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP` | Cron schedule for purging expired password-reset tokens and sessions | `17 * * * *` |
 | `LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN` | Cron schedule for the lockout scan. Must be more frequent than the shortest `pwdLockoutDuration`, or lockouts start and expire between two runs | `*/5 * * * *` |
 
-Set a variable to an empty string to disable that task.
+Set a variable to an empty string to disable that task; leaving it out keeps the
+default.
 
 #### How Background Tasks Work
 

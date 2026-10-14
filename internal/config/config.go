@@ -203,10 +203,10 @@ func Load() (*Config, error) {
 			SSL:      getEnv("MAIL_SSL", "none"),
 		},
 		ScheduledTasks: ScheduledTasksConfig{
-			UsersExpiration:     getEnv("LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION", "42 3 * * *"),
-			PasswordsExpiration: getEnv("LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION", "42 3 * * *"),
-			TokensCleanup:       getEnv("LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP", "17 * * * *"),
-			LockoutScan:         getEnv("LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN", "*/5 * * * *"),
+			UsersExpiration:     getEnvSchedule("LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION", "42 3 * * *"),
+			PasswordsExpiration: getEnvSchedule("LDAPWARDEN_SCHEDULED_TASKS_PASSWORDS_EXPIRATION", "42 3 * * *"),
+			TokensCleanup:       getEnvSchedule("LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP", "17 * * * *"),
+			LockoutScan:         getEnvSchedule("LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN", "*/5 * * * *"),
 		},
 	}
 	return cfg, errors.Join(l.errs...)
@@ -366,6 +366,17 @@ func ValidateTLS(c LDAPConfig) error {
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+// getEnvSchedule reads a cron spec, where an empty value is meaningful: it
+// disables the task. getEnv reads empty as unset and returns the default, so
+// `LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN=""` — the documented way to turn a
+// task off — used to leave it running on its default schedule.
+func getEnvSchedule(key, defaultValue string) string {
+	if value, set := os.LookupEnv(key); set {
+		return strings.TrimSpace(value)
 	}
 	return defaultValue
 }

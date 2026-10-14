@@ -309,3 +309,29 @@ func TestValidateTLS(t *testing.T) {
 		})
 	}
 }
+
+// TestScheduleEmptyDisablesTask pins the documented way to turn a task off. An
+// empty value used to be read as unset, so the task kept its default schedule.
+func TestScheduleEmptyDisablesTask(t *testing.T) {
+	t.Setenv("LDAPWARDEN_SCHEDULED_TASKS_LOCKOUT_SCAN", "")
+	t.Setenv("LDAPWARDEN_SCHEDULED_TASKS_TOKENS_CLEANUP", "0 * * * *")
+	// Set first so the test restores whatever was there, then unset.
+	t.Setenv("LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION", "x")
+	if err := os.Unsetenv("LDAPWARDEN_SCHEDULED_TASKS_USERS_EXPIRATION"); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ScheduledTasks.LockoutScan != "" {
+		t.Errorf("empty lockout scan = %q, want disabled", cfg.ScheduledTasks.LockoutScan)
+	}
+	if cfg.ScheduledTasks.TokensCleanup != "0 * * * *" {
+		t.Errorf("tokens cleanup = %q, want the configured spec", cfg.ScheduledTasks.TokensCleanup)
+	}
+	if cfg.ScheduledTasks.UsersExpiration != "42 3 * * *" {
+		t.Errorf("unset users expiration = %q, want the default", cfg.ScheduledTasks.UsersExpiration)
+	}
+}

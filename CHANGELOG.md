@@ -345,6 +345,11 @@ authenticate. The admin page now says what it knows, and
 
 ### Fixed
 
+- **A scheduled task could not be turned off.** Setting its
+  `LDAPWARDEN_SCHEDULED_TASKS_*` variable to an empty string — the documented way
+  — was read as "unset", so the task kept running on its default schedule. An
+  empty value now disables the task; an absent one still means the default.
+
 - **Requests failed at random after hanging for the whole LDAP timeout** (20s by
   default), whenever two arrived together — which any page loading more than one
   thing does. The shared directory connection was re-bound on every request as a
