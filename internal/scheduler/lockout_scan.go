@@ -241,14 +241,25 @@ func (s *Scheduler) lockoutRecipients() ([]string, error) {
 }
 
 // lockoutCadenceWarning reports a schedule that cannot see what it is looking
-// for. A lockout is visible for pwdLockoutDuration; scan less often than that and
-// lockouts pass unnoticed between two runs.
+// for. See LockoutCadenceWarning.
 func (s *Scheduler) lockoutCadenceWarning() (string, bool) {
-	spec := s.config.ScheduledTasks.LockoutScan
+	return LockoutCadenceWarning(s.config.ScheduledTasks.LockoutScan, s.ldapClient)
+}
+
+// LockoutDurations is the one question the cadence check asks the directory.
+type LockoutDurations interface {
+	MinLockoutDuration() (time.Duration, bool)
+}
+
+// LockoutCadenceWarning reports a lockout-scan schedule slower than the shortest
+// pwdLockoutDuration. A lockout is visible for that long; scan less often and
+// lockouts pass unnoticed between two runs. Shared by the task, which reports it
+// on every run, and by check-config, which reports it before the first.
+func LockoutCadenceWarning(spec string, directory LockoutDurations) (string, bool) {
 	if spec == "" {
 		return "", false
 	}
-	shortest, ok := s.ldapClient.MinLockoutDuration()
+	shortest, ok := directory.MinLockoutDuration()
 	if !ok {
 		// No policy lifts a lockout on its own, so every lockout stays visible and
 		// any cadence catches it.

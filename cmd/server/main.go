@@ -30,11 +30,17 @@ import (
 func main() {
 	// One-shot maintenance commands live behind a subcommand so the default
 	// invocation stays "start the server".
-	if len(os.Args) > 1 && os.Args[1] == "migrate-account-expiry" {
-		if err := runExpiryMigration(os.Args[2:]); err != nil {
-			log.Fatal(err)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "migrate-account-expiry":
+			if err := runExpiryMigration(os.Args[2:]); err != nil {
+				log.Fatal(err)
+			}
+			return
+		case "check-config":
+			exitCheckConfig(os.Args[2:])
+			return
 		}
-		return
 	}
 
 	if err := run(); err != nil {

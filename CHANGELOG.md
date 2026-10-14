@@ -101,7 +101,8 @@ compose file no longer has a `redis` service; its old volume is left in place
 `LDAP_TLS_MODE=ssl` needs an `ldaps://` URL: on `ldap://` it used to connect in
 clear, because go-ldap only encrypts the `ldaps` scheme. `starttls` needs an
 `ldap://` URL. A CA file or client certificate set on an unencrypted connection,
-or `LDAP_TLS_SKIP_VERIFY` together with `LDAP_TLS_CA_FILE`, is refused too.
+or `LDAP_TLS_SKIP_VERIFY` together with `LDAP_TLS_CA_FILE`, is refused too. Run
+`ldapwarden check-config` before upgrading to see whether any of this applies.
 
 **Prerequisite, unchanged but easy to miss:** ppolicy enforces neither locking nor
 expiry unless a policy applies to the entry (`olcPPolicyDefault` on the overlay,
@@ -237,6 +238,10 @@ authenticate. The admin page now says what it knows, and
   every view is a shareable link (`67d5819`, `2d63f78`, `902c640`).
 - Bulk actions report every failure, not just the first (`182fa6d`).
 
+- **`ldapwarden check-config`**: checks the configuration the server would start
+  with — secret files, TLS files, cron specs, modules — and with `-connect` binds
+  to the directory and checks the admin group, the default policy and the
+  base entries. Exits 1 on any error; `-json` for pipelines.
 - **TLS to the directory**: `LDAP_TLS_CA_FILE` for a private CA (replacing the
   system pool), `LDAP_TLS_CERT_FILE`/`LDAP_TLS_KEY_FILE` for a client certificate.
   Files are re-read at each reconnection, so a rotated certificate is picked up

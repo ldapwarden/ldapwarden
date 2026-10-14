@@ -278,6 +278,20 @@ Past lock timestamps and `shadowExpire` values are reported but left alone unles
 you pass `-include-past-locks` / `-include-shadow-expire`: those accounts work
 today, and migrating them would start refusing them.
 
+#### Checking the configuration
+
+`ldapwarden check-config` reads the same environment as the server and reports
+what the server would only discover later: a secret file it cannot read, TLS
+settings that contradict each other, a cron spec that does not parse (the
+scheduler stops at the first one, silently disabling the rest), an unknown module.
+With `-connect` it also binds to the directory and checks the admin group, the
+default password policy and the base entries. It exits 1 on any
+error, and `-json` makes it usable in a pipeline:
+
+```bash
+docker run --rm --env-file .env ldapwarden check-config -connect
+```
+
 #### Module Configuration
 
 LDAP Warden allows you to customize which features are visible based on your LDAP setup:
