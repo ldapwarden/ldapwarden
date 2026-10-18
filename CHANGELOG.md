@@ -345,6 +345,15 @@ authenticate. The admin page now says what it knows, and
 
 ### Fixed
 
+- **Pages stayed blank for 30 seconds after the directory connection went
+  silent** — dropped without a reset, as after a laptop's sleep or a firewall's
+  idle timeout. A request that timed out left the connection in use, so every
+  later one waited out the LDAP timeout on it in turn, until the browser gave
+  up. A connection whose request times out is now discarded and the next request
+  dials a new one. The HTTP write timeout now outlasts the LDAP timeout, so such
+  a failure reaches the browser as an error rather than a dropped connection,
+  and a page waiting on its route guards shows a spinner instead of nothing.
+
 - **A scheduled task could not be turned off.** Setting its
   `LDAPWARDEN_SCHEDULED_TASKS_*` variable to an empty string — the documented way
   — was read as "unset", so the task kept running on its default schedule. An

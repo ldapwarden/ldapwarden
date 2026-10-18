@@ -20,7 +20,7 @@ const defaultLDAPTimeout = 20 * time.Second
 type Client struct {
 	config config.LDAPConfig
 	mu     sync.Mutex
-	conn   *ldap.Conn
+	conn   *sharedConn
 
 	// Capability probe result. The subschema does not change while slapd runs,
 	// short of an administrator loading a module, so it is cached until
@@ -101,7 +101,7 @@ func NewClient(cfg config.LDAPConfig) *Client {
 	}
 }
 
-func (c *Client) connect() (*ldap.Conn, error) {
+func (c *Client) connect() (*sharedConn, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -113,8 +113,9 @@ func (c *Client) connect() (*ldap.Conn, error) {
 	// its caller waited out the whole timeout for a reply that never came.
 	//
 	// go-ldap marks the connection closing as soon as the socket fails, which is
-	// what a restarted server looks like; one silently dropped by a firewall is
-	// caught by the dialer's TCP keepalive, which fails the socket in turn.
+	// what a restarted server looks like. One that stops answering without
+	// failing — dropped by a firewall, or by the network under a laptop that
+	// slept — is discarded by sharedConn when a request on it times out.
 	if c.conn != nil {
 		if !c.conn.IsClosing() {
 			return c.conn, nil
@@ -133,8 +134,79 @@ func (c *Client) connect() (*ldap.Conn, error) {
 		return nil, fmt.Errorf("bind to LDAP server: %w", err)
 	}
 
-	c.conn = conn
-	return conn, nil
+	c.conn = &sharedConn{Conn: conn, client: c}
+	return c.conn, nil
+}
+
+// sharedConn is the service connection as connect hands it out: an *ldap.Conn
+// whose operations drop it from the client when they fail at the network level.
+//
+// A request that times out does not close a go-ldap connection; it only answers
+// that one caller. So a socket that stopped answering without failing — no RST,
+// as after a firewall's idle drop or a laptop's sleep — stayed open in go-ldap's
+// eyes, and connect kept handing it out: every request waited out the whole
+// timeout, for minutes, until TCP's retransmissions finally gave up. TCP
+// keepalive does not help there, as it only probes an idle socket.
+//
+// Discarding on a timeout also aborts whatever else is in flight on the
+// connection. On a healthy one that only happens when the server overruns the
+// time limit every search carries, which is no longer a healthy server.
+type sharedConn struct {
+	*ldap.Conn
+	client *Client
+}
+
+func (s *sharedConn) Search(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
+	result, err := s.Conn.Search(req)
+	s.check(err)
+	return result, err
+}
+
+func (s *sharedConn) Add(req *ldap.AddRequest) error {
+	err := s.Conn.Add(req)
+	s.check(err)
+	return err
+}
+
+func (s *sharedConn) Modify(req *ldap.ModifyRequest) error {
+	err := s.Conn.Modify(req)
+	s.check(err)
+	return err
+}
+
+func (s *sharedConn) ModifyDN(req *ldap.ModifyDNRequest) error {
+	err := s.Conn.ModifyDN(req)
+	s.check(err)
+	return err
+}
+
+func (s *sharedConn) Del(req *ldap.DelRequest) error {
+	err := s.Conn.Del(req)
+	s.check(err)
+	return err
+}
+
+func (s *sharedConn) PasswordModify(req *ldap.PasswordModifyRequest) (*ldap.PasswordModifyResult, error) {
+	result, err := s.Conn.PasswordModify(req)
+	s.check(err)
+	return result, err
+}
+
+// check discards the connection when err says it no longer answers, so the
+// next request dials a new one.
+func (s *sharedConn) check(err error) {
+	if err == nil || !ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		return
+	}
+	c := s.client
+	c.mu.Lock()
+	if c.conn == s {
+		c.conn = nil
+	}
+	c.mu.Unlock()
+	// Outside the lock: Close waits, up to the timeout, for go-ldap to send its
+	// unbind, and nothing else should queue behind that.
+	_ = s.Close()
 }
 
 // searchTimeLimitSeconds is the server-side time limit for a search, expressed in

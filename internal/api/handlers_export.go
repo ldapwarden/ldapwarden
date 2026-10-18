@@ -14,7 +14,7 @@ import (
 	"github.com/ldapwarden/ldapwarden/internal/ldap"
 )
 
-// exportWriteTimeout replaces the server's 15s write timeout for an export, which
+// exportWriteTimeout replaces the server's write timeout for an export, which
 // streams for as long as the directory takes to page through. Still bounded, so a
 // client that stops reading does not hold the LDAP connection for ever.
 const exportWriteTimeout = 30 * time.Minute

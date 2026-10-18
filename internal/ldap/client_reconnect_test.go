@@ -84,3 +84,60 @@ func TestConnectReplacesAClosedConnection(t *testing.T) {
 		t.Errorf("the closed connection was reused (connections accepted: %d)", accepted.Load())
 	}
 }
+
+// TestConnectReplacesAConnectionThatStoppedAnswering: a connection the network
+// dropped without a word — no RST, as after a laptop's sleep — stays open as far
+// as go-ldap knows, and a request on it only times out. That timeout has to
+// retire the connection, or every later request waits out the same timeout on
+// it.
+func TestConnectReplacesAConnectionThatStoppedAnswering(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	var accepted atomic.Int32
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			go func() {
+				defer func() { _ = conn.Close() }()
+				if answerBind(conn) != nil {
+					return
+				}
+				// Reads every request after the bind and answers none, without
+				// ever closing: a peer that has silently gone away.
+				buf := make([]byte, 1024)
+				for {
+					if _, err := conn.Read(buf); err != nil {
+						return
+					}
+				}
+			}()
+		}
+	}()
+
+	client := NewClient(config.LDAPConfig{URL: "ldap://" + ln.Addr().String(), BindDN: "cn=admin", BindPass: "x", Timeout: 300 * time.Millisecond})
+	t.Cleanup(client.Close)
+
+	first, err := client.connect()
+	if err != nil {
+		t.Fatalf("first connect: %v", err)
+	}
+	if _, err := client.Search("dc=example,dc=org", "(objectClass=*)", nil); !ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		t.Fatalf("search on a silent connection: got %v, want a network timeout", err)
+	}
+
+	second, err := client.connect()
+	if err != nil {
+		t.Fatalf("connect after a timed-out request: %v", err)
+	}
+	if second == first || accepted.Load() != 2 {
+		t.Errorf("the silent connection was reused (connections accepted: %d)", accepted.Load())
+	}
+}

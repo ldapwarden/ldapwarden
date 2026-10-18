@@ -34,6 +34,10 @@ const router = createRouter({
   },
   defaultPreload: false,
   defaultNotFoundComponent: NotFound,
+  // Shown while a route's beforeLoad is still waiting — on a reload, the guards
+  // wait for /server-info. Without it the router renders nothing at all, and a
+  // slow answer looked like a blank, broken page.
+  defaultPendingComponent: () => <LoadingScreen />,
 })
 
 declare module '@tanstack/react-router' {

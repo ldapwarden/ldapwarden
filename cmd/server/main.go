@@ -125,7 +125,7 @@ func run() error {
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		Handler:      server,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: writeTimeout(cfg.LDAP.Timeout),
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -179,4 +179,17 @@ func runMigrations(databaseURL string) error {
 	}
 
 	return nil
+}
+
+// writeTimeout is how long a handler has to write its response. It has to
+// outlast an LDAP operation that times out: at a flat 15s against the 20s LDAP
+// default, a handler waiting on a directory that had stopped answering could no
+// longer write the error it ended with, and the browser got a dropped connection
+// instead of a message.
+func writeTimeout(ldapTimeout time.Duration) time.Duration {
+	if ldapTimeout <= 0 {
+		// What the LDAP client falls back to when given none.
+		ldapTimeout = 20 * time.Second
+	}
+	return max(15*time.Second, ldapTimeout+5*time.Second)
 }
