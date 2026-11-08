@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import path from 'path'
 
 export default defineConfig({
   plugins: [
-    TanStackRouterVite(),
+    // autoCodeSplitting gives each route its own chunk, loaded on navigation:
+    // the sign-in page no longer downloads every detail form and the admin
+    // page. The router renders defaultPendingComponent while a chunk loads.
+    // Must come before react().
+    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
   ],
   resolve: {
