@@ -120,19 +120,19 @@ web/                # React app
 
 ## Data Model
 
-### Core Tables
-- `ldap_connections` - Backend server configs (URL, bind DN, TLS settings)
-- `users` - Local app users (for non-LDAP auth scenarios, API keys)
+### Tables
 - `sessions` - Active sessions (the whole session as JSON, keyed by token hash)
-- `roles` / `permissions` - RBAC definitions
 - `audit_logs` - All operations with actor, action, target, timestamp
-- `schema_cache` - Parsed LDAP schema (JSON), refreshed on demand
-- `templates` - Attribute templates for object creation
+- `password_reset_tokens` - Pending password resets (hashed tokens)
+- `expiration_notifications` - Expiry notices already sent, so none goes twice
+- `lockout_events` - Lockouts recorded by the lockout scan, pending notification
+- `scheduled_task_runs` - Run history of the scheduled tasks
 
 ### Key Constraints
 - No directory data stored here
 - Audit logs are append-only (no UPDATE/DELETE)
-- Foreign keys to ldap_connections for multi-backend support
+- The LDAP server is configured from the environment, not stored here
+- Roles are derived at login from LDAP group membership, not stored here
 
 
 ## Schema Management
