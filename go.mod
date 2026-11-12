@@ -10,7 +10,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/vanng822/go-premailer v1.38.0
 )
