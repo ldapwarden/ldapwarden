@@ -26,7 +26,7 @@ export default defineConfig({
     ...SERVERS.flatMap((server) =>
       ACCOUNTS.map((account) => ({
         name: `${server.name}-${account.role}`,
-        testMatch: /\.spec\.ts/,
+        testMatch: /rbac\.spec\.ts/,
         dependencies: ['sign-in'],
         use: {
           baseURL: server.baseURL,
@@ -35,6 +35,8 @@ export default defineConfig({
         metadata: { server: server.name, role: account.role },
       })),
     ),
+    // No session and no matrix: what a visitor who is not signed in can reach.
+    { name: 'public', testMatch: /public\.spec\.ts/, use: { baseURL: SERVERS[0].baseURL } },
   ],
   webServer: SERVERS.map((server) => ({
     // Built by `make test-e2e`; run from the repository root, where the binary

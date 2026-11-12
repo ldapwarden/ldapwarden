@@ -55,8 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setOnAuthError(() => {
       // Only an expiry if there was a live session to lose: a 401 on the
-      // initial /me probe just means nobody is signed in.
-      if (hadSession.current) setSessionExpired(true)
+      // initial /me probe just means nobody is signed in. Then there is
+      // nothing to clear either — and clearing would do harm: it cancels
+      // every query in flight, including a public page's own. A stray
+      // authenticated call from the reset-password page cancelled the
+      // token check, and the page stayed blank.
+      if (!hadSession.current) return
+      setSessionExpired(true)
       hadSession.current = false
       setSession(null)
       queryClient.clear()

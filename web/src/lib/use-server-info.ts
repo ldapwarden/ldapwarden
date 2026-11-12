@@ -1,6 +1,7 @@
 import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query'
 import { redirect } from '@tanstack/react-router'
 import { api, type ServerInfo } from './api'
+import { useAuth } from './auth'
 import { DEFAULT_MODULES, netgroupsEnabled } from './netgroup'
 
 // The one query behind every read of server-info, from a component or a route.
@@ -60,7 +61,10 @@ export async function requireModule(queryClient: QueryClient, module: Module): P
  * a 403 there just left the answer undefined and everything defaulted to off.
  */
 export function useServerInfo(): ServerInfo | undefined {
-  const { data } = useQuery(serverInfoQuery)
+  // The endpoint needs a session, and the root layout reads this (through
+  // useSections) on the public pages too, where it could only answer 401.
+  const { isAuthenticated } = useAuth()
+  const { data } = useQuery({ ...serverInfoQuery, enabled: isAuthenticated })
   return data
 }
 
